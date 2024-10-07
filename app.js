@@ -26,9 +26,11 @@ app.use(helmet());
 app.use(cors());
 
 app.use('/api/v1/auth', authRouter);
+app.get('/', (req, res) => { res.send('<h3>DEPLOYED !</h3>') })
 
 app.use(notFoundMiddleware);
 app.use(errorHandlerMiddleware);
+
 
 const PORT = process.env.PORT || 3000
 const start = async () => {
