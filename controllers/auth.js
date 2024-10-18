@@ -7,6 +7,7 @@ const { StatusCodes } = require('http-status-codes')
 const { BadRequestError, UnauthenticatedError } = require('../errors');
 
 
+let emailTokenStore = {}
 const createStatuses = async () => {
     const existingStatuses = await Status.find({})
     if(existingStatuses.length === 0){
@@ -45,8 +46,9 @@ const requestOtp =  async (req, res) => {
 
     const userExists = await User.findOne({email})
     if(userExists){ return res.status(StatusCodes.BAD_REQUEST).json({success: false, message: "This Email Is Already Registered !"}) }
+    const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
     try {
-        await sendEmail(email, "verifyemail");
+        await sendEmail(email, "verifyemail", generatedOtp);
         res.status(StatusCodes.OK).json({success: true, message: 'OTP sent successfully!' });
     } catch (error) {
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false,  message: `Error sending OTP: ${error}` });
@@ -60,7 +62,8 @@ const sendResetPasswordOtp = async (req, res) => {
       if(model == "Employee"){ userDoc = await Employee.findById({ _id: req.user.userId }) }
       else{ userDoc = await User.findById({ _id: req.user.userId }) }
       
-      await sendEmail(userDoc.email, "resetpassword");
+      const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
+      await sendEmail(userDoc.email, "resetpassword", generatedOtp);
       res.status(StatusCodes.OK).json({
         success: true,
         message: "Password reset otp sent to your email successfully",
@@ -75,19 +78,48 @@ const sendResetPasswordOtpEmployee = async (req, res) => {
     const { email } = req.body
     try {
       const userDoc = await Employee.findOne({ email })
+      const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
+      emailTokenStore[generatedOtp] = email
 
-      await sendEmail(userDoc.email, "resetpassword");
-      const token = userDoc.createJWT()
+      await sendEmail(userDoc.email, "resetpassword", generatedOtp);
       res.status(StatusCodes.OK).json({
         success: true,
         message: "Password reset otp sent to your email successfully",
-        token
       });
     } 
     catch (error) {
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false,  message: `${error}` });
     }
 };
+
+const resetPasswordEmployee = async (req, res) => {
+    const {
+        body: { newpassword, otp }
+    } = req
+    const email = emailTokenStore[otp]
+
+    try {
+      const userObject = await Employee.findOne({ email })
+      const otpData = await Otp.findOne({ email: userObject.email, otp })
+
+      if (userObject && otpData) {
+        await Otp.deleteOne({email: userObject.email})
+        const salt = await bcrypt.genSalt(10)
+        const hashedPassword = await bcrypt.hash(newpassword, salt);
+        await Employee.findOneAndUpdate({ email: userObject.email }, { password: hashedPassword }, { new: true, runValidators: true });
+        delete emailTokenStore[otp]
+        res.status(StatusCodes.OK).json({ success: true, message: "Password reset successfull" });
+      } 
+      else {
+        res.json({ success: false, message: "Invalid Credentials" });
+      }
+    } 
+    catch (error) {
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(error);
+    }
+};
+
+
 
 const getModelById = async (userId) => {
     const userObject = await User.findOne({ _id: userId })
@@ -187,7 +219,7 @@ const login = async (req, res, next) => {
         if (!isPasswordCorrect) {
             throw new UnauthenticatedError('Invalid Credentials')
         }
-        console.log("Password Correct")
+
         const token = user.createJWT()
         res.status(StatusCodes.OK).json({ success: true, user: { name: user.fullname }, token })
     }
@@ -283,6 +315,7 @@ module.exports = {
     sendResetPasswordOtp,
     sendResetPasswordOtpEmployee,
     resetPassword,
+    resetPasswordEmployee,
     loginEmployee,
     registerEmployee,
     createStatuses,

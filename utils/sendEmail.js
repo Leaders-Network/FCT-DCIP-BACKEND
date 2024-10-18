@@ -2,7 +2,7 @@ require('dotenv').config();
 const nodemailer = require("nodemailer");
 const Otp = require("../models/OTP");
 
-module.exports = async (email, mailType) => {
+module.exports = async (email, mailType, generatedOtp) => {
   try {
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -14,8 +14,6 @@ module.exports = async (email, mailType) => {
         pass: process.env.EMAIL_PASSWORD,
       },
     });
-
-    const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
 
     let emailContent, mailOptions;
 
