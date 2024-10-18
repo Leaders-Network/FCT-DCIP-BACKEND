@@ -5,7 +5,6 @@ const sendEmail = require("../utils/sendEmail");
 const bcrypt = require('bcryptjs')
 const { StatusCodes } = require('http-status-codes')
 const { BadRequestError, UnauthenticatedError } = require('../errors');
-const { default: mongoose } = require('mongoose');
 
 
 const createStatuses = async () => {
@@ -72,6 +71,24 @@ const sendResetPasswordOtp = async (req, res) => {
     }
 };
 
+const sendResetPasswordOtpEmployee = async (req, res) => {
+    const { email } = req.body
+    try {
+      const userDoc = await Employee.findOne({ email })
+
+      await sendEmail(userDoc.email, "resetpassword");
+      const token = userDoc.createJWT()
+      res.status(StatusCodes.OK).json({
+        success: true,
+        message: "Password reset otp sent to your email successfully",
+        token
+      });
+    } 
+    catch (error) {
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false,  message: `${error}` });
+    }
+};
+
 const getModelById = async (userId) => {
     const userObject = await User.findOne({ _id: userId })
     if(userObject){ return { model: User, userObject } }
@@ -81,32 +98,6 @@ const getModelById = async (userId) => {
 
     return null
 }
-
-// const resetPassword = async (req, res) => {
-//     const {
-//         user: { userId },
-//         body: { newpassword, otp }
-//     } = req
-
-//     try {
-//       const userDoc = await User.findOne({_id: userId})
-//       const otpData = await Otp.findOne({ email: userDoc.email, otp });
-
-//       if (userDoc && otpData) {
-//         await Otp.deleteOne({email: userDoc.email})
-//         const salt = await bcrypt.genSalt(10)
-//         const hashedPassword = await bcrypt.hash(newpassword, salt);
-//         await User.findByIdAndUpdate({ _id: userId }, { password: hashedPassword }, { new: true, runValidators: true });
-//         res.status(StatusCodes.OK).json({ success: true, message: "Password reset successfull" });
-//       } 
-//       else {
-//         res.json({ success: false, message: "Invalid Credentials" });
-//       }
-//     } 
-//     catch (error) {
-//       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(error);
-//     }
-// };
 
 const resetPassword = async (req, res) => {
     const {
@@ -152,6 +143,9 @@ const verifyOtp = async(req, res) => {
     }
 };
 
+
+
+
 const register = async (req, res) => {
     const confirmPassword = req.body['confirm password'] || req.body['confirmPassword'] || req.body['confirmpassword']
     const { email } = req.body;
@@ -178,7 +172,7 @@ const register = async (req, res) => {
     }
 };
 
-const login = async (req, res) => {
+const login = async (req, res, next) => {
     const { email, password } = req.body
   
     try{
@@ -198,11 +192,11 @@ const login = async (req, res) => {
         res.status(StatusCodes.OK).json({ success: true, user: { name: user.fullname }, token })
     }
     catch(error){
-        res.status(error.error.statusCode).json({error});
+        next(error)
     }
 };
 
-const loginEmployee = async (req, res) => {
+const loginEmployee = async (req, res, next) => {
     const { email, password } = req.body
   
     try{
@@ -221,7 +215,7 @@ const loginEmployee = async (req, res) => {
         res.status(StatusCodes.OK).json({ success: true, employee: { name: `${employee.firstname} ${employee.lastname}` }, token })
     }
     catch(error){
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error});
+        next(error)
     }
 };
 
@@ -287,6 +281,7 @@ module.exports = {
     register,
     login,
     sendResetPasswordOtp,
+    sendResetPasswordOtpEmployee,
     resetPassword,
     loginEmployee,
     registerEmployee,
