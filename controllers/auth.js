@@ -7,7 +7,8 @@ const { StatusCodes } = require('http-status-codes')
 const { BadRequestError, UnauthenticatedError } = require('../errors');
 
 
-let emailTokenStore = {}
+let emailTokenStoreEmployee = {}
+let emailTokenStoreUser = {}
 const createStatuses = async () => {
     const existingStatuses = await Status.find({})
     if(existingStatuses.length === 0){
@@ -43,10 +44,12 @@ const createFirstSuperAdmin = async () => {
 
 const requestOtp =  async (req, res) => {
     const { email } = req.body;
+    
 
     const userExists = await User.findOne({email})
     if(userExists){ return res.status(StatusCodes.BAD_REQUEST).json({success: false, message: "This Email Is Already Registered !"}) }
     const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
+    emailTokenStoreUser[generatedOtp] = email
     try {
         await sendEmail(email, "verifyemail", generatedOtp);
         res.status(StatusCodes.OK).json({success: true, message: 'OTP sent successfully!' });
@@ -55,116 +58,15 @@ const requestOtp =  async (req, res) => {
     }
 };
 
-const sendResetPasswordOtp = async (req, res) => {
-    try {
-      let userDoc = null
-      const {model} = req.user
-      if(model == "Employee"){ userDoc = await Employee.findById({ _id: req.user.userId }) }
-      else{ userDoc = await User.findById({ _id: req.user.userId }) }
-      
-      const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
-      await sendEmail(userDoc.email, "resetpassword", generatedOtp);
-      res.status(StatusCodes.OK).json({
-        success: true,
-        message: "Password reset otp sent to your email successfully",
-      });
-    } 
-    catch (error) {
-      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false,  message: `${error}` });
-    }
-};
-
-const sendResetPasswordOtpEmployee = async (req, res) => {
-    const { email } = req.body
-    try {
-      const userDoc = await Employee.findOne({ email })
-      const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
-      emailTokenStore[generatedOtp] = email
-
-      await sendEmail(userDoc.email, "resetpassword", generatedOtp);
-      res.status(StatusCodes.OK).json({
-        success: true,
-        message: "Password reset otp sent to your email successfully",
-      });
-    } 
-    catch (error) {
-      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false,  message: `${error}` });
-    }
-};
-
-const resetPasswordEmployee = async (req, res) => {
-    const {
-        body: { newpassword, otp }
-    } = req
-    const email = emailTokenStore[otp]
-
-    try {
-      const userObject = await Employee.findOne({ email })
-      const otpData = await Otp.findOne({ email: userObject.email, otp })
-
-      if (userObject && otpData) {
-        await Otp.deleteOne({email: userObject.email})
-        const salt = await bcrypt.genSalt(10)
-        const hashedPassword = await bcrypt.hash(newpassword, salt);
-        await Employee.findOneAndUpdate({ email: userObject.email }, { password: hashedPassword }, { new: true, runValidators: true });
-        delete emailTokenStore[otp]
-        res.status(StatusCodes.OK).json({ success: true, message: "Password reset successfull" });
-      } 
-      else {
-        res.json({ success: false, message: "Invalid Credentials" });
-      }
-    } 
-    catch (error) {
-      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(error);
-    }
-};
-
-
-
-const getModelById = async (userId) => {
-    const userObject = await User.findOne({ _id: userId })
-    if(userObject){ return { model: User, userObject } }
-
-    const employee = await Employee.findOne({ _id: userId })
-    if(employee){ return { model: Employee, userObject: employee } }
-
-    return null
-}
-
-const resetPassword = async (req, res) => {
-    const {
-        user: { userId },
-        body: { newpassword, otp }
-    } = req
-
-    try {
-      const { model, userObject } = await getModelById(userId)
-      const otpData = await Otp.findOne({ email: userObject.email, otp })
-
-      if (userObject && otpData) {
-        await Otp.deleteOne({email: userObject.email})
-        const salt = await bcrypt.genSalt(10)
-        const hashedPassword = await bcrypt.hash(newpassword, salt);
-        await model.findOneAndUpdate({ _id: userId, email: userObject.email }, { password: hashedPassword }, { new: true, runValidators: true });
-        res.status(StatusCodes.OK).json({ success: true, message: "Password reset successfull" });
-      } 
-      else {
-        res.json({ success: false, message: "Invalid Credentials" });
-      }
-    } 
-    catch (error) {
-      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(error);
-    }
-};
-
-
 const verifyOtp = async(req, res) => {
-    const { email, otp } = req.body;
+    const { otp } = req.body;
+    const email = emailTokenStoreUser[otp]
 
     try{
         const otpData = await Otp.findOne({ email, otp });
 
         if (otpData) {
+            await Otp.deleteOne({ email })
             res.status(StatusCodes.OK).json({success: true, message: 'OTP verified successfully!'});
         } else {
             res.status(StatusCodes.BAD_REQUEST).json({success: false,  message: 'Invalid Credentials'});
@@ -175,8 +77,96 @@ const verifyOtp = async(req, res) => {
     }
 };
 
+const sendResetPasswordOtpUser = async (req, res) => {
+    const { email } = req.body
 
+    try {
+      const userDoc = await User.findOne({ email })
+      const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
+      emailTokenStoreUser[generatedOtp] = email
 
+      await sendEmail(userDoc.email, "resetpassword", generatedOtp);
+      res.status(StatusCodes.OK).json({
+        success: true,
+        message: "Password reset otp sent to your email successfully",
+      });
+    } 
+    catch (error) {
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false,  message: `${error}` });
+    }
+
+    // try {
+    //   let userDoc = null
+    //   const {model} = req.user
+    //   if(model == "Employee"){ userDoc = await Employee.findById({ _id: req.user.userId }) }
+    //   else{ userDoc = await User.findById({ _id: req.user.userId }) }
+      
+    //   const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
+    //   await sendEmail(userDoc.email, "resetpassword", generatedOtp);
+    //   res.status(StatusCodes.OK).json({
+    //     success: true,
+    //     message: "Password reset otp sent to your email successfully",
+    //   });
+    // } 
+    // catch (error) {
+    //   res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false,  message: `${error}` });
+    // }
+};
+
+const verifyPasswordResetOtpUser = async (req, res) => {
+    const {
+        body: { otp }
+    } = req
+    const email = emailTokenStoreUser[otp]
+
+    try {
+      const userObject = await Employee.findOne({ email })
+      const otpData = await Otp.findOne({ email: userObject.email, otp })
+
+      if (userObject && otpData) {
+        await Otp.deleteOne({email: userObject.email})
+        return res.status(StatusCodes.OK).json({ success: true, message: "OTP Verified Successfully !" });
+      } 
+      else {
+        return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Invalid Credentials" });
+      }
+    } 
+    catch (error) {
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(error);
+    }
+};
+
+const resetPasswordUser = async (req, res) => {
+    const {
+        body: { newpassword }
+    } = req
+    const theKeys = Object.keys(emailTokenStoreUser)
+
+    if(theKeys.length > 0){
+        const email = emailTokenStoreUser[theKeys[0]]
+
+        try {
+          const userObject = await User.findOne({ email })
+    
+          if (userObject) {
+            const salt = await bcrypt.genSalt(10)
+            const hashedPassword = await bcrypt.hash(newpassword, salt);
+            await User.findOneAndUpdate({ email: userObject.email }, { password: hashedPassword }, { new: true, runValidators: true });
+            delete emailTokenStoreUser[theKeys[0]]
+            return res.status(StatusCodes.OK).json({ success: true, message: "Password reset successfull" });
+          } 
+          else {
+            return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Unable To Find User With Specified Email !" })
+          }
+        } 
+        catch (error) {
+            return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(error)
+        }
+    }
+    else{
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json("Something Went Wrong, Please Try Again !");
+    }
+};
 
 const register = async (req, res) => {
     const confirmPassword = req.body['confirm password'] || req.body['confirmPassword'] || req.body['confirmpassword']
@@ -227,6 +217,91 @@ const login = async (req, res, next) => {
         next(error)
     }
 };
+
+
+const sendResetPasswordOtpEmployee = async (req, res) => {
+    const { email } = req.body
+    try {
+      const userDoc = await Employee.findOne({ email })
+      const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
+      emailTokenStoreEmployee[generatedOtp] = email
+
+      await sendEmail(userDoc.email, "resetpassword", generatedOtp);
+      res.status(StatusCodes.OK).json({
+        success: true,
+        message: "Password reset otp sent to your email successfully",
+      });
+    } 
+    catch (error) {
+      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false,  message: `${error}` });
+    }
+};
+
+const verifyOtpEmployee = async (req, res) => {
+    const {
+        body: { otp }
+    } = req
+    const email = emailTokenStoreEmployee[otp]
+
+    try {
+      const userObject = await Employee.findOne({ email })
+      const otpData = await Otp.findOne({ email: userObject.email, otp })
+
+      if (userObject && otpData) {
+        await Otp.deleteOne({email: userObject.email})
+        return res.status(StatusCodes.OK).json({ success: true, message: "OTP Verified Successfully !" });
+      } 
+      else {
+        return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Invalid Credentials" });
+      }
+    } 
+    catch (error) {
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(error);
+    }
+};
+
+const resetPasswordEmployee = async (req, res) => {
+    const {
+        body: { newpassword }
+    } = req
+    const theKeys = Object.keys(emailTokenStoreEmployee)
+    if(theKeys.length > 0){
+        const email = emailTokenStoreEmployee[theKeys[0]]
+
+        try {
+          const userObject = await Employee.findOne({ email })
+    
+          if (userObject) {
+            const salt = await bcrypt.genSalt(10)
+            const hashedPassword = await bcrypt.hash(newpassword, salt);
+            await Employee.findOneAndUpdate({ email: userObject.email }, { password: hashedPassword }, { new: true, runValidators: true });
+            delete emailTokenStoreEmployee[theKeys[0]]
+            return res.status(StatusCodes.OK).json({ success: true, message: "Password reset successfull" });
+          } 
+          else {
+            return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Unable To Find User With Specified Email !" });
+          }
+        } 
+        catch (error) {
+            return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(error)
+        }
+    }
+    else{
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json("Something Went Wrong, Please Try Again !");
+    }
+};
+
+
+const getModelById = async (userId) => {
+    const userObject = await User.findOne({ _id: userId })
+    if(userObject){ return { model: User, userObject } }
+
+    const employee = await Employee.findOne({ _id: userId })
+    if(employee){ return { model: Employee, userObject: employee } }
+
+    return null
+}
+
 
 const loginEmployee = async (req, res, next) => {
     const { email, password } = req.body
@@ -312,9 +387,11 @@ module.exports = {
     verifyOtp,
     register,
     login,
-    sendResetPasswordOtp,
+    sendResetPasswordOtpUser,
     sendResetPasswordOtpEmployee,
-    resetPassword,
+    verifyOtpEmployee,
+    verifyPasswordResetOtpUser,
+    resetPasswordUser,
     resetPasswordEmployee,
     loginEmployee,
     registerEmployee,
