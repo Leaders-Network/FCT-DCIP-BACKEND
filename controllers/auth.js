@@ -1,10 +1,11 @@
 const User = require('../models/User')
 const { Employee, Role, Status } = require('../models/Employee')
 const Otp = require('../models/OTP')
+const Property = require('../models/Property')
 const sendEmail = require("../utils/sendEmail");
 const bcrypt = require('bcryptjs')
 const { StatusCodes } = require('http-status-codes')
-const { BadRequestError, UnauthenticatedError } = require('../errors');
+const { BadRequestError, UnauthenticatedError, NotFoundError } = require('../errors');
 
 
 let emailTokenStoreEmployee = {}
@@ -66,7 +67,7 @@ const verifyOtp = async(req, res) => {
         const otpData = await Otp.findOne({ email, otp });
 
         if (otpData) {
-            await Otp.deleteOne({ email })
+            // await Otp.deleteOne({ email })
             res.status(StatusCodes.OK).json({success: true, message: 'OTP verified successfully!'});
         } else {
             res.status(StatusCodes.BAD_REQUEST).json({success: false,  message: 'Invalid Credentials'});
@@ -77,11 +78,12 @@ const verifyOtp = async(req, res) => {
     }
 };
 
-const sendResetPasswordOtpUser = async (req, res) => {
+const sendResetPasswordOtpUser = async (req, res, next) => {
     const { email } = req.body
 
     try {
       const userDoc = await User.findOne({ email })
+      if(!userDoc){ throw new NotFoundError("No User With That Email !") }
       const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
       emailTokenStoreUser[generatedOtp] = email
 
@@ -92,25 +94,8 @@ const sendResetPasswordOtpUser = async (req, res) => {
       });
     } 
     catch (error) {
-      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false,  message: `${error}` });
+        next(error)
     }
-
-    // try {
-    //   let userDoc = null
-    //   const {model} = req.user
-    //   if(model == "Employee"){ userDoc = await Employee.findById({ _id: req.user.userId }) }
-    //   else{ userDoc = await User.findById({ _id: req.user.userId }) }
-      
-    //   const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
-    //   await sendEmail(userDoc.email, "resetpassword", generatedOtp);
-    //   res.status(StatusCodes.OK).json({
-    //     success: true,
-    //     message: "Password reset otp sent to your email successfully",
-    //   });
-    // } 
-    // catch (error) {
-    //   res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false,  message: `${error}` });
-    // }
 };
 
 const verifyPasswordResetOtpUser = async (req, res) => {
@@ -182,7 +167,10 @@ const register = async (req, res) => {
             else{
                 const user = await User.create({ ...req.body })
                 const token = user.createJWT()
-                res.status(StatusCodes.CREATED).json({ success: true, user: { name: user.fullname }, token })
+                const userObject = user.toObject()
+                delete userObject.password
+                delete userObject.__v
+                res.status(StatusCodes.CREATED).json({ success: true, user: userObject, token })
             }
         }
         catch(error){
@@ -190,7 +178,7 @@ const register = async (req, res) => {
         }
     }
     else{
-        throw new BadRequestError('You need to verify your email first')
+        throw new BadRequestError('You Need A Verified OTP Firstly !')
     }
 };
 
@@ -199,24 +187,166 @@ const login = async (req, res, next) => {
   
     try{
         if (!email || !password) {
-            throw new BadRequestError('Please provide email and password')
+            throw new BadRequestError('Please Provide Email And Password !')
         }
-        const user = await User.findOne({ email })
+        let user = await User.findOne({ email })
         if (!user) {
-            throw new UnauthenticatedError('Invalid Credentials')
+            throw new UnauthenticatedError('Invalid Credentials !')
         }
         const isPasswordCorrect = await user.comparePassword(password)
         if (!isPasswordCorrect) {
-            throw new UnauthenticatedError('Invalid Credentials')
+            throw new UnauthenticatedError('Invalid Credentials !')
         }
 
         const token = user.createJWT()
-        res.status(StatusCodes.OK).json({ success: true, user: { name: user.fullname }, token })
+        const userDisplay = user.toObject()
+        delete userDisplay.password
+        delete userDisplay.__v
+        res.status(StatusCodes.OK).json({ success: true,  user: userDisplay, token })
     }
     catch(error){
         next(error)
     }
 };
+
+const addProperty = async (req, res, next) => {
+    try {
+        req.body.ownedBy = req.user.userId
+        const images = req.body.images
+
+        const imagesArray = Array.isArray(images) ? images : [images]
+        const base64Regex = /^data:image\/(png|jpeg|jpg|gif);base64,[A-Za-z0-9+/=]+$/
+
+        const formattedImages = imagesArray.filter(image => base64Regex.test(image))
+        if(formattedImages.length === 0){
+            throw new BadRequestError('No valid base64 images found.')
+        }
+        req.body.images = formattedImages
+
+        const property = await Property.create(req.body)
+        const populatedProperty = await Property.findById(property._id).populate('ownedBy')
+
+        return res.status(StatusCodes.OK).json({ success: true, message: 'Property added successfully!', populatedProperty })
+    } 
+    catch (error) {
+        next(error)
+    }
+}
+
+const deleteUser = async (req, res, next) => {
+    const userId = req.user.userId
+    try {
+        const user = await UserSchema.findById(userId)
+        if (!user || user.deleted) {
+            throw new NotFoundError('User Not Found Or Already Deleted !')
+        }
+
+        user.deleted = true
+        await user.save();
+
+        await Property.updateMany({ ownedBy: userId }, { deleted: true });
+        return res.status(StatusCodes.OK).json({ success: true, message: 'User Deleted Successfully !' })
+    } catch (error) {
+        next(error);
+    }
+};
+
+const removeProperty = async (req, res, next) => {
+    const {
+        user: { userId },
+        params: { id: propertyId },
+    } = req
+
+    try {
+        const property = await Property.findById({
+        _id: propertyId,
+        ownedBy: userId,
+      })
+      if (!property || property.deleted) {
+        throw new NotFoundError(`Property Not Found Or Already Deleted !`)
+      }
+      property.deleted = true
+      await property.save()
+
+      return res.status(StatusCodes.OK).json({ success: true, message: 'Property Deleted Successfully !' })
+    }
+    catch(error){
+        next(error)
+    }
+}
+
+const updateUser = async (req, res) => {
+
+}
+
+const getAllUsers = async (req, res) => {
+
+}
+
+const getUserById = async (req, res) => {
+
+}
+
+const getAllProperties = async (req, res, message = null) => {
+    const properties = await Property.find({ ownedBy: req.user.userId }).populate('ownedBy')
+    if(!properties){ return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "User Has No Properties !" }) }
+    if(message){ return res.status(StatusCodes.OK).json({ success: true, message, allProperties: { count: properties.length, properties } }) }
+    return res.status(StatusCodes.OK).json({ success: true, allProperties: { count: properties.length, properties } })
+}
+
+const getPropertyById = async () => {
+
+}
+
+const updateProperty = async (req, res, next) => {
+      const {
+        body: { category, address, phonenumber },
+        user: { userId },
+        params: { id: propertyId },
+      } = req
+
+      const updateData = { category, address, phonenumber }
+
+  try {      
+        const property = await Property.findById(propertyId);
+        if (!property) {
+            throw new NotFoundError('Property Not Found !');
+        }
+
+        if(req.body.removeImages){
+                const toRemove = req.body.removeImages
+                const imagesToRemove = Array.isArray(toRemove) ? toRemove : [toRemove]
+
+            property.images = property.images.filter(image => !imagesToRemove.includes(image))
+        }
+        
+        if(req.body.images){
+            const toAdd = req.body.images
+            const imagesToAdd = Array.isArray(toAdd) ? toAdd : [toAdd]
+
+            updateData.images = property.images || []
+            updateData.images.push(...imagesToAdd)
+        }
+        else{ updateData.images = property.images }
+
+
+        const updatedProperty = await Property.findByIdAndUpdate(
+            { _id: propertyId, ownedBy: userId },
+            updateData,
+            { new: true, runValidators: true }
+        )
+        if (!updatedProperty) {
+            throw new NotFoundError(`Could Not Update Property !`)
+        }
+
+        const message = "Property Updated Successfully !"
+        await getAllProperties(req, res, message)
+    }
+    catch(error){
+        next(error)
+    }
+}
+
 
 
 const sendResetPasswordOtpEmployee = async (req, res) => {
@@ -274,7 +404,9 @@ const resetPasswordEmployee = async (req, res) => {
           if (userObject) {
             const salt = await bcrypt.genSalt(10)
             const hashedPassword = await bcrypt.hash(newpassword, salt);
-            await Employee.findOneAndUpdate({ email: userObject.email }, { password: hashedPassword }, { new: true, runValidators: true });
+            const status = 'Active'
+            const activeStatus = await Status.findOne({status})
+            await Employee.findOneAndUpdate({ email: userObject.email }, { password: hashedPassword, employeeStatus: activeStatus._id }, { new: true, runValidators: true });
             delete emailTokenStoreEmployee[theKeys[0]]
             return res.status(StatusCodes.OK).json({ success: true, message: "Password reset successfull" });
           } 
@@ -310,7 +442,7 @@ const loginEmployee = async (req, res, next) => {
         if (!email || !password || email === "" || password === "") {
             throw new BadRequestError('Please provide email and password')
         }
-        const employee = await Employee.findOne({ email })
+        const employee = await Employee.findOne({ email }).populate(['employeeRole', 'employeeStatus'])
         if (!employee) {
             throw new UnauthenticatedError('Invalid Credentials')
         }
@@ -319,11 +451,20 @@ const loginEmployee = async (req, res, next) => {
             throw new UnauthenticatedError('Invalid Credentials')
         }
         const token = employee.createJWT()
-        res.status(StatusCodes.OK).json({ success: true, employee: { name: `${employee.firstname} ${employee.lastname}` }, token })
+        const employeeDisplay = employee.toObject()
+        delete employeeDisplay.password
+        delete employeeDisplay.__v
+        res.status(StatusCodes.OK).json({ success: true, employee: employeeDisplay, token })
     }
     catch(error){
         next(error)
     }
+};
+
+const omitFields = (obj, fieldsToOmit) => {
+    const newObj = { ...obj }
+    fieldsToOmit.forEach(field => delete newObj[field])
+    return newObj
 };
 
 
@@ -333,7 +474,7 @@ const registerEmployee = async (req, res) => {
 
     try{
         const creator = await Employee.findById({ _id: userId }).populate(['employeeRole', 'employeeStatus'])
-        if(!creator){ return res.status(StatusCodes.UNAUTHORIZED).json({ message: "Employee not found" }) }
+        if(!creator){ return res.status(StatusCodes.NOT_FOUND).json({ message: "Employee Not Found !" }) }
 
         const creatorRole = creator.employeeRole.role
         const creatorStatus = creator.employeeStatus.status
@@ -343,10 +484,10 @@ const registerEmployee = async (req, res) => {
             }
             else if(creatorRole === 'Admin'){
                 const { role: roleToBeCreated } =  await Role.findById({_id: roleId})
-                if(roleToBeCreated === 'Super-admin'){ return res.status(StatusCodes.UNAUTHORIZED).json({ message: "Admins cannot create Super-admins" }) } 
+                if(roleToBeCreated === 'Super-admin'){ return res.status(StatusCodes.UNAUTHORIZED).json({ message: "Admins Cannot Create Super-admins !" }) } 
             }
             else if(creatorRole === 'Staff'){
-                return res.status(StatusCodes.UNAUTHORIZED).json({ message: "Staff cannot create an employee" })
+                return res.status(StatusCodes.UNAUTHORIZED).json({ message: "Staff Cannot Create An Employee !" })
             }
 
             const employeeExists = await Employee.findOne({ email });
@@ -358,24 +499,101 @@ const registerEmployee = async (req, res) => {
                         const token = employeeObject.createToken()
                         const {status} = await Status.findById({_id: statusId})
                         const {role} =  await Role.findById({_id: roleId})
-                        return res.status(StatusCodes.CREATED).json({ success: true, employee: { name: `${employeeObject.firstname} ${employeeObject.lastname}`, status, role }, token })
+
+                        const fieldsToOmit = ['password', '__v', 'employeeStatus', 'createdAt', 'updatedAt', 'employeeRole']
+
+                        const employeeDisplay = omitFields(employeeObject.toObject(), fieldsToOmit)
+                        return res.status(StatusCodes.CREATED).json({ success: true, employee: { employeeDisplay, status, role }, token })
                 }
                 catch(error){
                     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error});
                 }
             }
             else{
-                throw new BadRequestError('This Employee Already Exists') 
+                throw new BadRequestError('This Employee Already Exists !') 
             }
         }
         else{
-            return res.status(StatusCodes.BAD_REQUEST).json({ message: "Employee has not been activated" })
+            return res.status(StatusCodes.BAD_REQUEST).json({ message: "Employee Has Not Been Activated !" })
         }
     }
     catch(error){
         return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error})
     }
 };
+
+const deleteEmployee = async (req, res) => {
+
+}
+
+const returnAvailableRoles = async (req, res) => {
+    const { userId } = req.user
+
+    try{
+        const loggedInEmployee = await Employee.findById({ _id: userId }).populate(['employeeRole', 'employeeStatus'])
+        if(!loggedInEmployee){ return res.status(StatusCodes.NOT_FOUND).json({ message: "Employee Not Found !" }) }
+
+        const employeeRole = loggedInEmployee.employeeRole.role
+        const employeeStatus = loggedInEmployee.employeeStatus.status
+
+        const allRoles = await Role.find()
+        const mappedRoles = allRoles.map(role => ({ role, _id: role._id }))
+        const superAdmin = mappedRoles.find(mapped => mapped.role.role === "Super-admin")
+        const admin = mappedRoles.find(mapped => mapped.role.role === "Admin")
+        const staff = mappedRoles.find(mapped => mapped.role.role === "Staff")
+
+        if(employeeStatus === 'Active'){
+            if(employeeRole === 'Super-admin'){
+                return res.status(StatusCodes.OK).json({ success: true, availableRoles: [superAdmin.role, admin.role, staff.role] })
+            }
+            else if(employeeRole === 'Admin'){
+                return res.status(StatusCodes.OK).json({ success: true, availableRoles: [admin.role.role, staff.role.role] })
+            }
+            else{ return res.status(StatusCodes.OK).json({ success: true, message: "As A Staff You Don't Have Enough Permission" }) }
+        }
+    }
+    catch(error){
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error })
+    }
+}
+
+const updateEmployee = async (req, res) => {
+
+}
+
+const getAllEmployees = async (req, res) => {
+    const { userId } = req.user
+
+    try{
+        const loggedInEmployee = await Employee.findById({ _id: userId }).populate(['employeeRole', 'employeeStatus'])
+        if(!loggedInEmployee){ return res.status(StatusCodes.NOT_FOUND).json({ message: "Employee Not Found !" }) }
+
+        const employeeRole = loggedInEmployee.employeeRole.role
+        const employeeStatus = loggedInEmployee.employeeStatus.status
+        if(employeeStatus === 'Active'){
+            if(employeeRole === 'Super-admin' || employeeRole === 'Admin'){
+                const allEmployees = await Employee.find({ }).populate(['employeeRole', 'employeeStatus'])
+                if(!allEmployees){ return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Could Not Find Any Employee !" }) }
+
+                const fieldsToOmit = ['password', '__v'];
+                const sanitizedEmployees = allEmployees.map(employee => omitFields(employee.toObject(), fieldsToOmit));
+                return res.status(StatusCodes.OK).json({ success: true, allStaff: { count: allEmployees.length, sanitizedEmployees } })
+            }
+        }
+    }
+    catch(error){
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error })
+    }
+}
+
+const getEmployeeById = async (req, res) => {
+
+}
+
+
+
+
+
 
 
 
@@ -399,4 +617,11 @@ module.exports = {
     createRoles,
     getModelById,
     createFirstSuperAdmin,
+    addProperty,
+    deleteUser,
+    removeProperty,
+    getAllProperties,
+    updateProperty,
+    getAllEmployees,
+    returnAvailableRoles,
 }

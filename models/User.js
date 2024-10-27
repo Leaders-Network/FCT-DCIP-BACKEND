@@ -2,6 +2,7 @@ const mongoose = require('mongoose')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 
+
 const UserSchema = new mongoose.Schema({
   fullname: {
     type: String,
@@ -30,7 +31,11 @@ const UserSchema = new mongoose.Schema({
   isEmailVerified:{
     type: Boolean,
     default: false
-  }
+  },
+  deleted: { 
+    type: Boolean, 
+    default: false 
+  },
 })
 
 
@@ -54,6 +59,8 @@ UserSchema.methods.comparePassword = async function (canditatePassword) {
     const isMatch = await bcrypt.compare(canditatePassword, this.password)
     return isMatch
 }
+
+
 
 
 module.exports = mongoose.model('User', UserSchema)

@@ -54,7 +54,11 @@ const EmployeeSchema = new mongoose.Schema({
     type: mongoose.Types.ObjectId,
     ref: 'Role',
     required: [true, 'Please provide role']
-  }
+  },
+  deleted: { 
+    type: Boolean, 
+    default: false 
+  },
 }, {timestamps: true})
 
 
