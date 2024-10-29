@@ -8,7 +8,7 @@ const errorHandlerMiddleware = require('./middlewares/error-handler');
 const helmet = require('helmet');
 const cors = require('cors');
 const rateLimiter = require('express-rate-limit');
-const { createStatuses, createRoles, createFirstSuperAdmin } = require('./controllers/auth')
+const { createStatuses, createRoles, createPropertyCategories, createFirstSuperAdmin } = require('./controllers/auth')
 
 const app = express()
 app.use(express.json());
@@ -39,6 +39,7 @@ const start = async () => {
       await connectDB(process.env.MONGO_URI);
       await createStatuses()
       await createRoles()
+      await createPropertyCategories(),
       await createFirstSuperAdmin()
       app.listen(PORT, () =>
         console.log(`Server is listening on port ${PORT}...`)

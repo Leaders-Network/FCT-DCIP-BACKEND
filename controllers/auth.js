@@ -1,7 +1,7 @@
 const User = require('../models/User')
 const { Employee, Role, Status } = require('../models/Employee')
 const Otp = require('../models/OTP')
-const Property = require('../models/Property')
+const { Property, PropertyCategory } = require('../models/Property')
 const sendEmail = require("../utils/sendEmail");
 const bcrypt = require('bcryptjs')
 const { StatusCodes } = require('http-status-codes')
@@ -21,6 +21,13 @@ const createRoles = async () => {
     const existingRoles = await Role.find({})
     if(existingRoles.length === 0){
         await Role.create([{ role: 'Super-admin' }, { role: 'Admin' }, { role: 'Staff' }])
+    }
+}
+
+const createPropertyCategories = async () => {
+    const existingCategories = await PropertyCategory.find({})
+    if(existingCategories.length === 0){
+        await PropertyCategory.create([{ category: "Single Occupier Office Building" }, { category: "Single Occupier Residential Building" }, { category: "Hotel/Hostel/Guest House" }, { category: "Recreation Centre/Club House/Cinema Hall" }, { category: "School/Training Institute" }, { category: "Petrol/Gas Station" }, { category: "Hospital/Clinic/Health Centre" }, { category: "Multi Occupier/Multi Purpose Business Building" }, { category: "Multi Occupier/Mixed Use Residential Building" }, { category: "Others" }])
     }
 }
 
@@ -105,12 +112,13 @@ const verifyPasswordResetOtpUser = async (req, res) => {
     const email = emailTokenStoreUser[otp]
 
     try {
-      const userObject = await Employee.findOne({ email })
+      const userObject = await User.findOne({ email })
       const otpData = await Otp.findOne({ email: userObject.email, otp })
 
       if (userObject && otpData) {
         await Otp.deleteOne({email: userObject.email})
-        return res.status(StatusCodes.OK).json({ success: true, message: "OTP Verified Successfully !" });
+        const token = userObject.createJWT()
+        return res.status(StatusCodes.OK).json({ success: true, message: "OTP Verified Successfully !", token });
       } 
       else {
         return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Invalid Credentials" });
@@ -123,7 +131,8 @@ const verifyPasswordResetOtpUser = async (req, res) => {
 
 const resetPasswordUser = async (req, res) => {
     const {
-        body: { newpassword }
+        body: { newpassword },
+        user: { userId }
     } = req
     const theKeys = Object.keys(emailTokenStoreUser)
 
@@ -131,12 +140,12 @@ const resetPasswordUser = async (req, res) => {
         const email = emailTokenStoreUser[theKeys[0]]
 
         try {
-          const userObject = await User.findOne({ email })
-    
+          const userObject = await User.findOne({ email, _id: userId })
           if (userObject) {
             const salt = await bcrypt.genSalt(10)
             const hashedPassword = await bcrypt.hash(newpassword, salt);
-            await User.findOneAndUpdate({ email: userObject.email }, { password: hashedPassword }, { new: true, runValidators: true });
+            await User.findOneAndUpdate({ _id: userId }, { password: hashedPassword }, { new: true, runValidators: true });
+
             delete emailTokenStoreUser[theKeys[0]]
             return res.status(StatusCodes.OK).json({ success: true, message: "Password reset successfull" });
           } 
@@ -537,20 +546,37 @@ const returnAvailableRoles = async (req, res) => {
         const employeeStatus = loggedInEmployee.employeeStatus.status
 
         const allRoles = await Role.find()
-        const mappedRoles = allRoles.map(role => ({ role, _id: role._id }))
-        const superAdmin = mappedRoles.find(mapped => mapped.role.role === "Super-admin")
-        const admin = mappedRoles.find(mapped => mapped.role.role === "Admin")
-        const staff = mappedRoles.find(mapped => mapped.role.role === "Staff")
+        const mappedRoles = allRoles.map(role => ({
+            _id: role._id,
+            role: role.role,
+        }))
+        const superAdmin = mappedRoles.find(mapped => mapped.role === "Super-admin")
+        const admin = mappedRoles.find(mapped => mapped.role === "Admin")
+        const staff = mappedRoles.find(mapped => mapped.role === "Staff")
 
         if(employeeStatus === 'Active'){
             if(employeeRole === 'Super-admin'){
-                return res.status(StatusCodes.OK).json({ success: true, availableRoles: [superAdmin.role, admin.role, staff.role] })
+                return res.status(StatusCodes.OK).json({ success: true, availableRoles: [superAdmin, admin, staff] })
             }
             else if(employeeRole === 'Admin'){
-                return res.status(StatusCodes.OK).json({ success: true, availableRoles: [admin.role.role, staff.role.role] })
+                return res.status(StatusCodes.OK).json({ success: true, availableRoles: [admin, staff] })
             }
             else{ return res.status(StatusCodes.OK).json({ success: true, message: "As A Staff You Don't Have Enough Permission" }) }
         }
+    }
+    catch(error){
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error })
+    }
+}
+
+const returnAvailableCategories = async (req, res) => {
+    try{
+        const allCategories = await PropertyCategory.find()
+        const mappedCategories = allCategories.map(category => ({
+            _id: category._id,
+            category: category.category,
+        }))
+        return res.status(StatusCodes.OK).json({ success: true, mappedCategories })
     }
     catch(error){
         return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error })
@@ -615,6 +641,7 @@ module.exports = {
     registerEmployee,
     createStatuses,
     createRoles,
+    createPropertyCategories,
     getModelById,
     createFirstSuperAdmin,
     addProperty,
@@ -624,4 +651,5 @@ module.exports = {
     updateProperty,
     getAllEmployees,
     returnAvailableRoles,
+    returnAvailableCategories,
 }

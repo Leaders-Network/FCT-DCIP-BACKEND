@@ -1,15 +1,18 @@
 const mongoose = require('mongoose')
 
+const PropertyCategorySchema = new mongoose.Schema({
+    category: {
+        type: String,
+        enum: ["Single Occupier Office Building", "Single Occupier Residential Building", "Hotel/Hostel/Guest House", "Recreation Centre/Club House/Cinema Hall", "School/Training Institute", "Petrol/Gas Station", "Hospital/Clinic/Health Centre", "Multi Occupier/Multi Purpose Business Building", "Multi Occupier/Mixed Use Residential Building", "Others"],
+        required: true
+    }
+  })
+
 const PropertySchema = new mongoose.Schema({
     status: {
         type: String,
         enum: ['Unverified', 'Verified'],
         default: 'Unverified'
-    },
-    category: {
-        type: String,
-        enum: ["Single Occupier Office Building", "Single Occupier Residential Building", "Hotel/Hostel/Guest House", "Recreation Centre/Club House/Cinema Hall", "School/Training Institute", "Petrol/Gas Station", "Hospital/Clinic/Health Centre", "Multi Occupier/Multi Purpose Business Building", "Multi Occupier/Mixed Use Residential Building", "Others"],
-        required: true
     },
     address: {
         type: String,
@@ -35,4 +38,5 @@ const PropertySchema = new mongoose.Schema({
 })
 
 const Property = mongoose.model("Property", PropertySchema);
-module.exports = Property;
+const PropertyCategory = mongoose.model("PropertyCategory", PropertyCategorySchema)
+module.exports = { Property, PropertyCategory }
