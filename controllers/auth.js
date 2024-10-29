@@ -232,10 +232,12 @@ const addProperty = async (req, res, next) => {
         }
         req.body.images = formattedImages
 
-        const property = await Property.create(req.body)
-        const populatedProperty = await Property.findById(property._id).populate('ownedBy')
+        const property = await Property.create({ ...req.body, category: req.body.categoryId })
+        const populatedProperty = await Property.findById(property._id).populate(['category', 'ownedBy'])
+        const fieldsToOmit = ['password', '__v']
+        const propertyDisplay = omitFields(populatedProperty.toObject(), fieldsToOmit)
 
-        return res.status(StatusCodes.OK).json({ success: true, message: 'Property added successfully!', populatedProperty })
+        return res.status(StatusCodes.OK).json({ success: true, message: 'Property added successfully!', propertyDisplay })
     } 
     catch (error) {
         next(error)
@@ -297,7 +299,7 @@ const getUserById = async (req, res) => {
 }
 
 const getAllProperties = async (req, res, message = null) => {
-    const properties = await Property.find({ ownedBy: req.user.userId }).populate('ownedBy')
+    const properties = await Property.find({ ownedBy: req.user.userId }).populate(['category', 'ownedBy'])
     if(!properties){ return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "User Has No Properties !" }) }
     if(message){ return res.status(StatusCodes.OK).json({ success: true, message, allProperties: { count: properties.length, properties } }) }
     return res.status(StatusCodes.OK).json({ success: true, allProperties: { count: properties.length, properties } })
@@ -472,7 +474,13 @@ const loginEmployee = async (req, res, next) => {
 
 const omitFields = (obj, fieldsToOmit) => {
     const newObj = { ...obj }
-    fieldsToOmit.forEach(field => delete newObj[field])
+    fieldsToOmit.forEach(field => {
+        if(newObj['ownedBy']){
+            let ownedBy = newObj['ownedBy']
+            delete ownedBy[field]
+        }
+        else { delete newObj[field] }
+    })
     return newObj
 };
 
