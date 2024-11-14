@@ -11,7 +11,7 @@ const PropertyCategorySchema = new mongoose.Schema({
 const PropertySchema = new mongoose.Schema({
     status: {
         type: String,
-        enum: ['Unverified', 'Verified'],
+        enum: ['Unverified', 'Verified', 'Processing', 'Pending', 'Blacklist', 'Cancelled', 'Expired'],
         default: 'Unverified'
     },
     category: {

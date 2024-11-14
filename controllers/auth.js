@@ -218,31 +218,31 @@ const login = async (req, res, next) => {
     }
 };
 
-const addProperty = async (req, res, next) => {
-    try {
-        req.body.ownedBy = req.user.userId
-        const images = req.body.images
+// const addProperty = async (req, res, next) => {
+//     try {
+//         req.body.ownedBy = req.user.userId
+//         const images = req.body.images
 
-        const imagesArray = Array.isArray(images) ? images : [images]
-        const base64Regex = /^data:image\/(png|jpeg|jpg|gif);base64,[A-Za-z0-9+/=]+$/
+//         const imagesArray = Array.isArray(images) ? images : [images]
+//         const base64Regex = /^data:image\/(png|jpeg|jpg|gif);base64,[A-Za-z0-9+/=]+$/
 
-        const formattedImages = imagesArray.filter(image => base64Regex.test(image))
-        if(formattedImages.length === 0){
-            throw new BadRequestError('No valid base64 images found.')
-        }
-        req.body.images = formattedImages
+//         const formattedImages = imagesArray.filter(image => base64Regex.test(image))
+//         if(formattedImages.length === 0){
+//             throw new BadRequestError('No valid base64 images found.')
+//         }
+//         req.body.images = formattedImages
 
-        const property = await Property.create({ ...req.body, category: req.body.categoryId })
-        const populatedProperty = await Property.findById(property._id).populate(['category', 'ownedBy'])
-        const fieldsToOmit = ['password', '__v']
-        const propertyDisplay = omitFields(populatedProperty.toObject(), fieldsToOmit)
+//         const property = await Property.create({ ...req.body, category: req.body.categoryId })
+//         const populatedProperty = await Property.findById(property._id).populate(['category', 'ownedBy'])
+//         const fieldsToOmit = ['password', '__v']
+//         const propertyDisplay = omitFields(populatedProperty.toObject(), fieldsToOmit)
 
-        return res.status(StatusCodes.OK).json({ success: true, message: 'Property added successfully!', propertyDisplay })
-    } 
-    catch (error) {
-        next(error)
-    }
-}
+//         return res.status(StatusCodes.OK).json({ success: true, message: 'Property added successfully!', propertyDisplay })
+//     } 
+//     catch (error) {
+//         next(error)
+//     }
+// }
 
 const deleteUser = async (req, res, next) => {
     const userId = req.user.userId
@@ -622,6 +622,41 @@ const getAllEmployees = async (req, res) => {
 
 const getEmployeeById = async (req, res) => {
 
+}
+
+const addProperty = async (req, res, next) => {
+    try {
+        req.body.ownedBy = req.user.userId
+        
+        const images = req.body.images
+
+        const imagesArray = Array.isArray(images) ? images : [images]
+        const base64Regex = /^data:image\/(png|jpeg|jpg|gif);base64,[A-Za-z0-9+/=]+$/
+
+        const formattedImages = imagesArray.filter(image => base64Regex.test(image))
+        if(imagesArray.length > 0 && formattedImages.length === 0){
+            throw new BadRequestError('No valid base64 images found.')
+        }
+        req.body.images = formattedImages
+
+        const property = await Property.create({ ...req.body, category: req.body.categoryId })
+        if(req.user.role && req.user.status === "Active" && (req.user.role === "Super-admin" || req.user.role === "Admin")){
+            await Property.findOneAndUpdate(
+                { _id: property._id },
+                { $set: { status: "Blacklist" } },
+                { new: true }
+            );
+        }
+
+        const populatedProperty = await Property.findById(property._id).populate(['category', 'ownedBy'])
+        const fieldsToOmit = ['password', '__v']
+        const propertyDisplay = omitFields(populatedProperty.toObject(), fieldsToOmit)
+
+        return res.status(StatusCodes.OK).json({ success: true, message: 'Property added successfully!', propertyDisplay })
+    } 
+    catch (error) {
+        next(error)
+    }
 }
 
 

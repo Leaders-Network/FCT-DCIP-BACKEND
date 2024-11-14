@@ -31,7 +31,7 @@ const corsOptions = {
   allowedHeaders: '*',
   credentials: true,
 }
-app.use(cors(corsOptions));
+app.use(cors());
 
 app.use('/api/v1/auth', authRouter);
 app.get('/', (req, res) => { res.send('<h3>DEPLOYED !</h3>') })
