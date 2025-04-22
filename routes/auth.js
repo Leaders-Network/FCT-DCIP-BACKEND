@@ -1,7 +1,7 @@
 const express = require('express')
 const authenticationMiddleware = require('../middlewares/authentication');
 const router = express.Router()
-const { requestOtp, verifyOtp, register, login, sendResetPasswordOtpUser, sendResetPasswordOtpEmployee, resetPasswordUser, verifyOtpEmployee, verifyPasswordResetOtpUser, resetPasswordEmployee, loginEmployee, registerEmployee, addProperty, deleteUser, removeProperty, getAllProperties, updateProperty, getAllEmployees, returnAvailableRoles, returnAvailableCategories } = require('../controllers/auth')
+const { requestOtp, verifyOtp, register, login, sendResetPasswordOtpUser, sendResetPasswordOtpEmployee, resetPasswordUser, verifyOtpEmployee, verifyPasswordResetOtpUser, resetPasswordEmployee, loginEmployee, registerEmployee, addProperty, deleteUser, removeProperty, getAllProperties, updateProperty, getAllUsers, getUserById, getAllEmployees, returnAvailableRoles, returnAvailableCategories } = require('../controllers/auth')
 const validateKey = require('../middlewares/generate-api-key')
 
 router.post('/request-otp', validateKey, requestOtp)
@@ -20,6 +20,8 @@ router.post('/user/add-property', validateKey, authenticationMiddleware, addProp
 router.delete('/user/delete', validateKey, authenticationMiddleware, deleteUser)
 router.delete('/user/remove-property/:id', validateKey, authenticationMiddleware, removeProperty)
 router.patch('/user/update-property/:id', validateKey, authenticationMiddleware, updateProperty)
+router.get('/users',  validateKey, authenticationMiddleware, getAllUsers);
+router.get('/users/:id',  validateKey, authenticationMiddleware, getUserById);
 router.get('/user/get-all-properties', validateKey, authenticationMiddleware, getAllProperties)
 router.get('/get-all-employees', validateKey, authenticationMiddleware, getAllEmployees)
 router.get('/available-roles', validateKey, authenticationMiddleware, returnAvailableRoles)

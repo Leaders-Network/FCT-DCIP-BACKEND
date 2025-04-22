@@ -291,12 +291,31 @@ const updateUser = async (req, res) => {
 }
 
 const getAllUsers = async (req, res) => {
+    try {
+      const users = await User.find().select('-password'); // exclude password from results
+      res.status(StatusCodes.OK).json({ success: true, users });
+    } catch (error) {
+      console.error(`Error fetching users: ${error}`);
+      next(error);
+    }
+  };
+  
 
-}
-
-const getUserById = async (req, res) => {
-
-}
+  const getUserById = async (req, res, next) => {
+    const { id } = req.params;
+    try {
+      const user = await User.findById(id).select('-password');
+      if (!user) {
+        throw new NotFoundError('User not found');
+      }
+  
+      res.status(StatusCodes.OK).json({ success: true, user });
+    } catch (error) {
+      console.error(`Error fetching users: ${error}`);
+      next(error);
+    }
+  };
+  
 
 const getAllProperties = async (req, res, message = null) => {
     const properties = await Property.find({ ownedBy: req.user.userId }).populate(['category', 'ownedBy'])
