@@ -4,10 +4,9 @@
   "description": "\"# FCT-DCIP-BACKEND\"",
   "main": "index.js",
   "scripts": {
-<<<<<<< Updated upstream
-    "start": "node app.js",
-=======
->>>>>>> Stashed changes
+
+    "start": "nodemon app.js",
+
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -27,9 +26,7 @@
     "nodemailer": "^6.9.15"
   },
   "devDependencies": {
-<<<<<<< Updated upstream
-    "nodemon": "^3.1.7"
-=======
->>>>>>> Stashed changes
+
+    "nodemon": "^3.1.10"
   }
 }

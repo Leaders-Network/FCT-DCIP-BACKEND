@@ -25,6 +25,13 @@ const createRoles = async () => {
 }
 
 
+// const createPropertyCategories = async () => {
+//     const existingCategories = await PropertyCategory.find({})
+//     if(existingCategories.length === 0){
+//         await PropertyCategory.create([{ category: "Single Occupier Office Building" }, { category: "Single Occupier Residential Building" }, { category: "Hotel/Hostel/Guest House" }, { category: "Recreation Centre/Club House/Cinema Hall" }, { category: "School/Training Institute" }, { category: "Petrol/Gas Station" }, { category: "Hospital/Clinic/Health Centre" }, { category: "Multi Occupier/Multi Purpose Business Building" }, { category: "Multi Occupier/Mixed Use Residential Building" }, { category: "Others" }])
+//     }
+// }
+
 
 const createFirstSuperAdmin = async () => {
     let superAdminRole = await Role.findOne({ role: 'Super-admin' })
@@ -45,36 +52,52 @@ const createFirstSuperAdmin = async () => {
     }
 }
 
-<<<<<<< Updated upstream
-const requestOtp =  async (req, res) => {
-    const { email } = req.body;
+
+// const requestOtp =  async (req, res) => {
+//     const { email } = req.body;
     
 
-    const userExists = await User.findOne({email})
-    if(userExists){ return res.status(StatusCodes.BAD_REQUEST).json({success: false, message: "This Email Is Already Registered !"}) }
-    const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
-    emailTokenStoreUser[generatedOtp] = email
-    try {
-        await sendEmail(email, "verifyemail", generatedOtp);
-        res.status(StatusCodes.OK).json({success: true, message: 'OTP sent successfully!' });
-    } catch (error) {
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false,  message: `Error sending OTP: ${error}` });
-    }
-};
+//     const userExists = await User.findOne({email})
+//     if(userExists){ return res.status(StatusCodes.BAD_REQUEST).json({success: false, message: "This Email Is Already Registered !"}) }
+//     const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
+//     emailTokenStoreUser[generatedOtp] = email
+//     try {
+//         await sendEmail(email, "verifyemail", generatedOtp);
+//         res.status(StatusCodes.OK).json({success: true, message: 'OTP sent successfully!' });
+//     } catch (error) {
+//         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false,  message: `Error sending OTP: ${error}` });
+//     }
+// };
 
 const verifyOtp = async(req, res) => {
-    const { otp } = req.body;
-    const email = emailTokenStoreUser[otp]
+    const { otp,email } = req.body;
+    // const email = emailTokenStoreUser[otp]
 
     try{
-        const otpData = await Otp.findOne({ email, otp });
-
-        if (otpData) {
-            // await Otp.deleteOne({ email })
-            res.status(StatusCodes.OK).json({success: true, message: 'OTP verified successfully!'});
-        } else {
-            res.status(StatusCodes.BAD_REQUEST).json({success: false,  message: 'Invalid OTP !'});
+        const user = await User.findOne({ email });
+        if(!user){
+            return res.status(StatusCodes.NOT_FOUND).json({
+                status:'Unsuccessful',
+                message:'User Not Found'
+            })
         }
+        if( otp !== user.otp){
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                status:'Unsuccessful',
+                message:'Invalid OTP !'
+            })
+        }
+        user.isEmailVerified = true
+        user.otp = ''
+        await user.save()
+         res.status(StatusCodes.OK).json({success: true, message: 'OTP verified successfully!'});
+
+        // if (otpData) {
+            // await Otp.deleteOne({ email })
+           
+        // } else {
+        //     res.status(StatusCodes.BAD_REQUEST).json({success: false,  message: ''});
+        // }
     }
     catch(error){
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error});
@@ -159,33 +182,80 @@ const resetPasswordUser = async (req, res) => {
 };
 
 const register = async (req, res) => {
-<<<<<<< Updated upstream
-    const confirmPassword = req.body['confirm password'] || req.body['confirmPassword'] || req.body['confirmpassword']
-    const { email } = req.body;
-    const otpData = await Otp.findOne({ email });
 
-    if(otpData){
-        try{
-            await Otp.deleteOne({email})
-            if(!confirmPassword || confirmPassword !== req.body.password){
-                throw new BadRequestError('Please provide a matching confirm-password')
+    const {fullname,email,phonenumber,password,confirmPassword} = req.body
+
+    if(!fullname,!email,!phonenumber,!password,!confirmPassword){
+         return res.status(StatusCodes.BAD_REQUEST).json({
+            status:'Unsuccessful',
+            message:'Kindly fill all fields'
+         })
+    }
+
+     if(!confirmPassword || confirmPassword !== password){
+            return res.status(StatusCodes.BAD_REQUEST).json({
+            status:'Unsuccessful',
+            message:'Passwords do not match'
+         })
+         }
+         try {
+            const checkUser =await User.findOne({email})
+            const hashedPassWord = bcrypt.hashSync(password,10)
+            if(checkUser){
+                return res.status(StatusCodes.BAD_REQUEST).json({
+                status:'Unsuccessful',
+                message:'Account already exists'
+                })
+            }else{
+            const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
+            emailTokenStoreUser[generatedOtp] = email
+            await sendEmail(email, "verifyemail", generatedOtp);
+            const user = await User.create({
+                fullname,
+                email,
+                phonenumber,
+                password:hashedPassWord,
+                otp:generatedOtp
+            })
+            res.status(StatusCodes.CREATED).json({
+                status:"Successful",
+                message:"User Successfully created kindly check your email for otp",
+                data:user
+            })
             }
-            else{
-                const user = await User.create({ ...req.body })
-                const token = user.createJWT()
-                const userObject = user.toObject()
-                delete userObject.password
-                delete userObject.__v
-                res.status(StatusCodes.CREATED).json({ success: true, user: userObject, token })
-            }
-        }
-        catch(error){
+
+
+         } catch (error) {
             res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error});
-        }
-    }
-    else{
-        throw new BadRequestError('You Need A Verified OTP Firstly !')
-    }
+         }
+
+    // const confirmPassword = req.body['confirm password'] || req.body['confirmPassword'] || req.body['confirmpassword']
+    // const { email,phonenumber } = req.body;
+    // const otpData = await Otp.findOne({ email });
+
+    // if(otpData){
+    //     try{
+    //         await Otp.deleteOne({email})
+    //         if(!confirmPassword || confirmPassword !== req.body.password){
+    //             throw new BadRequestError('Please provide a matching confirm-password')
+    //         }
+    //         else{
+    //             const user = await User.create({ ...req.body })
+    //             const token = user.createJWT()
+    //             const userObject = user.toObject()
+    //             delete userObject.password
+    //             delete userObject.__v
+    //             res.status(StatusCodes.CREATED).json({ success: true, user: userObject, token })
+    //         }
+    //     }
+    //     catch(error){
+    //         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error});
+    //     }
+    // }
+    // else{
+    //     throw new BadRequestError('You Need A Verified OTP Firstly !')
+    // }
+
 };
 
 const login = async (req, res, next) => {
@@ -201,10 +271,9 @@ const login = async (req, res, next) => {
         }
         const isPasswordCorrect = await user.comparePassword(password)
         if (!isPasswordCorrect) {
-<<<<<<< Updated upstream
-            throw new UnauthenticatedError('Invalid Credentials !')
-=======
->>>>>>> Stashed changes
+1
+            throw new UnauthenticatedError('Password Incorrect !')  
+
         }
 
         const token = user.createJWT()
@@ -639,10 +708,9 @@ const addProperty = async (req, res, next) => {
         }
         req.body.images = formattedImages
 
-<<<<<<< Updated upstream
-        const property = await Property.create({ ...req.body, category: req.body.categoryId })
-=======
->>>>>>> Stashed changes
+
+        // const property = await Property.create({ ...req.body, category: req.body.categoryId })
+        const property = await Property.create({ ...req.body, category: req.body.category })
         if(req.user.role && req.user.status === "Active" && (req.user.role === "Super-admin" || req.user.role === "Admin")){
             await Property.findOneAndUpdate(
                 { _id: property._id },
@@ -673,10 +741,9 @@ const addProperty = async (req, res, next) => {
 
 
 module.exports = {
-<<<<<<< Updated upstream
-    requestOtp,
-=======
->>>>>>> Stashed changes
+
+    // requestOtp,
+
     verifyOtp,
     register,
     login,
@@ -690,10 +757,7 @@ module.exports = {
     registerEmployee,
     createStatuses,
     createRoles,
-<<<<<<< Updated upstream
-    createPropertyCategories,
-=======
->>>>>>> Stashed changes
+    // createPropertyCategories,
     getModelById,
     createFirstSuperAdmin,
     addProperty,

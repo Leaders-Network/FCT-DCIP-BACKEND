@@ -1,15 +1,10 @@
 const express = require('express')
 const authenticationMiddleware = require('../middlewares/authentication');
 const router = express.Router()
-<<<<<<< Updated upstream
-const { requestOtp, verifyOtp, register, login, sendResetPasswordOtpUser, sendResetPasswordOtpEmployee, resetPasswordUser, verifyOtpEmployee, verifyPasswordResetOtpUser, resetPasswordEmployee, loginEmployee, registerEmployee, addProperty, deleteUser, removeProperty, getAllProperties, updateProperty, getAllEmployees, returnAvailableRoles, returnAvailableCategories } = require('../controllers/auth')
+const {  verifyOtp, register, login, sendResetPasswordOtpUser, sendResetPasswordOtpEmployee, resetPasswordUser, verifyOtpEmployee, verifyPasswordResetOtpUser, resetPasswordEmployee, loginEmployee, registerEmployee, addProperty, deleteUser, removeProperty, getAllProperties, updateProperty, getAllEmployees, returnAvailableRoles, returnAvailableCategories } = require('../controllers/auth')
 const validateKey = require('../middlewares/generate-api-key')
 
-router.post('/request-otp', validateKey, requestOtp)
-=======
-const validateKey = require('../middlewares/generate-api-key')
-
->>>>>>> Stashed changes
+// router.post('/request-otp', validateKey, requestOtp)
 router.post('/verify-otp', validateKey, verifyOtp)
 router.post('/register', validateKey, register)
 router.post('/login',  validateKey, login)
