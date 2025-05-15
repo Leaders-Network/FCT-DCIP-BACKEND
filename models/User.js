@@ -39,12 +39,15 @@ const UserSchema = new mongoose.Schema({
 })
 
 
+<<<<<<< Updated upstream
 UserSchema.pre('save', async function () {
     const salt = await bcrypt.genSalt(10)
     this.password = await bcrypt.hash(this.password, salt)
     this.isEmailVerified = true
 })
   
+=======
+>>>>>>> Stashed changes
 UserSchema.methods.createJWT = function () {
     return jwt.sign(
       { userId: this._id, fullname: this.fullname },

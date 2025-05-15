@@ -46,7 +46,10 @@ const start = async () => {
       await connectDB(process.env.MONGO_URI);
       await createStatuses()
       await createRoles()
+<<<<<<< Updated upstream
       await createPropertyCategories(),
+=======
+>>>>>>> Stashed changes
       await createFirstSuperAdmin()
       app.listen(PORT, () =>
         console.log(`Server is listening on port ${PORT}...`)

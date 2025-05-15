@@ -1,5 +1,6 @@
 const mongoose = require('mongoose')
 
+<<<<<<< Updated upstream
 const PropertyCategorySchema = new mongoose.Schema({
     category: {
         type: String,
@@ -7,6 +8,8 @@ const PropertyCategorySchema = new mongoose.Schema({
         required: true
     }
 })
+=======
+>>>>>>> Stashed changes
 
 const PropertySchema = new mongoose.Schema({
     status: {
@@ -23,14 +26,7 @@ const PropertySchema = new mongoose.Schema({
         type: String,
         required: [true, 'Please provide property address']
     },
-    phonenumber: {
-        type: String,
-        match: [/^(?:\+234\d{10}|234\d{10}|0\d{10})$/, 'Please provide a valid phone number'],
-        required: [true, 'Please provide a contact phone-number']
     },
-    images: [{
-        type: String
-    }],
     deleted: { 
         type: Boolean, 
         default: false 
@@ -43,5 +39,3 @@ const PropertySchema = new mongoose.Schema({
 })
 
 const Property = mongoose.model("Property", PropertySchema);
-const PropertyCategory = mongoose.model("PropertyCategory", PropertyCategorySchema)
-module.exports = { Property, PropertyCategory }

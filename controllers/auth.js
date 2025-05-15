@@ -24,12 +24,7 @@ const createRoles = async () => {
     }
 }
 
-const createPropertyCategories = async () => {
-    const existingCategories = await PropertyCategory.find({})
-    if(existingCategories.length === 0){
-        await PropertyCategory.create([{ category: "Single Occupier Office Building" }, { category: "Single Occupier Residential Building" }, { category: "Hotel/Hostel/Guest House" }, { category: "Recreation Centre/Club House/Cinema Hall" }, { category: "School/Training Institute" }, { category: "Petrol/Gas Station" }, { category: "Hospital/Clinic/Health Centre" }, { category: "Multi Occupier/Multi Purpose Business Building" }, { category: "Multi Occupier/Mixed Use Residential Building" }, { category: "Others" }])
-    }
-}
+
 
 const createFirstSuperAdmin = async () => {
     let superAdminRole = await Role.findOne({ role: 'Super-admin' })
@@ -50,6 +45,7 @@ const createFirstSuperAdmin = async () => {
     }
 }
 
+<<<<<<< Updated upstream
 const requestOtp =  async (req, res) => {
     const { email } = req.body;
     
@@ -163,6 +159,7 @@ const resetPasswordUser = async (req, res) => {
 };
 
 const register = async (req, res) => {
+<<<<<<< Updated upstream
     const confirmPassword = req.body['confirm password'] || req.body['confirmPassword'] || req.body['confirmpassword']
     const { email } = req.body;
     const otpData = await Otp.findOne({ email });
@@ -204,7 +201,10 @@ const login = async (req, res, next) => {
         }
         const isPasswordCorrect = await user.comparePassword(password)
         if (!isPasswordCorrect) {
+<<<<<<< Updated upstream
             throw new UnauthenticatedError('Invalid Credentials !')
+=======
+>>>>>>> Stashed changes
         }
 
         const token = user.createJWT()
@@ -639,7 +639,10 @@ const addProperty = async (req, res, next) => {
         }
         req.body.images = formattedImages
 
+<<<<<<< Updated upstream
         const property = await Property.create({ ...req.body, category: req.body.categoryId })
+=======
+>>>>>>> Stashed changes
         if(req.user.role && req.user.status === "Active" && (req.user.role === "Super-admin" || req.user.role === "Admin")){
             await Property.findOneAndUpdate(
                 { _id: property._id },
@@ -670,7 +673,10 @@ const addProperty = async (req, res, next) => {
 
 
 module.exports = {
+<<<<<<< Updated upstream
     requestOtp,
+=======
+>>>>>>> Stashed changes
     verifyOtp,
     register,
     login,
@@ -684,7 +690,10 @@ module.exports = {
     registerEmployee,
     createStatuses,
     createRoles,
+<<<<<<< Updated upstream
     createPropertyCategories,
+=======
+>>>>>>> Stashed changes
     getModelById,
     createFirstSuperAdmin,
     addProperty,
