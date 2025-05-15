@@ -1,5 +1,24 @@
 const mongoose = require('mongoose')
 
+const PropertyCategorySchema = new mongoose.Schema({
+        category: {
+        type: [String],
+        enum:[
+"Single Occupier Office Building",
+"Single Occupier Residential Building",
+"Hotel/Hostel/Guest House",
+"Recreation Centre/Club House/Cinema Hall",
+"Multi Occupier/Multi Purpose Business Building",
+
+"Multi Occupier/Mixed Use Residential Building",
+
+"Hospital/Clinic/Health Centre",
+"Others",
+
+"Petrol/Gas Station"],
+        
+    },
+})
 
 const PropertySchema = new mongoose.Schema({
     status: {
@@ -36,5 +55,5 @@ const PropertySchema = new mongoose.Schema({
 })
 
 const Property = mongoose.model("Property", PropertySchema);
-// const PropertyCategory = mongoose.model("PropertyCategory", PropertyCategorySchema)
-module.exports = { Property}
+const PropertyCategory = mongoose.model("PropertyCategory", PropertyCategorySchema)
+module.exports = { Property,PropertyCategory}
