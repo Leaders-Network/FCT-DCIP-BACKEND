@@ -2,8 +2,8 @@ const mongoose = require('mongoose')
 
 const PropertyCategorySchema = new mongoose.Schema({
         category: {
-        type: [String],
-        enum:[
+        type: String,
+        enum:[ 
 "Single Occupier Office Building",
 "Single Occupier Residential Building",
 "Hotel/Hostel/Guest House",
