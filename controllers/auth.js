@@ -162,9 +162,53 @@ const resetPasswordUser = async (req, res) => {
 };
 
 const register = async (req, res) => {
+
+    const {fullname,email,phonenumber,password,confirmPassword} = req.body
+
+    if(!fullname,!email,!phonenumber,!password,!confirmPassword){
+         return res.status(StatusCodes.BAD_REQUEST).json({
+            status:'Unsuccessful',
+            message:'Kindly fill all fields'
+         })
+    }
+
+     if(!confirmPassword || confirmPassword !== password){
+            return res.status(StatusCodes.BAD_REQUEST).json({
+            status:'Unsuccessful',
+            message:'Passwords do not match'
+         })
+         }
+         try {
+            const checkUser =await User.findOne({email})
+            const hashedPassWord = bcrypt.hashSync(password,10)
+            if(checkUser){
+                return res.status(StatusCodes.BAD_REQUEST).json({
+                status:'Unsuccessful',
+                message:'Account already exists'
+                })
+            }else{
+            const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
+            emailTokenStoreUser[generatedOtp] = email
+            await sendEmail(email, "verifyemail", generatedOtp);
+            const user = await User.create({
+                fullname,
+                email,
+                phonenumber,
+                password:hashedPassWord,
+                otp:generatedOtp
+            })
+            res.status(StatusCodes.CREATED).json({
+                status:"Successful",
+                message:"User Successfully created kindly check your email for otp",
+                data:user
+            })
             }
+
+
+         } catch (error) {
             res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error});
-};
+         }
+    }
 
 const login = async (req, res, next) => {
     const { email, password } = req.body

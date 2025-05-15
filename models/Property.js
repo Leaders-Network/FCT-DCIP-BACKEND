@@ -36,5 +36,5 @@ const PropertySchema = new mongoose.Schema({
 })
 
 const Property = mongoose.model("Property", PropertySchema);
-const PropertyCategory = mongoose.model("PropertyCategory", PropertyCategorySchema)
-module.exports = { Property, PropertyCategory }
+// const PropertyCategory = mongoose.model("PropertyCategory", PropertyCategorySchema)
+module.exports = { Property}
