@@ -4,7 +4,6 @@
   "description": "\"# FCT-DCIP-BACKEND\"",
   "main": "index.js",
   "scripts": {
-    "start": "node app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -24,6 +23,5 @@
     "nodemailer": "^6.9.15"
   },
   "devDependencies": {
-    "nodemon": "^3.1.7"
   }
 }

@@ -24,12 +24,6 @@ const createRoles = async () => {
     }
 }
 
-const createPropertyCategories = async () => {
-    const existingCategories = await PropertyCategory.find({})
-    if(existingCategories.length === 0){
-        await PropertyCategory.create([{ category: "Single Occupier Office Building" }, { category: "Single Occupier Residential Building" }, { category: "Hotel/Hostel/Guest House" }, { category: "Recreation Centre/Club House/Cinema Hall" }, { category: "School/Training Institute" }, { category: "Petrol/Gas Station" }, { category: "Hospital/Clinic/Health Centre" }, { category: "Multi Occupier/Multi Purpose Business Building" }, { category: "Multi Occupier/Mixed Use Residential Building" }, { category: "Others" }])
-    }
-}
 
 const createFirstSuperAdmin = async () => {
     let superAdminRole = await Role.findOne({ role: 'Super-admin' })
@@ -50,35 +44,16 @@ const createFirstSuperAdmin = async () => {
     }
 }
 
-const requestOtp =  async (req, res) => {
-    const { email } = req.body;
     
 
-    const userExists = await User.findOne({email})
-    if(userExists){ return res.status(StatusCodes.BAD_REQUEST).json({success: false, message: "This Email Is Already Registered !"}) }
-    const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
-    emailTokenStoreUser[generatedOtp] = email
-    try {
-        await sendEmail(email, "verifyemail", generatedOtp);
-        res.status(StatusCodes.OK).json({success: true, message: 'OTP sent successfully!' });
-    } catch (error) {
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false,  message: `Error sending OTP: ${error}` });
-    }
-};
+//     }
 
 const verifyOtp = async(req, res) => {
-    const { otp } = req.body;
-    const email = emailTokenStoreUser[otp]
 
     try{
-        const otpData = await Otp.findOne({ email, otp });
 
-        if (otpData) {
             // await Otp.deleteOne({ email })
-            res.status(StatusCodes.OK).json({success: true, message: 'OTP verified successfully!'});
-        } else {
-            res.status(StatusCodes.BAD_REQUEST).json({success: false,  message: 'Invalid OTP !'});
-        }
+           
     }
     catch(error){
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error});
@@ -163,32 +138,8 @@ const resetPasswordUser = async (req, res) => {
 };
 
 const register = async (req, res) => {
-    const confirmPassword = req.body['confirm password'] || req.body['confirmPassword'] || req.body['confirmpassword']
-    const { email } = req.body;
-    const otpData = await Otp.findOne({ email });
-
-    if(otpData){
-        try{
-            await Otp.deleteOne({email})
-            if(!confirmPassword || confirmPassword !== req.body.password){
-                throw new BadRequestError('Please provide a matching confirm-password')
             }
-            else{
-                const user = await User.create({ ...req.body })
-                const token = user.createJWT()
-                const userObject = user.toObject()
-                delete userObject.password
-                delete userObject.__v
-                res.status(StatusCodes.CREATED).json({ success: true, user: userObject, token })
-            }
-        }
-        catch(error){
             res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error});
-        }
-    }
-    else{
-        throw new BadRequestError('You Need A Verified OTP Firstly !')
-    }
 };
 
 const login = async (req, res, next) => {
@@ -204,7 +155,6 @@ const login = async (req, res, next) => {
         }
         const isPasswordCorrect = await user.comparePassword(password)
         if (!isPasswordCorrect) {
-            throw new UnauthenticatedError('Invalid Credentials !')
         }
 
         const token = user.createJWT()
@@ -639,7 +589,6 @@ const addProperty = async (req, res, next) => {
         }
         req.body.images = formattedImages
 
-        const property = await Property.create({ ...req.body, category: req.body.categoryId })
         if(req.user.role && req.user.status === "Active" && (req.user.role === "Super-admin" || req.user.role === "Admin")){
             await Property.findOneAndUpdate(
                 { _id: property._id },
@@ -670,7 +619,6 @@ const addProperty = async (req, res, next) => {
 
 
 module.exports = {
-    requestOtp,
     verifyOtp,
     register,
     login,
@@ -684,7 +632,6 @@ module.exports = {
     registerEmployee,
     createStatuses,
     createRoles,
-    createPropertyCategories,
     getModelById,
     createFirstSuperAdmin,
     addProperty,

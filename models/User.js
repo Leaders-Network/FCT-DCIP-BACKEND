@@ -39,12 +39,6 @@ const UserSchema = new mongoose.Schema({
 })
 
 
-UserSchema.pre('save', async function () {
-    const salt = await bcrypt.genSalt(10)
-    this.password = await bcrypt.hash(this.password, salt)
-    this.isEmailVerified = true
-})
-  
 UserSchema.methods.createJWT = function () {
     return jwt.sign(
       { userId: this._id, fullname: this.fullname },
