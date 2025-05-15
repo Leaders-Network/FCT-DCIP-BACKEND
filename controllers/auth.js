@@ -656,6 +656,8 @@ const addProperty = async (req, res, next) => {
             throw new BadRequestError('No valid base64 images found.')
         }
         req.body.images = formattedImages
+        
+        const property = await Property.create({ ...req.body, category: req.body.categoryId })
 
         if(req.user.role && req.user.status === "Active" && (req.user.role === "Super-admin" || req.user.role === "Admin")){
             await Property.findOneAndUpdate(
