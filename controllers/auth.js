@@ -49,16 +49,40 @@ const createFirstSuperAdmin = async () => {
 //     }
 
 const verifyOtp = async(req, res) => {
+    const { otp,email } = req.body;
+    // const email = emailTokenStoreUser[otp]
 
     try{
+        const user = await User.findOne({ email });
+        if(!user){
+            return res.status(StatusCodes.NOT_FOUND).json({
+                status:'Unsuccessful',
+                message:'User Not Found'
+            })
+        }
+        if( otp !== user.otp){
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                status:'Unsuccessful',
+                message:'Invalid OTP !'
+            })
+        }
+        user.isEmailVerified = true
+        user.otp = ''
+        await user.save()
+         res.status(StatusCodes.OK).json({success: true, message: 'OTP verified successfully!'});
 
+        // if (otpData) {
             // await Otp.deleteOne({ email })
            
+        // } else {
+        //     res.status(StatusCodes.BAD_REQUEST).json({success: false,  message: ''});
+        // }
     }
     catch(error){
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error});
     }
 };
+
 
 const sendResetPasswordOtpUser = async (req, res, next) => {
     const { email } = req.body
