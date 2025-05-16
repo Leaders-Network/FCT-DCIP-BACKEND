@@ -1,7 +1,7 @@
 const express = require('express')
 const authenticationMiddleware = require('../middlewares/authentication');
 const router = express.Router()
-const {  verifyOtp, register, login, sendResetPasswordOtpUser, sendResetPasswordOtpEmployee, resetPasswordUser, verifyOtpEmployee, verifyPasswordResetOtpUser, resetPasswordEmployee, loginEmployee, registerEmployee, addProperty, deleteUser, removeProperty, getAllProperties, updateProperty, getAllEmployees, returnAvailableRoles, returnAvailableCategories } = require('../controllers/auth')
+const {  verifyOtp, register, login, sendResetPasswordOtpUser, sendResetPasswordOtpEmployee, resetPasswordUser, verifyOtpEmployee, verifyPasswordResetOtpUser, resetPasswordEmployee, loginEmployee, registerEmployee, addProperty, deleteUser, removeProperty, getAllProperties, updateProperty, getAllEmployees, returnAvailableRoles, returnAvailableCategories,getPropertyById, newPolicy } = require('../controllers/auth')
 const validateKey = require('../middlewares/generate-api-key')
 
 router.post('/verify-otp', validateKey, verifyOtp)
@@ -23,7 +23,7 @@ router.get('/user/get-all-properties', validateKey, authenticationMiddleware, ge
 router.get('/get-all-employees', validateKey, authenticationMiddleware, getAllEmployees)
 router.get('/available-roles', validateKey, authenticationMiddleware, returnAvailableRoles)
 router.get('/available-categories', validateKey, returnAvailableCategories)
-
-
+router.get('/user/property/:id',validateKey,authenticationMiddleware,getPropertyById)
+router.post('/user/policy',validateKey,newPolicy)
 
 module.exports = router

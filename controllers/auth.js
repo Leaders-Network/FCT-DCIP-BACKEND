@@ -6,6 +6,8 @@ const sendEmail = require("../utils/sendEmail");
 const bcrypt = require('bcryptjs')
 const { StatusCodes } = require('http-status-codes')
 const { BadRequestError, UnauthenticatedError, NotFoundError } = require('../errors');
+const generateRandomString = require('../middlewares/PolicyNumberGenerator');
+const Policy = require('../models/Policy');
 
 
 let emailTokenStoreEmployee = {}
@@ -323,8 +325,29 @@ const getAllProperties = async (req, res, message = null) => {
     return res.status(StatusCodes.OK).json({ success: true, allProperties: { count: properties.length, properties } })
 }
 
-const getPropertyById = async () => {
+const getPropertyById = async (req,res) => {
+    const {id} = req.params
+    try {
+        const property = await Property.findById(id)
+        if(!property){
+            res.status(StatusCodes.NOT_FOUND).json({
+                status:false,
+                message:'Property Not Found!'
+            })
+        }
 
+        res.status(StatusCodes.OK).json({
+            status:true,
+            message:'Property Found!',
+            data:property
+        })
+
+    } catch (error) {
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            status:false,
+            message:'' + error
+        })
+    }
 }
 
 const updateProperty = async (req, res, next) => {
@@ -678,6 +701,63 @@ const addProperty = async (req, res, next) => {
     }
 }
 
+const newPolicy = async (req,res) =>{
+    const {policyNumber} = req.body
+    // const {id} = req.params
+    
+    if(!policyNumber){
+        const policyNum = generateRandomString(10)
+        const {address,buildingNumber,phonenumber,insuranceClass,insuranceCompany,propertyId} = req.body
+        try {
+            req.body.ownedBy = req.user.userId
+            const policy =await Policy.findOne({policyNum})
+            if(policy){
+                res.status(StatusCodes.BAD_REQUEST).json({ success: false, message:'Policy already exists kindly renew or Resubmit the new policy' })
+            }
+
+            const createPolicy = await Policy.create({
+                policyNumber:policyNum,
+                address,
+                ownerBy,
+                buildingNumber,
+                phonenumber,
+                insuranceClass,
+                insuranceCompany,
+                propertyId
+            })
+
+            return res.status(StatusCodes.CREATED).json({
+                success:true,
+                message:'Policy Created!',
+                data:createPolicy
+            })
+        } catch (error) {
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error })
+        }
+    }else{
+        const {phonenumber} = req.body 
+        try {
+            const policy =await Policy.findOneAndUpdate({policyNumber},{
+                phonenumber
+            },{
+                new:true
+            })
+            if(!policy){
+                res.status(StatusCodes.NOT_FOUND).json({ success: false, message:'Policy does not exist kindly create a new one' })
+            }
+
+            return res.status(StatusCodes.OK).json({
+                success:true,
+                message:'Policy Renewed!',
+                data:policy
+            })
+
+        } catch (error) {
+            return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error })
+        }
+    }
+}
+
 
 
 
@@ -712,4 +792,6 @@ module.exports = {
     getAllEmployees,
     returnAvailableRoles,
     returnAvailableCategories,
+    getPropertyById,
+    newPolicy
 }
