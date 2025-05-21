@@ -707,34 +707,24 @@ const newPolicy = async (req,res) =>{
     
     if(!policyNumber){
         const policyNum = generateRandomString(10)
-        const {address,buildingNumber,phonenumber,insuranceClass,insuranceCompany,propertyId} = req.body
+        const {buildingNumber,insuranceClass,insuranceCompany} = req.body
         try {
-            // req.body.ownedBy = req.user.userId
-            const user = await User.findById(id)
-            if(!user){
-                res.status(StatusCodes.NOT_FOUND).json({ success: false, message:'User not found' })
-            }
-
-            const property = await Property.findById(propertyId)
+            const property = await Property.findById(id)
             if(!property){
                 res.status(StatusCodes.NOT_FOUND).json({ success: false, message:'Property not found' })
             }
 
-            const policy =await Policy.findOne({policyNum})
+            const policy =await Property.findOne({policyNum})
             if(policy){
                 res.status(StatusCodes.BAD_REQUEST).json({ success: false, message:'Policy already exists kindly renew or Resubmit the new policy' })
             }
 
-            const createPolicy = await Policy.create({
+            const createPolicy = await Property.findByIdAndUpdate(id,{
                 policyNumber:policyNum,
-                address,
                 buildingNumber,
-                phonenumber,
                 insuranceClass,
                 insuranceCompany,
-                propertyId,
-                ownerBy:id
-            })
+            },{new:true})
 
             return res.status(StatusCodes.CREATED).json({
                 success:true,
@@ -747,7 +737,7 @@ const newPolicy = async (req,res) =>{
     }else{
         const {phonenumber} = req.body 
         try {
-            const policy =await Policy.findOneAndUpdate({policyNumber},{
+            const policy =await Property.findOneAndUpdate({policyNumber},{
                 phonenumber
             },{
                 new:true

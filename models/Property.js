@@ -52,6 +52,22 @@ const PropertySchema = new mongoose.Schema({
         ref: 'User', 
         required: true 
     },
+    insuranceClass:{
+        type:String,
+        default:'',
+    },
+    insuranceCompany:{
+        type:String,
+        default:'',
+    },
+    policyNumber:{
+        type:String,
+        default:'',
+        unique:true
+    },
+    buildingNumber:{
+        type:String,
+    }
 })
 
 const Property = mongoose.model("Property", PropertySchema);
