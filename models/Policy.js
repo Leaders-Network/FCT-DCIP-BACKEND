@@ -14,7 +14,7 @@ const policySchema = new mongoose.Schema({
     ownerBy:{
         type:mongoose.Schema.Types.ObjectId,
         ref:'user',
-        require:true
+        // require:true
     },
     buildingNumber:{
         type:String,

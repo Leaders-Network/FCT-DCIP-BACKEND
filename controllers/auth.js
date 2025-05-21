@@ -703,13 +703,23 @@ const addProperty = async (req, res, next) => {
 
 const newPolicy = async (req,res) =>{
     const {policyNumber} = req.body
-    // const {id} = req.params
+    const {id} = req.params
     
     if(!policyNumber){
         const policyNum = generateRandomString(10)
         const {address,buildingNumber,phonenumber,insuranceClass,insuranceCompany,propertyId} = req.body
         try {
-            req.body.ownedBy = req.user.userId
+            // req.body.ownedBy = req.user.userId
+            const user = await User.findById(id)
+            if(!user){
+                res.status(StatusCodes.NOT_FOUND).json({ success: false, message:'User not found' })
+            }
+
+            const property = await Property.findById(propertyId)
+            if(!property){
+                res.status(StatusCodes.NOT_FOUND).json({ success: false, message:'Property not found' })
+            }
+
             const policy =await Policy.findOne({policyNum})
             if(policy){
                 res.status(StatusCodes.BAD_REQUEST).json({ success: false, message:'Policy already exists kindly renew or Resubmit the new policy' })
@@ -718,12 +728,12 @@ const newPolicy = async (req,res) =>{
             const createPolicy = await Policy.create({
                 policyNumber:policyNum,
                 address,
-                ownerBy,
                 buildingNumber,
                 phonenumber,
                 insuranceClass,
                 insuranceCompany,
-                propertyId
+                propertyId,
+                ownerBy:id
             })
 
             return res.status(StatusCodes.CREATED).json({
@@ -753,7 +763,7 @@ const newPolicy = async (req,res) =>{
             })
 
         } catch (error) {
-            return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error })
+            return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message:error })
         }
     }
 }

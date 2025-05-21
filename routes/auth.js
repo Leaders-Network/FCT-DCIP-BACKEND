@@ -24,6 +24,6 @@ router.get('/get-all-employees', validateKey, authenticationMiddleware, getAllEm
 router.get('/available-roles', validateKey, authenticationMiddleware, returnAvailableRoles)
 router.get('/available-categories', validateKey, returnAvailableCategories)
 router.get('/user/property/:id',validateKey,authenticationMiddleware,getPropertyById)
-router.post('/user/policy',validateKey,newPolicy)
+router.post('/user/policy/:id',validateKey,newPolicy)
 
 module.exports = router
