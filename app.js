@@ -25,13 +25,17 @@ app.use(
 app.use(express.json());
 app.use(helmet());
 
-const corsOptions = {
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: '*',
+// const corsOptions = {
+//   origin: '*',
+//   methods: ['GET', 'POST', 'PUT', 'DELETE'],
+//   allowedHeaders: '*',
+//   credentials: true,
+// }
+
+app.use(cors({
+  origin: ["http://localhost:3000","https://fct-dcip.vercel.app"],
   credentials: true,
-}
-app.use(cors());
+}));
 
 app.use('/api/v1/auth', authRouter);
 app.get('/', (req, res) => { res.send('<h3>DEPLOYED !</h3>') })
@@ -41,7 +45,7 @@ app.use(errorHandlerMiddleware);
 
 
 
-const PORT = process.env.PORT || 3000
+const PORT = process.env.PORT || 5000
 const start = async () => {
     try {
       await connectDB(process.env.MONGO_URI);

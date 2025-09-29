@@ -56,23 +56,31 @@ const verifyOtp = async(req, res) => {
 
     try{
         const user = await Otp.findOne({ email });
+        const updatedUser = await User.findOne({ email });
         if(!user){
             return res.status(StatusCodes.NOT_FOUND).json({
                 status:'Unsuccessful',
                 message:'User Not Found'
             })
         }
+        if(!otp){
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                status:'Unsuccessful',
+                message:'Please provide OTP',
+            })
+        }
         if( otp !== user.otp){
             return res.status(StatusCodes.BAD_REQUEST).json({
                 status:'Unsuccessful',
                 message:'Invalid OTP !',
-                otp: otp,
-                userOtp: user.otp
+                otp,
+                userOtp : user.otp
             })
         }
-        user.isEmailVerified = true
-        user.otp = ''
-        await user.save()
+        
+        updatedUser.isEmailVerified = true
+        await updatedUser.save()
+        await Otp.deleteOne({ email })
          res.status(StatusCodes.OK).json({success: true, message: 'OTP verified successfully!'});
 
         // if (otpData) {
