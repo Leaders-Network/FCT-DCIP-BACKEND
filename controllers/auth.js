@@ -55,7 +55,7 @@ const verifyOtp = async(req, res) => {
     // const email = emailTokenStoreUser[otp]
 
     try{
-        const user = await User.findOne({ email });
+        const user = await Otp.findOne({ email });
         if(!user){
             return res.status(StatusCodes.NOT_FOUND).json({
                 status:'Unsuccessful',
@@ -65,7 +65,9 @@ const verifyOtp = async(req, res) => {
         if( otp !== user.otp){
             return res.status(StatusCodes.BAD_REQUEST).json({
                 status:'Unsuccessful',
-                message:'Invalid OTP !'
+                message:'Invalid OTP !',
+                otp: otp,
+                userOtp: user.otp
             })
         }
         user.isEmailVerified = true
