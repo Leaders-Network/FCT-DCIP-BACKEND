@@ -6,6 +6,7 @@ const sendEmail = require("../utils/sendEmail");
 const bcrypt = require('bcryptjs')
 const { StatusCodes } = require('http-status-codes')
 const { BadRequestError, UnauthenticatedError, NotFoundError } = require('../errors');
+const { generateRandomString, generatePolicyNumber } = require('../middlewares/PolicyNumberGenerator');
 
 
 let emailTokenStoreEmployee = {}
@@ -27,7 +28,32 @@ const createRoles = async () => {
 const createPropertyCategories = async () => {
     const existingCategories = await PropertyCategory.find({})
     if(existingCategories.length === 0){
-        await PropertyCategory.create([{ category: "Single Occupier Office Building" }, { category: "Single Occupier Residential Building" }, { category: "Hotel/Hostel/Guest House" }, { category: "Recreation Centre/Club House/Cinema Hall" }, { category: "School/Training Institute" }, { category: "Petrol/Gas Station" }, { category: "Hospital/Clinic/Health Centre" }, { category: "Multi Occupier/Multi Purpose Business Building" }, { category: "Multi Occupier/Mixed Use Residential Building" }, { category: "Others" }])
+        await PropertyCategory.create([
+            { category: "Single Occupier Office Building" }, 
+            { category: "Single Occupier Residential Building" }, 
+            { category: "Hotel/Hostel/Guest House" }, 
+            { category: "Recreation Centre/Club House/Cinema Hall" }, 
+            { category: "School/Training Institute" }, 
+            { category: "Petrol/Gas Station" }, 
+            { category: "Hospital/Clinic/Health Centre" }, 
+            { category: "Multi Occupier/Multi Purpose Business Building" }, 
+            { category: "Multi Occupier/Mixed Use Residential Building" }, 
+            { category: "Others" }
+        ])
+        console.log("Property Categories initialized successfully!")
+    }
+}
+
+// Initialize surveyor roles if needed
+const createSurveyorRoles = async () => {
+    try {
+        const surveyorRole = await Role.findOne({ role: 'Surveyor' })
+        if (!surveyorRole) {
+            await Role.create({ role: 'Surveyor' })
+            console.log("Surveyor role created successfully!")
+        }
+    } catch (error) {
+        console.error("Error creating surveyor role:", error)
     }
 }
 
@@ -704,12 +730,15 @@ module.exports = {
     createStatuses,
     createRoles,
     createPropertyCategories,
+    createSurveyorRoles,
     getModelById,
     createFirstSuperAdmin,
     addProperty,
     deleteUser,
     removeProperty,
     getAllProperties,
+    getAllUsers,
+    getUserById,
     updateProperty,
     getAllEmployees,
     returnAvailableRoles,

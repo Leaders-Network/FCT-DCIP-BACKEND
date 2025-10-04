@@ -1,0 +1,375 @@
+const { StatusCodes } = require('http-status-codes');
+const Surveyor = require('../models/Surveyor');
+const Assignment = require('../models/Assignment');
+const SurveySubmission = require('../models/SurveySubmission');
+const PolicyRequest = require('../models/PolicyRequest');
+const { BadRequestError, NotFoundError, UnauthenticatedError } = require('../errors');
+
+// Get surveyor dashboard data
+const getSurveyorDashboard = async (req, res) => {
+  try {
+    const surveyorUserId = req.user.userId;
+    
+    // Get or create surveyor profile
+    let surveyor = await Surveyor.findOne({ userId: surveyorUserId });
+    if (!surveyor) {
+      surveyor = await Surveyor.create({ 
+        userId: surveyorUserId,
+        profile: { specialization: ['residential'] }
+      });
+    }
+    
+    // Get assignments
+    const assignments = await Assignment.find({ 
+      surveyorId: surveyorUserId 
+    })
+    .populate('policyId', 'propertyDetails requestDetails status priority deadline')
+    .sort({ deadline: 1 })
+    .limit(10);
+    
+    // Get recent submissions
+    const recentSubmissions = await SurveySubmission.find({ 
+      surveyorId: surveyorUserId 
+    })
+    .populate('policyId', 'propertyDetails status')
+    .sort({ submissionTime: -1 })
+    .limit(5);
+    
+    // Calculate statistics
+    const totalAssignments = await Assignment.countDocuments({ surveyorId: surveyorUserId });
+    const pendingAssignments = await Assignment.countDocuments({ 
+      surveyorId: surveyorUserId, 
+      status: { $in: ['assigned', 'accepted', 'in-progress'] }
+    });
+    const completedSurveys = await SurveySubmission.countDocuments({ surveyorId: surveyorUserId });
+    const overdueAssignments = await Assignment.countDocuments({
+      surveyorId: surveyorUserId,
+      deadline: { $lt: new Date() },
+      status: { $in: ['assigned', 'accepted', 'in-progress'] }
+    });
+    
+    // Update surveyor statistics
+    surveyor.statistics.totalAssignments = totalAssignments;
+    surveyor.statistics.pendingAssignments = pendingAssignments;
+    surveyor.statistics.completedSurveys = completedSurveys;
+    await surveyor.save();
+    
+    const dashboardData = {
+      profile: surveyor,
+      statistics: {
+        totalAssignments,
+        pendingAssignments,
+        completedSurveys,
+        overdueAssignments
+      },
+      recentAssignments: assignments,
+      recentSubmissions
+    };
+    
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: dashboardData
+    });
+  } catch (error) {
+    console.error('Get surveyor dashboard error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to get dashboard data',
+      error: error.message
+    });
+  }
+};
+
+// Get surveyor assignments
+const getSurveyorAssignments = async (req, res) => {
+  try {
+    const surveyorUserId = req.user.userId;
+    const { status, page = 1, limit = 10 } = req.query;
+    
+    const query = { surveyorId: surveyorUserId };
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+    
+    const skip = (page - 1) * limit;
+    
+    const assignments = await Assignment.find(query)
+      .populate('policyId', 'propertyDetails contactDetails requestDetails status priority deadline')
+      .populate('assignedBy', 'firstname lastname email')
+      .sort({ deadline: 1, priority: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+    
+    const total = await Assignment.countDocuments(query);
+    
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: {
+        assignments,
+        pagination: {
+          current: parseInt(page),
+          total: Math.ceil(total / limit),
+          count: assignments.length,
+          totalRecords: total
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get surveyor assignments error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to get assignments',
+      error: error.message
+    });
+  }
+};
+
+// Update assignment status
+const updateAssignmentStatus = async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+    const { status, notes } = req.body;
+    const surveyorUserId = req.user.userId;
+    
+    const assignment = await Assignment.findOne({ 
+      _id: assignmentId, 
+      surveyorId: surveyorUserId 
+    });
+    
+    if (!assignment) {
+      throw new NotFoundError('Assignment not found');
+    }
+    
+    // Validate status transition
+    const validTransitions = {
+      'assigned': ['accepted', 'rejected'],
+      'accepted': ['in-progress'],
+      'in-progress': ['completed'],
+      'completed': [], // Cannot change from completed
+      'rejected': [], // Cannot change from rejected
+      'cancelled': [] // Cannot change from cancelled
+    };
+    
+    if (!validTransitions[assignment.status].includes(status)) {
+      throw new BadRequestError(`Invalid status transition from ${assignment.status} to ${status}`);
+    }
+    
+    assignment.status = status;
+    
+    // Update progress tracking based on status
+    if (status === 'in-progress' && !assignment.progressTracking.startedAt) {
+      assignment.progressTracking.startedAt = new Date();
+    } else if (status === 'completed') {
+      assignment.progressTracking.completedAt = new Date();
+      assignment.actualDuration = assignment.duration;
+    }
+    
+    // Add message if notes provided
+    if (notes) {
+      assignment.addMessage(surveyorUserId, notes, 'status_update');
+    }
+    
+    await assignment.save();
+    
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: 'Assignment status updated successfully',
+      data: assignment
+    });
+  } catch (error) {
+    console.error('Update assignment status error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to update assignment status',
+      error: error.message
+    });
+  }
+};
+
+// Submit survey
+const submitSurvey = async (req, res) => {
+  try {
+    const surveyorUserId = req.user.userId;
+    const {
+      policyId,
+      assignmentId,
+      surveyDetails,
+      surveyDocument,
+      surveyNotes,
+      contactLog,
+      recommendedAction
+    } = req.body;
+    
+    // Validate policy exists and is assigned to this surveyor
+    const assignment = await Assignment.findOne({
+      _id: assignmentId,
+      surveyorId: surveyorUserId,
+      status: { $in: ['accepted', 'in-progress'] }
+    });
+    
+    if (!assignment) {
+      throw new NotFoundError('Assignment not found or not in progress');
+    }
+    
+    // Create survey submission
+    const submission = new SurveySubmission({
+      policyId,
+      surveyorId: surveyorUserId,
+      assignmentId,
+      surveyDetails,
+      surveyDocument,
+      surveyNotes,
+      contactLog: contactLog || [],
+      recommendedAction,
+      status: 'submitted'
+    });
+    
+    await submission.save();
+    
+    // Update assignment status
+    assignment.status = 'completed';
+    assignment.progressTracking.completedAt = new Date();
+    await assignment.save();
+    
+    // Update policy request status
+    await PolicyRequest.findByIdAndUpdate(policyId, {
+      status: 'surveyed',
+      surveyDocument,
+      surveyNotes
+    });
+    
+    res.status(StatusCodes.CREATED).json({
+      success: true,
+      message: 'Survey submitted successfully',
+      data: submission
+    });
+  } catch (error) {
+    console.error('Submit survey error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to submit survey',
+      error: error.message
+    });
+  }
+};
+
+// Get surveyor submissions
+const getSurveyorSubmissions = async (req, res) => {
+  try {
+    const surveyorUserId = req.user.userId;
+    const { status, page = 1, limit = 10 } = req.query;
+    
+    const query = { surveyorId: surveyorUserId };
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+    
+    const skip = (page - 1) * limit;
+    
+    const submissions = await SurveySubmission.find(query)
+      .populate('policyId', 'propertyDetails contactDetails status')
+      .populate('reviewedBy', 'firstname lastname')
+      .sort({ submissionTime: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+    
+    const total = await SurveySubmission.countDocuments(query);
+    
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: {
+        submissions,
+        pagination: {
+          current: parseInt(page),
+          total: Math.ceil(total / limit),
+          count: submissions.length,
+          totalRecords: total
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get surveyor submissions error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to get submissions',
+      error: error.message
+    });
+  }
+};
+
+// Get surveyor profile
+const getSurveyorProfile = async (req, res) => {
+  try {
+    const surveyorUserId = req.user.userId;
+    
+    let surveyor = await Surveyor.findOne({ userId: surveyorUserId })
+      .populate('userId', 'firstname lastname email phonenumber');
+    
+    if (!surveyor) {
+      surveyor = await Surveyor.create({ 
+        userId: surveyorUserId,
+        profile: { specialization: ['residential'] }
+      });
+      await surveyor.populate('userId', 'firstname lastname email phonenumber');
+    }
+    
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: surveyor
+    });
+  } catch (error) {
+    console.error('Get surveyor profile error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to get profile',
+      error: error.message
+    });
+  }
+};
+
+// Update surveyor profile
+const updateSurveyorProfile = async (req, res) => {
+  try {
+    const surveyorUserId = req.user.userId;
+    const updates = req.body;
+    
+    let surveyor = await Surveyor.findOne({ userId: surveyorUserId });
+    
+    if (!surveyor) {
+      throw new NotFoundError('Surveyor profile not found');
+    }
+    
+    // Update allowed fields
+    const allowedUpdates = ['profile', 'settings'];
+    allowedUpdates.forEach(field => {
+      if (updates[field]) {
+        surveyor[field] = { ...surveyor[field], ...updates[field] };
+      }
+    });
+    
+    await surveyor.save();
+    
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: surveyor
+    });
+  } catch (error) {
+    console.error('Update surveyor profile error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to update profile',
+      error: error.message
+    });
+  }
+};
+
+module.exports = {
+  getSurveyorDashboard,
+  getSurveyorAssignments,
+  updateAssignmentStatus,
+  submitSurvey,
+  getSurveyorSubmissions,
+  getSurveyorProfile,
+  updateSurveyorProfile
+};

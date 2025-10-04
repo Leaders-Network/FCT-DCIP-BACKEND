@@ -3,12 +3,15 @@ require('express-async-errors');
 const connectDB = require('./database/connect');
 const express = require("express")
 const authRouter = require('./routes/auth');
+const filesRouter = require('./routes/files');
+const surveyorRouter = require('./routes/surveyor');
+const policyRouter = require('./routes/policy');
 const notFoundMiddleware = require('./middlewares/not-found');
 const errorHandlerMiddleware = require('./middlewares/error-handler');
 const helmet = require('helmet');
 const cors = require('cors');
 const rateLimiter = require('express-rate-limit');
-const { createStatuses, createRoles, createPropertyCategories, createFirstSuperAdmin } = require('./controllers/auth')
+const { createStatuses, createRoles, createPropertyCategories, createSurveyorRoles, createFirstSuperAdmin } = require('./controllers/auth')
 
 const app = express()
 app.use(express.json());
@@ -34,6 +37,9 @@ const corsOptions = {
 app.use(cors());
 
 app.use('/api/v1/auth', authRouter);
+app.use('/api/v1/files', filesRouter);
+app.use('/api/v1/surveyor', surveyorRouter);
+app.use('/api/v1/policy', policyRouter);
 app.get('/', (req, res) => { res.send('<h3>DEPLOYED !</h3>') })
 
 app.use(notFoundMiddleware);
@@ -46,7 +52,8 @@ const start = async () => {
       await connectDB(process.env.MONGO_URI);
       await createStatuses()
       await createRoles()
-      await createPropertyCategories(),
+      await createPropertyCategories()
+      await createSurveyorRoles()
       await createFirstSuperAdmin()
       app.listen(PORT, () =>
         console.log(`Server is listening on port ${PORT}...`)
