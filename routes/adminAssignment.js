@@ -1,0 +1,24 @@
+const express = require('express');
+const {
+  getAllAssignments,
+  getAssignmentById,
+  updateAssignment,
+  reassignAssignment,
+  cancelAssignment,
+  getAssignmentAnalytics
+} = require('../controllers/adminAssignment');
+const auth = require('../middlewares/authentication');
+
+const router = express.Router();
+
+// All routes require authentication and admin role
+router.use(auth);
+
+router.get('/', getAllAssignments); // Get all assignments with filters
+router.get('/analytics', getAssignmentAnalytics); // Get assignment analytics
+router.get('/:assignmentId', getAssignmentById); // Get assignment by ID
+router.patch('/:assignmentId', updateAssignment); // Update assignment
+router.patch('/:assignmentId/reassign', reassignAssignment); // Reassign to different surveyor
+router.patch('/:assignmentId/cancel', cancelAssignment); // Cancel assignment
+
+module.exports = router;

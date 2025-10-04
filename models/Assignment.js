@@ -128,6 +128,76 @@ const AssignmentSchema = new mongoose.Schema({
     },
     ratedAt: Date
   },
+  documents: [{
+    fileName: {
+      type: String,
+      required: true
+    },
+    fileType: {
+      type: String,
+      required: true
+    },
+    fileSize: {
+      type: Number,
+      required: true
+    },
+    cloudinaryUrl: {
+      type: String,
+      required: true
+    },
+    cloudinaryPublicId: {
+      type: String,
+      required: true
+    },
+    category: {
+      type: String,
+      enum: ['survey_report', 'photos', 'receipts', 'legal_documents', 'inspection_forms', 'general'],
+      default: 'general'
+    },
+    description: String,
+    documentType: {
+      type: String,
+      enum: ['survey_document', 'photo', 'receipt', 'report', 'form', 'other'],
+      default: 'other'
+    },
+    uploadedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Employee',
+      required: true
+    },
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    },
+    isPublic: {
+      type: Boolean,
+      default: false
+    },
+    metadata: {
+      location: {
+        latitude: Number,
+        longitude: Number
+      },
+      timestamp: Date,
+      deviceInfo: String
+    }
+  }],
+  timeline: [{
+    action: {
+      type: String,
+      required: true
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    performedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Employee'
+    },
+    details: String,
+    notes: String
+  }],
   expenses: {
     transportation: {
       type: Number,

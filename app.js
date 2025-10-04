@@ -6,6 +6,10 @@ const authRouter = require('./routes/auth');
 const filesRouter = require('./routes/files');
 const surveyorRouter = require('./routes/surveyor');
 const policyRouter = require('./routes/policy');
+const adminSurveyorRouter = require('./routes/adminSurveyor');
+const adminAssignmentRouter = require('./routes/adminAssignment');
+const adminDashboardRouter = require('./routes/adminDashboard');
+const surveyDocumentsRouter = require('./routes/surveyDocuments');
 const notFoundMiddleware = require('./middlewares/not-found');
 const errorHandlerMiddleware = require('./middlewares/error-handler');
 const helmet = require('helmet');
@@ -40,6 +44,10 @@ app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/files', filesRouter);
 app.use('/api/v1/surveyor', surveyorRouter);
 app.use('/api/v1/policy', policyRouter);
+app.use('/api/v1/admin/surveyor', adminSurveyorRouter);
+app.use('/api/v1/admin/assignment', adminAssignmentRouter);
+app.use('/api/v1/admin/dashboard', adminDashboardRouter);
+app.use('/api/v1/survey-documents', surveyDocumentsRouter);
 app.get('/', (req, res) => { res.send('<h3>DEPLOYED !</h3>') })
 
 app.use(notFoundMiddleware);

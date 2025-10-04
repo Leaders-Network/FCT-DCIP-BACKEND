@@ -70,9 +70,56 @@ const SurveySubmissionSchema = new mongoose.Schema({
       }
     }]
   },
+  documents: [{
+    fileName: {
+      type: String,
+      required: true
+    },
+    fileType: {
+      type: String,
+      required: true
+    },
+    fileSize: {
+      type: Number,
+      required: true
+    },
+    cloudinaryUrl: {
+      type: String,
+      required: true
+    },
+    cloudinaryPublicId: {
+      type: String,
+      required: true
+    },
+    category: {
+      type: String,
+      enum: ['survey_report', 'inspection_photos', 'damage_photos', 'area_photos', 'supporting_documents', 'forms'],
+      default: 'survey_report'
+    },
+    description: String,
+    documentType: {
+      type: String,
+      enum: ['main_report', 'photo', 'form', 'supporting_doc', 'other'],
+      default: 'other'
+    },
+    uploadedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Employee',
+      required: true
+    },
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    },
+    isMainReport: {
+      type: Boolean,
+      default: false
+    }
+  }],
+  // Legacy field for backward compatibility
   surveyDocument: {
-    type: mongoose.Schema.Types.Mixed, // Object with {name, url, publicId}
-    required: [true, 'Survey document is required']
+    type: mongoose.Schema.Types.Mixed,
+    default: null
   },
   surveyNotes: {
     type: String,
@@ -182,7 +229,6 @@ SurveySubmissionSchema.methods.getCompletionPercentage = function() {
     'surveyDetails.structuralAssessment',
     'surveyDetails.riskFactors',
     'surveyDetails.recommendations',
-    'surveyDocument',
     'surveyNotes',
     'recommendedAction'
   ];
@@ -193,7 +239,21 @@ SurveySubmissionSchema.methods.getCompletionPercentage = function() {
     if (value) completed++;
   });
   
-  return Math.round((completed / requiredFields.length) * 100);
+  // Check for required documents
+  const hasMainReport = this.documents && this.documents.some(doc => doc.isMainReport);
+  if (hasMainReport || (this.surveyDocument && this.surveyDocument.url)) {
+    completed++;
+  }
+  
+  return Math.round((completed / (requiredFields.length + 1)) * 100);
+};
+
+// Method to get main survey report
+SurveySubmissionSchema.methods.getMainReport = function() {
+  if (this.documents && this.documents.length > 0) {
+    return this.documents.find(doc => doc.isMainReport) || this.documents[0];
+  }
+  return this.surveyDocument;
 };
 
 // Virtual for time since submission

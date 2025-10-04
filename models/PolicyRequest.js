@@ -95,6 +95,61 @@ const PolicyRequestSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  documents: [{
+    fileName: {
+      type: String,
+      required: true
+    },
+    fileType: {
+      type: String,
+      required: true
+    },
+    fileSize: {
+      type: Number,
+      required: true
+    },
+    cloudinaryUrl: {
+      type: String,
+      required: true
+    },
+    cloudinaryPublicId: {
+      type: String,
+      required: true
+    },
+    category: {
+      type: String,
+      enum: ['application_documents', 'identification', 'property_documents', 'supporting_documents', 'survey_reports', 'general'],
+      default: 'general'
+    },
+    description: String,
+    documentType: {
+      type: String,
+      enum: ['application_form', 'id_document', 'property_deed', 'survey_report', 'photo', 'other'],
+      default: 'other'
+    },
+    uploadedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Employee',
+      required: true
+    },
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    },
+    isRequired: {
+      type: Boolean,
+      default: false
+    },
+    isVerified: {
+      type: Boolean,
+      default: false
+    },
+    verifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Employee'
+    },
+    verifiedAt: Date
+  }],
   priority: {
     type: String,
     enum: ['low', 'medium', 'high', 'urgent'],

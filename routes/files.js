@@ -27,4 +27,7 @@ router.post('/upload', auth, upload.single('file'), uploadFile);
 router.get('/download-url/:publicId', auth, getFileDownloadUrl);
 router.get('/download/:publicId', auth, downloadFile);
 
+// Legacy survey document routes (redirect to new endpoints)
+router.get('/survey/:publicId', auth, downloadFile);
+
 module.exports = router;
