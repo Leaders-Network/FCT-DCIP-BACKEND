@@ -33,6 +33,28 @@ const SurveyorSchema = new mongoose.Schema({
       default: 'available'
     }
   },
+  emergencyContact: {
+    type: String,
+    default: ''
+  },
+  address: {
+    type: String,
+    default: ''
+  },
+  licenseNumber: {
+    type: String,
+    default: ''
+  },
+  role: {
+    type: String,
+    default: 'Surveyor'
+  },
+  rating: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 5
+  },
   statistics: {
     totalAssignments: {
       type: Number,

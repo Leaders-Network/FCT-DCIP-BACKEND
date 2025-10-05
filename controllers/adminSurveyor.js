@@ -1,33 +1,102 @@
 const { StatusCodes } = require('http-status-codes');
 const Surveyor = require('../models/Surveyor');
-const Employee = require('../models/Employee');
+const { Employee, Status, Role } = require('../models/Employee');
 const { BadRequestError, NotFoundError } = require('../errors');
 
 // Create a new surveyor (admin only)
 const createSurveyor = async (req, res) => {
   try {
-    const { firstname, lastname, email, phonenumber, specializations, licenseNumber, address, emergencyContact, notes } = req.body;
+  const { firstname, lastname, email, phonenumber, specializations, licenseNumber, address, emergencyContact, notes, role, status, rating } = req.body;
+    
     // Check if employee exists
     let employee = await Employee.findOne({ email });
     if (!employee) {
-      employee = await Employee.create({ firstname, lastname, email, phonenumber, employeeRole: req.body.employeeRole || null, employeeStatus: req.body.employeeStatus || null });
+      // Get surveyor role and default status
+      const surveyorRole = await Role.findOne({ role: 'Surveyor' });
+      const activeStatus = await Status.findOne({ status: 'Active' });
+      
+      if (!surveyorRole) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ 
+          success: false, 
+          message: 'Surveyor role not found. Please contact system administrator.' 
+        });
+      }
+      
+      if (!activeStatus) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ 
+          success: false, 
+          message: 'Active status not found. Please contact system administrator.' 
+        });
+      }
+      
+      employee = await Employee.create({ 
+        firstname, 
+        lastname, 
+        email, 
+        phonenumber, 
+        employeeRole: surveyorRole._id, 
+        employeeStatus: activeStatus._id 
+      });
     }
+    
+    // Check if surveyor profile already exists
+    const existingSurveyor = await Surveyor.findOne({ userId: employee._id });
+    if (existingSurveyor) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ 
+        success: false, 
+        message: 'Surveyor profile already exists for this employee.' 
+      });
+    }
+    
     // Create surveyor profile
     const surveyor = await Surveyor.create({
       userId: employee._id,
       profile: {
-        specialization: specializations || [],
+        specialization: specializations ? 
+          specializations.map(spec => spec.toLowerCase()) : 
+          ['residential'],
         certifications: [],
         experience: 0,
-        location: {},
+        location: {
+          state: address?.state || '',
+          city: address?.city || '',
+          area: address?.area || []
+        },
         availability: 'available',
       },
-      status: 'active',
-      settings: {},
-      statistics: {},
+      emergencyContact: emergencyContact || '',
+      address: typeof address === 'string' ? address : address?.state || '',
+      licenseNumber: licenseNumber || '',
+      role: role || 'Surveyor',
+      rating: rating || 0,
+      status: status || 'active',
+      settings: {
+        notifications: {
+          email: true,
+          sms: false,
+          pushNotifications: true
+        },
+        workingHours: {
+          start: '09:00',
+          end: '17:00',
+          workingDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+        }
+      },
+      statistics: {
+        totalAssignments: 0,
+        completedSurveys: 0,
+        pendingAssignments: 0,
+        averageRating: 0,
+        totalRatings: 0
+      },
     });
-    res.status(StatusCodes.CREATED).json({ success: true, data: surveyor });
+    
+    // Populate the response with employee data
+    const populatedSurveyor = await Surveyor.findById(surveyor._id).populate('userId', 'firstname lastname email phonenumber');
+    
+    res.status(StatusCodes.CREATED).json({ success: true, data: populatedSurveyor });
   } catch (error) {
+    console.error('Create surveyor error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
   }
 };
@@ -59,7 +128,13 @@ const updateSurveyor = async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
-    const surveyor = await Surveyor.findByIdAndUpdate(id, updates, { new: true, runValidators: true });
+    
+    // Normalize specialization if provided
+    if (updates.profile?.specialization) {
+      updates.profile.specialization = updates.profile.specialization.map(spec => spec.toLowerCase());
+    }
+    
+  const surveyor = await Surveyor.findByIdAndUpdate(id, updates, { new: true, runValidators: true });
     if (!surveyor) throw new NotFoundError('Surveyor not found');
     res.status(StatusCodes.OK).json({ success: true, data: surveyor });
   } catch (error) {
