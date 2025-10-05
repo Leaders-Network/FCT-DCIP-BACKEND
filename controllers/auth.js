@@ -175,13 +175,30 @@ const resetPasswordUser = async (req, res) => {
 
 const register = async (req, res) => {
 
-    const {fullname,email,phonenumber,password,confirmPassword} = req.body
+    const {fullname,email,phonenumber,password,confirmPassword,accountType,ammcRegNumber,nicomRegNumber} = req.body
 
-    if(!fullname,!email,!phonenumber,!password,!confirmPassword){
+    if(!fullname||!email||!phonenumber||!password||!confirmPassword){
          return res.status(StatusCodes.BAD_REQUEST).json({
             status:'Unsuccessful',
             message:'Kindly fill all fields'
          })
+    }
+
+    if(!accountType){
+        return res.status(StatusCodes.BAD_REQUEST).json({
+            success:false,
+            message:"Select what type of account you want to create"
+        })
+    }
+
+    if(accountType === "Surveyor"){
+        if(!ammcRegNumber || !nicomRegNumber ){
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                success:false,
+                message:"To create a surveyor account you need a AMMC and NICOM Registration number"
+            })
+        }
+        
     }
 
      if(!confirmPassword || confirmPassword !== password){
@@ -189,7 +206,7 @@ const register = async (req, res) => {
             status:'Unsuccessful',
             message:'Passwords do not match'
          })
-         }
+         } 
          try {
             const checkUser =await User.findOne({email})
             const hashedPassWord = bcrypt.hashSync(password,10)
@@ -207,7 +224,10 @@ const register = async (req, res) => {
                 email,
                 phonenumber,
                 password:hashedPassWord,
-                otp:generatedOtp
+                otp:generatedOtp,
+                accountType,
+                ammcRegNumber,
+                nicomRegNumber
             })
             res.status(StatusCodes.CREATED).json({
                 status:"Successful",

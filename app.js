@@ -32,6 +32,7 @@ app.use(helmet());
 //   credentials: true,
 // }
 
+
 app.use(cors({
   origin: ["http://localhost:3000","https://fct-dcip.vercel.app"],
   credentials: true,

@@ -28,6 +28,20 @@ const UserSchema = new mongoose.Schema({
     required: [true, 'Please provide password'],
     minlength: 6,
   },
+  accountType:{
+    type:String,
+    enum:["Builder","Surveyor"],
+    
+    default:"Builder"
+  },
+  ammcRegNumber:{
+    type:String,
+    default:''
+  },
+  nicomRegNumber:{
+    type:String,
+    default:''
+  },
   isEmailVerified:{
     type: Boolean,
     default: false
