@@ -708,12 +708,6 @@ const addProperty = async (req, res, next) => {
 
 
 
-
-
-
-
-
-
 module.exports = {
     requestOtp,
     verifyOtp,

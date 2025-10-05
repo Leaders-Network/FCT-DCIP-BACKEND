@@ -14,7 +14,7 @@ const StatusSchema = new mongoose.Schema({
 const RoleSchema = new mongoose.Schema({
   role: {
     type: String,
-    enum: ['Super-admin', 'Admin', 'Staff'],
+    enum: ['Super-admin', 'Admin', 'Staff', 'Surveyor'],
     default: 'Staff'
   }
 })
