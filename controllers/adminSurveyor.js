@@ -93,7 +93,31 @@ const createSurveyor = async (req, res) => {
     
     // Populate the response with employee data
     const populatedSurveyor = await Surveyor.findById(surveyor._id).populate('userId', 'firstname lastname email phonenumber');
-    
+
+    // Send credentials email to surveyor
+    const sendEmail = require('../utils/sendEmail');
+    const objectId = employee._id.toString();
+    const credentialsHtml = `<div>
+      <h2>Welcome to DCIP!</h2>
+      <p>Your account has been created as a surveyor.</p>
+      <p><b>Email:</b> ${email}</p>
+      <p><b>Default Password:</b> ${objectId}</p>
+      <p>Please log in and change your password after first login.</p>
+    </div>`;
+    await sendEmail(email, 'surveyorCredentials', credentialsHtml);
+
+      // Send credentials email to admin
+      const adminEmail = req.user?.email || process.env.ADMIN_EMAIL;
+      if (adminEmail) {
+        const adminHtml = `<div>
+          <h2>New Surveyor Created</h2>
+          <p>A new surveyor account has been created.</p>
+          <p><b>Surveyor Email:</b> ${email}</p>
+          <p><b>Default Password:</b> ${objectId}</p>
+        </div>`;
+        await sendEmail(adminEmail, 'surveyorCredentials', adminHtml);
+      }
+
     res.status(StatusCodes.CREATED).json({ success: true, data: populatedSurveyor });
   } catch (error) {
     console.error('Create surveyor error:', error);

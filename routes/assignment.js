@@ -7,7 +7,8 @@ const {
   updateAssignmentProgress,
   completeAssignment,
   addAssignmentMessage,
-  getAssignmentMessages
+  getAssignmentMessages,
+  createAssignment
 } = require('../controllers/assignment');
 const auth = require('../middlewares/authentication');
 
@@ -18,6 +19,8 @@ router.use(auth);
 
 // Assignment management routes for surveyors
 router.get('/', getSurveyorAssignments); // Get surveyor's assignments
+// Assignment creation (admin only)
+router.post('/', require('../middlewares/authentication'), require('../middlewares/adminOnly'), createAssignment); // Create assignment
 router.get('/:assignmentId', getAssignmentById); // Get specific assignment
 router.patch('/:assignmentId/accept', acceptAssignment); // Accept assignment
 router.patch('/:assignmentId/start', startAssignment); // Start assignment

@@ -85,14 +85,23 @@ EmployeeSchema.methods.comparePassword = async function (canditatePassword) {
   return isMatch
 }
 
-EmployeeSchema.methods.createJWT = function () {
+EmployeeSchema.methods.createJWT = async function () {
+  // Populate role name
+  let roleName = "";
+  if (this.employeeRole && typeof this.employeeRole === "object" && this.employeeRole.role) {
+    roleName = this.employeeRole.role;
+  } else {
+    // If not populated, fetch from DB
+    const roleDoc = await mongoose.model('Role').findById(this.employeeRole);
+    roleName = roleDoc ? roleDoc.role : "";
+  }
   return jwt.sign(
-    { userId: this._id, fullname: this.fullname },
+    { userId: this._id, fullname: `${this.firstname} ${this.lastname}`, status: this.employeeStatus, role: roleName },
     process.env.JWT_SECRET,
     {
       expiresIn: process.env.JWT_LIFETIME,
     }
-  )
+  );
 }
 
 

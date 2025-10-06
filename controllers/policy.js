@@ -336,6 +336,12 @@ const reviewSurveySubmission = async (req, res) => {
       policyRequest.adminNotes = reviewNotes;
     } else {
       policyRequest.status = 'assigned'; // Back to assigned for revision
+      submission.revisionHistory.push({
+        version: submission.revisionHistory.length + 1,
+        changes: reviewNotes,
+        revisedBy: reviewerId,
+        revisedAt: new Date()
+      });
     }
     
     policyRequest.statusHistory.push({
@@ -360,6 +366,47 @@ const reviewSurveySubmission = async (req, res) => {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: 'Failed to review survey submission',
+      error: error.message
+    });
+  }
+};
+
+const sendPolicyToUser = async (req, res) => {
+  try {
+    const { policyId } = req.params;
+    const { userId } = req.user;
+
+    const policyRequest = await PolicyRequest.findById(policyId);
+    if (!policyRequest) {
+      throw new NotFoundError('Policy request not found');
+    }
+
+    if (policyRequest.status !== 'approved') {
+      throw new BadRequestError('Policy must be approved before sending to the user.');
+    }
+
+    policyRequest.status = 'sent_to_user';
+    policyRequest.statusHistory.push({
+      status: 'sent_to_user',
+      changedBy: userId,
+      changedAt: new Date(),
+      reason: 'Policy sent to user by admin'
+    });
+
+    await policyRequest.save();
+
+    // TODO: Send email to user with link to download documents
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: 'Policy sent to user successfully',
+      data: policyRequest
+    });
+  } catch (error) {
+    console.error('Send policy to user error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to send policy to user',
       error: error.message
     });
   }
@@ -416,5 +463,6 @@ module.exports = {
   assignSurveyor,
   getAvailableSurveyors,
   reviewSurveySubmission,
-  getUserPolicyRequests
+  getUserPolicyRequests,
+  sendPolicyToUser
 };

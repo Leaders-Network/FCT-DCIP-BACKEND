@@ -1,3 +1,24 @@
+// Create a new assignment (admin only)
+const createAssignment = async (req, res) => {
+  try {
+    const { policyId, surveyorId, assignedBy, status, priority, deadline } = req.body;
+    if (!policyId || !surveyorId) {
+      throw new BadRequestError('policyId and surveyorId are required');
+    }
+    const assignment = await Assignment.create({
+      policyId,
+      surveyorId,
+      assignedBy,
+      status: status || 'assigned',
+      priority: priority || 'normal',
+      deadline
+    });
+    res.status(StatusCodes.CREATED).json({ success: true, data: assignment });
+  } catch (error) {
+    console.error('Create assignment error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
+  }
+};
 const { StatusCodes } = require('http-status-codes');
 const Assignment = require('../models/Assignment');
 const PolicyRequest = require('../models/PolicyRequest');
@@ -396,5 +417,6 @@ module.exports = {
   updateAssignmentProgress,
   completeAssignment,
   addAssignmentMessage,
-  getAssignmentMessages
+  getAssignmentMessages,
+  createAssignment
 };

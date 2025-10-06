@@ -2,7 +2,8 @@ require('dotenv').config();
 const nodemailer = require("nodemailer");
 const Otp = require("../models/OTP");
 
-module.exports = async (email, mailType, generatedOtp) => {
+
+module.exports = async (email, mailType, content) => {
   try {
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -15,31 +16,32 @@ module.exports = async (email, mailType, generatedOtp) => {
       },
     });
 
-    let emailContent, mailOptions;
-
-    if (mailType == "verifyemail") {
-      emailContent = `<div><h1>Please verify your email with this OTP:</h1> <h4><b>${generatedOtp}</b></h4></div>`;
+    let mailOptions;
+    if (mailType === "verifyemail") {
       mailOptions = {
         from: `${process.env.EMAIL_FROM}  <${process.env.EMAIL}>`,
         to: email,
         subject: "Verify Your Email",
-        html: emailContent,
+        html: content,
       };
-    } 
-    else {
-      emailContent = `<div><h1>Please reset your password with this OTP:</h1> <h4><b>${generatedOtp}</b></h4></div>`;
+    } else if (mailType === "surveyorCredentials") {
+      mailOptions = {
+        from: `${process.env.EMAIL_FROM}  <${process.env.EMAIL}>`,
+        to: email,
+        subject: "Your DCIP Surveyor Account Credentials",
+        html: content,
+      };
+    } else {
       mailOptions = {
         from: `${process.env.EMAIL_FROM}  <${process.env.EMAIL}>`,
         to: email,
         subject: "Reset Your Password",
-        html: emailContent,
+        html: content,
       };
     }
 
     await transporter.sendMail(mailOptions);
-    await Otp.findOneAndUpdate({email}, {otp: generatedOtp, createdAt: Date.now()}, {upsert: true});
-  } 
-  catch (error) {
+  } catch (error) {
     console.log(error);
   }
 };
