@@ -8,6 +8,10 @@ const createSurveyor = async (req, res) => {
   try {
   const { firstname, lastname, email, phonenumber, specializations, licenseNumber, address, emergencyContact, notes, role, status, rating } = req.body;
     
+    // Create a new object without the 'role' property from req.body
+    const employeeDataFromReqBody = { ...req.body };
+    delete employeeDataFromReqBody.role; // <--- Add this line
+    
     // Check if employee exists
     let employee = await Employee.findOne({ email });
     if (!employee) {

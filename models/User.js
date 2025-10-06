@@ -28,6 +28,11 @@ const UserSchema = new mongoose.Schema({
     required: [true, 'Please provide password'],
     minlength: 6,
   },
+  role: {
+    type: String,
+    enum: ['admin', 'user'],
+    default: 'user',
+  },
   isEmailVerified:{
     type: Boolean,
     default: false
@@ -47,7 +52,7 @@ UserSchema.pre('save', async function () {
   
 UserSchema.methods.createJWT = function () {
     return jwt.sign(
-      { userId: this._id, fullname: this.fullname },
+      { userId: this._id, fullname: this.fullname, role: this.role },
       process.env.JWT_SECRET,
       {
         expiresIn: process.env.JWT_LIFETIME,

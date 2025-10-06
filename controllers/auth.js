@@ -510,6 +510,9 @@ const loginEmployee = async (req, res, next) => {
         const employeeDisplay = employee.toObject()
         delete employeeDisplay.password
         delete employeeDisplay.__v
+        // Add role and status names directly to employeeDisplay
+        employeeDisplay.employeeRole = employee.employeeRole.role
+        employeeDisplay.employeeStatus = employee.employeeStatus.status
         res.status(StatusCodes.OK).json({ success: true, employee: employeeDisplay, token })
     }
     catch(error){
@@ -545,7 +548,7 @@ const registerEmployee = async (req, res) => {
         
             }
             else if(creatorRole === 'Admin'){
-                const { role: roleToBeCreated } =  await Role.findById({_id: roleId})
+                const { role: roleToBeCreated } =  await Role.findOne({role: roleId})
                 if(roleToBeCreated === 'Super-admin'){ return res.status(StatusCodes.UNAUTHORIZED).json({ message: "Admins Cannot Create Super-admins !" }) } 
             }
             else if(creatorRole === 'Staff'){
@@ -557,15 +560,16 @@ const registerEmployee = async (req, res) => {
         
             if(employeeExists === null){ 
                 try{
-                        const employeeObject = await Employee.create(employeeData)
+                        let employeeObject = await Employee.create(employeeData)
+                        employeeObject = await employeeObject.populate('employeeRole', 'role') // Populate the role
                         const token = employeeObject.createToken()
                         const {status} = await Status.findById({_id: statusId})
-                        const {role} =  await Role.findById({_id: roleId})
+                        const roleName = employeeObject.employeeRole.role // Get the role name from populated object
 
                         const fieldsToOmit = ['password', '__v', 'employeeStatus', 'createdAt', 'updatedAt', 'employeeRole']
 
                         const employeeDisplay = omitFields(employeeObject.toObject(), fieldsToOmit)
-                        return res.status(StatusCodes.CREATED).json({ success: true, employee: { employeeDisplay, status, role }, token })
+                        return res.status(StatusCodes.CREATED).json({ success: true, employee: { employeeDisplay, status, role: roleName }, token })
                 }
                 catch(error){
                     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error});

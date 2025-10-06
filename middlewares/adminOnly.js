@@ -9,9 +9,7 @@ const adminOnly = async (req, res, next) => {
       throw new UnauthenticatedError('Access denied: Not an employee');
     }
 
-    const userRole = await Role.findById(req.user.role);
-
-    if (userRole && (userRole.name === 'Admin' || userRole.name === 'Super-admin')) {
+    if (req.user.role && (req.user.role === 'Admin' || req.user.role === 'Super-admin')) {
       return next();
     }
     
