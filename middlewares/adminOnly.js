@@ -4,6 +4,7 @@ const { Employee, Role } = require('../models/Employee');
 // Middleware to restrict access to admins only
 const adminOnly = async (req, res, next) => {
   try {
+    console.log("req.user in adminOnly:", req.user);
     // req.user is set by authentication middleware
     if (!req.user || req.user.model !== 'Employee') {
       throw new UnauthenticatedError('Access denied: Not an employee');

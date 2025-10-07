@@ -481,11 +481,11 @@ const resetPasswordEmployee = async (req, res) => {
 
 
 const getModelById = async (userId) => {
-    const userObject = await User.findOne({ _id: userId })
-    if(userObject){ return { model: User, userObject } }
-
     const employee = await Employee.findOne({ _id: userId })
     if(employee){ return { model: Employee, userObject: employee } }
+
+    const userObject = await User.findOne({ _id: userId })
+    if(userObject){ return { model: User, userObject } }
 
     return null
 }
