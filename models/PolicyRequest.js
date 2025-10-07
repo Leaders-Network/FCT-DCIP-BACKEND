@@ -5,6 +5,10 @@ const PolicyRequestSchema = new mongoose.Schema({
     type: String,
     required: [true, 'User ID is required']
   },
+  propertyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Property',
+  },
   propertyDetails: {
     address: {
       type: String,

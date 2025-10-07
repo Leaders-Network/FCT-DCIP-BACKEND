@@ -3,13 +3,23 @@ const PolicyRequest = require('../models/PolicyRequest');
 const Assignment = require('../models/Assignment');
 const SurveySubmission = require('../models/SurveySubmission');
 const Surveyor = require('../models/Surveyor');
+const { Property } = require('../models/Property');
 const { BadRequestError, NotFoundError } = require('../errors');
 
 // Create policy request (for users)
 const createPolicyRequest = async (req, res) => {
   try {
     const { userId } = req.user;
-    const policyData = { ...req.body, userId };
+    const { propertyId, ...rest } = req.body;
+    const policyData = { ...rest, userId };
+
+    if (propertyId) {
+      const property = await Property.findById(propertyId);
+      if (!property) {
+        throw new NotFoundError('Property not found');
+      }
+      policyData.propertyId = propertyId;
+    }
     
     const policyRequest = new PolicyRequest(policyData);
     await policyRequest.save();
