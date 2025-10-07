@@ -70,9 +70,14 @@ EmployeeSchema.pre('save', async function () {
     }
 })
 
-EmployeeSchema.methods.createToken = function () {
+EmployeeSchema.methods.createToken = async function () {
+  // Populate role and status names
+  await this.populate(['employeeRole', 'employeeStatus']);
+  const roleName = this.employeeRole?.role || undefined;
+  const statusName = this.employeeStatus?.status || undefined;
+
   return jwt.sign(
-    { userId: this._id, fullname: `${this.firstname} ${this.lastname}`, status: this.employeeStatus, role: this.employeeRole },
+    { userId: this._id, fullname: `${this.firstname} ${this.lastname}`, status: statusName, role: roleName },
     process.env.JWT_SECRET,
     {
       expiresIn: process.env.JWT_LIFETIME,
@@ -86,17 +91,13 @@ EmployeeSchema.methods.comparePassword = async function (canditatePassword) {
 }
 
 EmployeeSchema.methods.createJWT = async function () {
-  // Populate role name
-  let roleName = "";
-  if (this.employeeRole && typeof this.employeeRole === "object" && this.employeeRole.role) {
-    roleName = this.employeeRole.role;
-  } else {
-    // If not populated, fetch from DB
-    const roleDoc = await mongoose.model('Role').findById(this.employeeRole);
-    roleName = roleDoc ? roleDoc.role : "";
-  }
+  // Populate role and status names
+  await this.populate(['employeeRole', 'employeeStatus']);
+  const roleName = this.employeeRole?.role || undefined;
+  const statusName = this.employeeStatus?.status || undefined;
+
   return jwt.sign(
-    { userId: this._id, fullname: `${this.firstname} ${this.lastname}`, status: this.employeeStatus, role: roleName },
+    { userId: this._id, fullname: `${this.firstname} ${this.lastname}`, status: statusName, role: roleName },
     process.env.JWT_SECRET,
     {
       expiresIn: process.env.JWT_LIFETIME,

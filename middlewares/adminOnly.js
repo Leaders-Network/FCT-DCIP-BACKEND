@@ -8,7 +8,7 @@ const adminOnly = async (req, res, next) => {
     if (!req.user || req.user.model !== 'Employee') {
       throw new UnauthenticatedError('Access denied: Not an employee');
     }
-
+    
     if (req.user.role && (req.user.role === 'Admin' || req.user.role === 'Super-admin')) {
       return next();
     }

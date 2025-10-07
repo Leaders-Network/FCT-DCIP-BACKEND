@@ -4,7 +4,6 @@ const { Employee } = require('../models/Employee')
 const { getModelById } = require('../controllers/auth')
 
 const auth = async (req, res, next) => {
-  
   const authHeader = req.headers.authorization
   if (!authHeader || !authHeader.startsWith('Bearer')) {
     throw new UnauthenticatedError('Authentication invalid')
@@ -14,7 +13,6 @@ const auth = async (req, res, next) => {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET)
     const { model, userObject } = await getModelById(payload.userId)
-    console.log(userObject);
     
     if(model === Employee){ 
       // Populate role and status

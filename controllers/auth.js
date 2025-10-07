@@ -233,7 +233,7 @@ const login = async (req, res, next) => {
             throw new UnauthenticatedError('Invalid Credentials !')
         }
 
-        const token = user.createJWT()
+        const token = await user.createJWT() // <--- Added await
         const userDisplay = user.toObject()
         delete userDisplay.password
         delete userDisplay.__v
@@ -506,13 +506,10 @@ const loginEmployee = async (req, res, next) => {
         if (!isPasswordCorrect) {
             throw new UnauthenticatedError('Invalid Credentials')
         }
-        const token = employee.createJWT()
+        const token = await employee.createJWT() // <--- Added await
         const employeeDisplay = employee.toObject()
         delete employeeDisplay.password
         delete employeeDisplay.__v
-        // Add role and status names directly to employeeDisplay
-        employeeDisplay.employeeRole = employee.employeeRole.role
-        employeeDisplay.employeeStatus = employee.employeeStatus.status
         res.status(StatusCodes.OK).json({ success: true, employee: employeeDisplay, token })
     }
     catch(error){
