@@ -1,5 +1,5 @@
 const express = require('express');
-const { getAllEmployees } = require('../controllers/adminEmployee');
+const { getAllEmployees, deleteEmployee, updateEmployeeStatus } = require('../controllers/adminEmployee');
 const auth = require('../middlewares/authentication');
 const adminOnly = require('../middlewares/adminOnly');
 
@@ -9,5 +9,7 @@ router.use(auth);
 router.use(adminOnly);
 
 router.get('/', getAllEmployees);
+router.delete('/:id', deleteEmployee);
+router.patch('/:id/status', updateEmployeeStatus);
 
 module.exports = router;
