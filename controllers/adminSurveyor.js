@@ -106,7 +106,7 @@ const createSurveyor = async (req, res) => {
       <p>Your account has been created as a surveyor.</p>
       <p><b>Email:</b> ${email}</p>
       <p><b>Default Password:</b> ${objectId}</p>
-      <p>Please log in and change your password after first login.</p>
+      <p>Please log in at <a href="http://localhost:3000/surveyor">http://localhost:3000/surveyor</a> and change your password after first login.</p>
     </div>`;
     await sendEmail(email, 'surveyorCredentials', credentialsHtml);
 
@@ -155,16 +155,37 @@ const getSurveyorById = async (req, res) => {
 const updateSurveyor = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
-    
-    // Normalize specialization if provided
-    if (updates.profile?.specialization) {
-      updates.profile.specialization = updates.profile.specialization.map(spec => spec.toLowerCase());
+    const { firstname, lastname, email, phonenumber, ...surveyorUpdates } = req.body;
+
+    // Find the surveyor and the associated employee
+    const surveyor = await Surveyor.findById(id);
+    if (!surveyor) {
+      throw new NotFoundError('Surveyor not found');
     }
-    
-  const surveyor = await Surveyor.findByIdAndUpdate(id, updates, { new: true, runValidators: true });
-    if (!surveyor) throw new NotFoundError('Surveyor not found');
-    res.status(StatusCodes.OK).json({ success: true, data: surveyor });
+
+    const employee = await Employee.findById(surveyor.userId);
+    if (!employee) {
+      throw new NotFoundError('Associated employee not found');
+    }
+
+    // Update employee fields
+    if (firstname) employee.firstname = firstname;
+    if (lastname) employee.lastname = lastname;
+    if (email) employee.email = email;
+    if (phonenumber) employee.phonenumber = phonenumber;
+    await employee.save();
+
+    // Update surveyor fields
+    if (surveyorUpdates.profile?.specialization) {
+      surveyorUpdates.profile.specialization = surveyorUpdates.profile.specialization.map(spec => spec.toLowerCase());
+    }
+		
+    Object.assign(surveyor, surveyorUpdates);
+    await surveyor.save();
+
+    const populatedSurveyor = await Surveyor.findById(id).populate('userId', 'firstname lastname email phonenumber');
+
+    res.status(StatusCodes.OK).json({ success: true, data: populatedSurveyor });
   } catch (error) {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
   }

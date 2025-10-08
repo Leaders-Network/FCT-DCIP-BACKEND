@@ -553,11 +553,86 @@ const getAssignmentAnalytics = async (req, res) => {
   }
 };
 
+const createAssignment = async (req, res) => {
+  try {
+    const { policyId, surveyorIds, assignedBy, priority, instructions, deadline } = req.body;
+
+    if (!policyId || !surveyorIds || surveyorIds.length === 0 || !priority || !deadline) {
+      throw new BadRequestError('Missing required assignment fields');
+    }
+
+    // Check if policy exists and is in a state to be assigned
+    const policy = await PolicyRequest.findById(policyId);
+    if (!policy) {
+      throw new NotFoundError('Policy not found');
+    }
+    if (policy.status !== 'submitted' && policy.status !== 'pending') {
+      throw new BadRequestError(`Policy status is ${policy.status}, cannot assign surveyor.`);
+    }
+
+    // Check if surveyors exist and are active
+    const validSurveyors = await Surveyor.find({
+      _id: { $in: surveyorIds },
+      status: 'active'
+    });
+
+    if (validSurveyors.length !== surveyorIds.length) {
+      throw new BadRequestError('One or more surveyors not found or inactive');
+    }
+
+    const newAssignment = await Assignment.create({
+      policyId,
+      surveyorId: surveyorIds[0], // Assigning to the first selected surveyor for now
+      assignedBy: req.user.userId, // Admin who assigned it
+      assignedAt: new Date(),
+      deadline: new Date(deadline),
+      priority,
+      instructions,
+      specialRequirements: policy.requestDetails.specialRequests ? [policy.requestDetails.specialRequests] : [],
+      location: policy.propertyDetails.address, // Simplified for now
+      contactPerson: policy.contactDetails, // Simplified for now
+      status: 'assigned',
+      timeline: [{
+        action: 'assignment_created',
+        timestamp: new Date(),
+        performedBy: req.user.userId,
+        details: `Assignment created for policy ${policy.policyNumber || policyId}`
+      }]
+    });
+
+    // Update policy status and assigned surveyors
+    policy.status = 'assigned';
+    policy.assignedSurveyors = surveyorIds;
+    policy.statusHistory.push({
+      status: 'assigned',
+      changedBy: req.user.userId,
+      changedAt: new Date(),
+      reason: 'Surveyor assigned'
+    });
+    await policy.save();
+
+    res.status(StatusCodes.CREATED).json({
+      success: true,
+      message: 'Assignment created successfully',
+      data: newAssignment
+    });
+
+  } catch (error) {
+    console.error('Create assignment error:', error);
+    res.status(error.statusCode || StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to create assignment',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getAllAssignments,
   getAssignmentById,
   updateAssignment,
   reassignAssignment,
   cancelAssignment,
-  getAssignmentAnalytics
+  getAssignmentAnalytics,
+  createAssignment
 };

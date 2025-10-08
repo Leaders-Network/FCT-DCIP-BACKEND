@@ -5,7 +5,8 @@ const {
   updateAssignment,
   reassignAssignment,
   cancelAssignment,
-  getAssignmentAnalytics
+  getAssignmentAnalytics,
+  createAssignment
 } = require('../controllers/adminAssignment');
 const auth = require('../middlewares/authentication');
 const adminOnly = require('../middlewares/adminOnly');
@@ -22,5 +23,7 @@ router.get('/:assignmentId', getAssignmentById); // Get assignment by ID
 router.patch('/:assignmentId', updateAssignment); // Update assignment
 router.patch('/:assignmentId/reassign', reassignAssignment); // Reassign to different surveyor
 router.patch('/:assignmentId/cancel', cancelAssignment); // Cancel assignment
+
+router.post('/', createAssignment); // Create a new assignment
 
 module.exports = router;
