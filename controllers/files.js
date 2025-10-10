@@ -34,7 +34,7 @@ const uploadFile = async (req, res) => {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: 'Failed to upload file',
-      error: error.message
+      error: error
     });
   }
 };

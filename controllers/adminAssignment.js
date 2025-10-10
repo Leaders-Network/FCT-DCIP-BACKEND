@@ -561,6 +561,16 @@ const createAssignment = async (req, res) => {
       throw new BadRequestError('Missing required assignment fields');
     }
 
+    const validSpecialRequirements = [
+      'urgent_inspection',
+      'detailed_photos_required',
+      'structural_engineer_needed',
+      'hazmat_assessment',
+      'drone_survey',
+      'night_inspection',
+      'weekend_availability'
+    ];
+
     // Check if policy exists and is in a state to be assigned
     const policy = await PolicyRequest.findById(policyId);
     if (!policy) {
@@ -588,9 +598,15 @@ const createAssignment = async (req, res) => {
       deadline: new Date(deadline),
       priority,
       instructions,
-      specialRequirements: policy.requestDetails.specialRequests ? [policy.requestDetails.specialRequests] : [],
-      location: policy.propertyDetails.address, // Simplified for now
-      contactPerson: policy.contactDetails, // Simplified for now
+      specialRequirements: policy.requestDetails.specialRequests && validSpecialRequirements.includes(policy.requestDetails.specialRequests) ? [policy.requestDetails.specialRequests] : [],
+      location: {
+        address: policy.propertyDetails.address,
+        contactPerson: {
+          name: policy.contactDetails.fullName,
+          phone: policy.contactDetails.phoneNumber,
+          email: policy.contactDetails.email,
+        },
+      },
       status: 'assigned',
       timeline: [{
         action: 'assignment_created',
