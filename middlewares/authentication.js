@@ -3,7 +3,7 @@ const { UnauthenticatedError } = require('../errors')
 const { Employee } = require('../models/Employee')
 const User = require('../models/User') // Import User model
 
-const auth = async (req, res, next) => {
+const protect = async (req, res, next) => {
   const authHeader = req.headers.authorization
   if (!authHeader || !authHeader.startsWith('Bearer')) {
     throw new UnauthenticatedError('Authentication invalid')
@@ -44,4 +44,22 @@ const auth = async (req, res, next) => {
   }
 }
 
-module.exports = auth
+const restrictTo = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user || !req.user.role || !roles.includes(req.user.role)) {
+      throw new UnauthenticatedError('You do not have permission to perform this action');
+    }
+    next();
+  };
+};
+
+const restrictToModel = (...models) => {
+  return (req, res, next) => {
+    if (!req.user || !req.user.model || !models.includes(req.user.model)) {
+      throw new UnauthenticatedError('You do not have permission to perform this action');
+    }
+    next();
+  };
+};
+
+module.exports = { protect, restrictTo, restrictToModel }

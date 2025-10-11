@@ -1,12 +1,11 @@
 const express = require('express');
 const { adminGetAllProperties } = require('../controllers/property');
-const auth = require('../middlewares/authentication');
-const adminOnly = require('../middlewares/adminOnly');
+const { protect, restrictTo } = require('../middlewares/authentication');
 
 const router = express.Router();
 
-router.use(auth);
-router.use(adminOnly);
+router.use(protect);
+router.use(restrictTo('Admin', 'Super-admin'));
 
 router.get('/', adminGetAllProperties);
 

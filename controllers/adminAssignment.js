@@ -590,9 +590,11 @@ const createAssignment = async (req, res) => {
       throw new BadRequestError('One or more surveyors not found or inactive');
     }
 
+    const assignedSurveyorEmployeeId = validSurveyors[0].userId; // Get the Employee ID from the Surveyor document
+
     const newAssignment = await Assignment.create({
       policyId,
-      surveyorId: surveyorIds[0], // Assigning to the first selected surveyor for now
+      surveyorId: assignedSurveyorEmployeeId, // Use the Employee ID here
       assignedBy: req.user.userId, // Admin who assigned it
       assignedAt: new Date(),
       deadline: new Date(deadline),

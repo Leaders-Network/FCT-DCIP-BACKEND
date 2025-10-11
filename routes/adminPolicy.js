@@ -8,14 +8,13 @@ const {
   updatePolicyRequest,
   sendPolicyToUser
 } = require('../controllers/policy');
-const auth = require('../middlewares/authentication');
-const adminOnly = require('../middlewares/adminOnly');
+const { protect, restrictTo } = require('../middlewares/authentication');
 
 const router = express.Router();
 
 // All routes require authentication and admin role
-router.use(auth);
-router.use(adminOnly);
+router.use(protect);
+router.use(restrictTo('Admin', 'Super-admin'));
 
 // Get all policy requests (for admin)
 router.get('/', getAllPolicyRequests);

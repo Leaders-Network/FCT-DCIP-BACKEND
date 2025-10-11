@@ -9,12 +9,13 @@ const {
   getSubmissionByAssignment,
   deleteDraftSubmission
 } = require('../controllers/submission');
-const auth = require('../middlewares/authentication');
+const { protect, restrictTo } = require('../middlewares/authentication');
 
 const router = express.Router();
 
-// All routes require authentication
-router.use(auth);
+// All routes require authentication and surveyor role
+router.use(protect);
+router.use(restrictTo('Surveyor'));
 
 // Survey submission routes for surveyors
 router.post('/', createSurveySubmission); // Create new submission

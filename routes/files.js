@@ -1,7 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const { uploadFile, getFileDownloadUrl, downloadFile } = require('../controllers/files');
-const auth = require('../middlewares/authentication');
+const { protect } = require('../middlewares/authentication');
 
 const router = express.Router();
 
@@ -23,11 +23,11 @@ const upload = multer({
 });
 
 // Routes
-router.post('/upload', auth, upload.single('file'), uploadFile);
-router.get('/download-url/:publicId', auth, getFileDownloadUrl);
-router.get('/download/:publicId', auth, downloadFile);
+router.post('/upload', protect, upload.single('file'), uploadFile);
+router.get('/download-url/:publicId', protect, getFileDownloadUrl);
+router.get('/download/:publicId', protect, downloadFile);
 
 // Legacy survey document routes (redirect to new endpoints)
-router.get('/survey/:publicId', auth, downloadFile);
+router.get('/survey/:publicId', protect, downloadFile);
 
 module.exports = router;

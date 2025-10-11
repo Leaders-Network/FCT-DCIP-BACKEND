@@ -7,7 +7,7 @@ const {
   deleteDocument,
   getDocumentDownloadUrl
 } = require('../controllers/surveyDocuments');
-const auth = require('../middlewares/authentication');
+const { protect, restrictTo } = require('../middlewares/authentication');
 
 const router = express.Router();
 
@@ -87,8 +87,9 @@ const handleMulterError = (error, req, res, next) => {
   next(error);
 };
 
-// All routes require authentication
-router.use(auth);
+// All routes require authentication and surveyor role
+router.use(protect);
+router.use(restrictTo('Surveyor'));
 
 // Survey document upload routes
 router.post('/upload/single', 
@@ -108,5 +109,4 @@ router.get('/', getDocuments); // Get documents by assignmentId or policyId
 router.get('/download/:publicId', getDocumentDownloadUrl); // Get download URL
 router.delete('/assignment/:assignmentId/document/:documentId', deleteDocument); // Delete from assignment
 router.delete('/policy/:policyId/document/:documentId', deleteDocument); // Delete from policy
-
 module.exports = router;

@@ -8,12 +8,13 @@ const {
   getSurveyorProfile,
   updateSurveyorProfile
 } = require('../controllers/surveyor');
-const auth = require('../middlewares/authentication');
+const { protect, restrictTo } = require('../middlewares/authentication');
 
 const router = express.Router();
 
-// All routes require authentication
-router.use(auth);
+// All routes require authentication and must be restricted to Surveyor role
+router.use(protect);
+router.use(restrictTo('Surveyor'));
 
 // Dashboard
 router.get('/dashboard', getSurveyorDashboard);

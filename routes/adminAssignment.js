@@ -1,21 +1,10 @@
 const express = require('express');
-const {
-  getAllAssignments,
-  getAssignmentById,
-  updateAssignment,
-  reassignAssignment,
-  cancelAssignment,
-  getAssignmentAnalytics,
-  createAssignment
-} = require('../controllers/adminAssignment');
-const auth = require('../middlewares/authentication');
-const adminOnly = require('../middlewares/adminOnly');
-
 const router = express.Router();
+const { getAllAssignments, getAssignmentAnalytics, getAssignmentById, updateAssignment, reassignAssignment, cancelAssignment, createAssignment } = require('../controllers/adminAssignment');
+const { protect, restrictTo } = require('../middlewares/authentication');
 
-// All routes require authentication and admin role
-router.use(auth);
-router.use(adminOnly);
+router.use(protect);
+router.use(restrictTo('Admin', 'Super-admin'));
 
 router.get('/', getAllAssignments); // Get all assignments with filters
 router.get('/analytics', getAssignmentAnalytics); // Get assignment analytics

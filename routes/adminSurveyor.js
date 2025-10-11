@@ -1,13 +1,12 @@
 const express = require('express');
 const { createSurveyor, getAllSurveyors, getSurveyorById, updateSurveyor, deleteSurveyor } = require('../controllers/adminSurveyor');
-const auth = require('../middlewares/authentication');
-const adminOnly = require('../middlewares/adminOnly');
+const { protect, restrictTo } = require('../middlewares/authentication');
 
 const router = express.Router();
 
-// All routes require authentication and admin role (add admin check as needed)
-router.use(auth);
-router.use(adminOnly);
+// All routes require authentication and admin role
+router.use(protect);
+router.use(restrictTo('Admin', 'Super-admin'));
 
 router.post('/', createSurveyor); // Create surveyor
 router.get('/', getAllSurveyors); // Get all surveyors
@@ -16,7 +15,7 @@ router.patch('/:id', updateSurveyor); // Update surveyor
 router.delete('/:id', deleteSurveyor); // Delete surveyor
 
 // Update only availability
-router.patch('/:id/availability', async (req, res) => {
+router.patch('/:id/availability', protect, restrictTo('Admin', 'Super-admin'), async (req, res) => {
 	const { id } = req.params;
 	const { availability } = req.body;
 	if (!['available', 'busy', 'on-leave'].includes(availability)) {
