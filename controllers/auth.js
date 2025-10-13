@@ -85,6 +85,8 @@ const requestOtp =  async (req, res) => {
     const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
     emailTokenStoreUser[generatedOtp] = email
     try {
+        await Otp.deleteMany({ email });
+        await Otp.create({ email, otp: generatedOtp });
         await sendEmail(email, "verifyemail", generatedOtp);
         res.status(StatusCodes.OK).json({success: true, message: 'OTP sent successfully!' });
     } catch (error) {
@@ -93,14 +95,16 @@ const requestOtp =  async (req, res) => {
 };
 
 const verifyOtp = async(req, res) => {
-    const { otp } = req.body;
-    const email = emailTokenStoreUser[otp]
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+        return res.status(StatusCodes.BAD_REQUEST).json({success: false,  message: 'Please provide email and OTP!'});
+    }
 
     try{
         const otpData = await Otp.findOne({ email, otp });
 
         if (otpData) {
-            // await Otp.deleteOne({ email })
             res.status(StatusCodes.OK).json({success: true, message: 'OTP verified successfully!'});
         } else {
             res.status(StatusCodes.BAD_REQUEST).json({success: false,  message: 'Invalid OTP !'});
