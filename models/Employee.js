@@ -77,7 +77,7 @@ EmployeeSchema.methods.createToken = async function () {
   const statusName = this.employeeStatus?.status || undefined;
 
   return jwt.sign(
-    { userId: this._id, fullname: `${this.firstname} ${this.lastname}`, status: statusName, role: roleName },
+    { userId: this._id, fullname: `${this.firstname} ${this.lastname}`, status: statusName, role: roleName, model: 'Employee' },
     process.env.JWT_SECRET,
     {
       expiresIn: process.env.JWT_LIFETIME,
@@ -97,7 +97,7 @@ EmployeeSchema.methods.createJWT = async function () {
   const statusName = this.employeeStatus?.status || undefined;
 
   return jwt.sign(
-    { userId: this._id, fullname: `${this.firstname} ${this.lastname}`, status: statusName, role: roleName },
+    { userId: this._id, fullname: `${this.firstname} ${this.lastname}`, status: statusName, role: roleName, model: 'Employee' },
     process.env.JWT_SECRET,
     {
       expiresIn: process.env.JWT_LIFETIME,

@@ -16,8 +16,8 @@ const protect = async (req, res, next) => {
     let userObject;
     let modelName;
 
-    // Determine if the user is an Employee based on the role in the token payload
-    if (payload.role && (payload.role === 'Admin' || payload.role === 'Super-admin' || payload.role === 'Staff' || payload.role === 'Surveyor')) {
+    // Determine the user model from the token payload
+    if (payload.model === 'Employee') {
       userObject = await Employee.findOne({ _id: payload.userId });
       modelName = 'Employee';
     } else {
