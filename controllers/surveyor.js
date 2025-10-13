@@ -23,7 +23,7 @@ const getSurveyorDashboard = async (req, res) => {
     const assignments = await Assignment.find({ 
       surveyorId: surveyorUserId 
     })
-    .populate('policyId', 'propertyDetails requestDetails status priority deadline')
+    .populate('policyId', 'propertyDetails contactDetails requestDetails status priority deadline')
     .sort({ deadline: 1 })
     .limit(10);
     
