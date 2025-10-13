@@ -36,7 +36,7 @@ const protect = async (req, res, next) => {
       req.user = { userId: userObject._id, fullname: userObject.firstname + ' ' + userObject.lastname, status, role, model: "Employee" } 
     }
     else{ 
-      req.user = { userId: payload.userId, fullname: payload.fullname, model: "User" } 
+      req.user = { userId: payload.userId, fullname: payload.fullname, role: payload.role, model: "User" } 
     }    
     next()
   } catch (error) {
