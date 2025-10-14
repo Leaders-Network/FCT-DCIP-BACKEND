@@ -124,6 +124,44 @@ const getSurveyorAssignments = async (req, res) => {
   }
 };
 
+// Get assignment by ID
+const getAssignmentById = async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+    const surveyorUserId = req.user.userId;
+    console.log(`Getting assignment ${assignmentId} for surveyor ${surveyorUserId}`);
+
+    const assignment = await Assignment.findOne({ 
+      _id: assignmentId,
+      surveyorId: surveyorUserId
+    })
+      .populate({
+        path: 'policyId',
+        populate: {
+          path: 'assignedSurveyors',
+          select: 'firstname lastname email'
+        }
+      })
+      .populate('assignedBy', 'firstname lastname email');
+    
+    if (!assignment) {
+      throw new NotFoundError('Assignment not found');
+    }
+    
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: assignment
+    });
+  } catch (error) {
+    console.error('Get assignment by ID error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to get assignment',
+      error: error.message
+    });
+  }
+};
+
 // Update assignment status
 const updateAssignmentStatus = async (req, res) => {
   try {
@@ -367,6 +405,7 @@ const updateSurveyorProfile = async (req, res) => {
 module.exports = {
   getSurveyorDashboard,
   getSurveyorAssignments,
+  getAssignmentById,
   updateAssignmentStatus,
   submitSurvey,
   getSurveyorSubmissions,

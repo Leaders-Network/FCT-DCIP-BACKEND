@@ -2,6 +2,7 @@ const express = require('express');
 const {
   getSurveyorDashboard,
   getSurveyorAssignments,
+  getAssignmentById,
   updateAssignmentStatus,
   submitSurvey,
   getSurveyorSubmissions,
@@ -21,6 +22,7 @@ router.get('/dashboard', getSurveyorDashboard);
 
 // Assignments
 router.get('/assignments', getSurveyorAssignments);
+router.get('/assignments/:assignmentId', getAssignmentById);
 router.patch('/assignments/:assignmentId/status', updateAssignmentStatus);
 
 // Survey submissions
