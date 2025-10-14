@@ -95,14 +95,14 @@ const requestOtp =  async (req, res) => {
 };
 
 const verifyOtp = async(req, res) => {
-    const { email, otp } = req.body;
+    const { otp } = req.body;
 
-    if (!email || !otp) {
-        return res.status(StatusCodes.BAD_REQUEST).json({success: false,  message: 'Please provide email and OTP!'});
+    if ( !otp) {
+        return res.status(StatusCodes.BAD_REQUEST).json({success: false,  message: 'Please provide OTP!'});
     }
 
     try{
-        const otpData = await Otp.findOne({ email, otp });
+        const otpData = await Otp.findOne({ otp });
 
         if (otpData) {
             res.status(StatusCodes.OK).json({success: true, message: 'OTP verified successfully!'});
