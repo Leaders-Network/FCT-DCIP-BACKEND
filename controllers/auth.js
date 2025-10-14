@@ -77,41 +77,49 @@ const createFirstSuperAdmin = async () => {
 }
 
 const requestOtp =  async (req, res) => {
-    const { email } = req.body;
+    const { email: rawEmail } = req.body;
+    const email = rawEmail.trim().toLowerCase();
+    console.log(`Requesting OTP for email: ${email}`);
     
-
     const userExists = await User.findOne({email})
     if(userExists){ return res.status(StatusCodes.BAD_REQUEST).json({success: false, message: "This Email Is Already Registered !"}) }
     const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
     emailTokenStoreUser[generatedOtp] = email
     try {
         await Otp.deleteMany({ email });
-        await Otp.create({ email, otp: generatedOtp });
+        const newOtp = await Otp.create({ email, otp: generatedOtp });
+        console.log('New OTP created in DB:', newOtp);
         await sendEmail(email, "verifyemail", generatedOtp);
         res.status(StatusCodes.OK).json({success: true, message: 'OTP sent successfully!' });
     } catch (error) {
+        console.error('Error sending OTP:', error);
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false,  message: `Error sending OTP: ${error}` });
     }
 };
 
 const verifyOtp = async(req, res) => {
-    const { otpCode, email } = req.body;
+    const { otp, email: rawEmail } = req.body;
+    const email = rawEmail.trim().toLowerCase();
+    console.log(`Verifying OTP: ${otp} for email: ${email}`);
 
-    if ( !email || !otpCode) {
+    if ( !email || !otp) {
         return res.status(StatusCodes.BAD_REQUEST).json({success: false,  message: 'Please provide OTP!'});
     }
 
     try{
-        const otpData = await Otp.findOne({ otpCode });
+        const otpData = await Otp.findOne({ email, otp });
+        console.log('OTP data from DB:', otpData);
 
         if (otpData) {
+            await Otp.deleteOne({ email, otp });
             res.status(StatusCodes.OK).json({success: true, message: 'OTP verified successfully!'});
         } else {
             res.status(StatusCodes.BAD_REQUEST).json({success: false,  message: 'Invalid OTP !'});
         }
     }
     catch(error){
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error});
+        console.error('Error verifying OTP:', error);
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: error.message });
     }
 };
 
@@ -194,30 +202,26 @@ const resetPasswordUser = async (req, res) => {
 
 const register = async (req, res) => {
     const confirmPassword = req.body['confirm password'] || req.body['confirmPassword'] || req.body['confirmpassword']
-    const { email } = req.body;
-    const otpData = await Otp.findOne({ email });
-
-    if(otpData){
-        try{
-            await Otp.deleteOne({email})
-            if(!confirmPassword || confirmPassword !== req.body.password){
-                throw new BadRequestError('Please provide a matching confirm-password')
-            }
-            else{
-                const user = await User.create({ ...req.body })
-                const token = user.createJWT()
-                const userObject = user.toObject()
-                delete userObject.password
-                delete userObject.__v
-                res.status(StatusCodes.CREATED).json({ success: true, user: userObject, token })
-            }
+    
+    try{
+        if(!confirmPassword || confirmPassword !== req.body.password){
+            throw new BadRequestError('Please provide a matching confirm-password')
         }
-        catch(error){
-            res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error});
+        else{
+            const user = await User.create({ ...req.body })
+            const token = user.createJWT()
+            const userObject = user.toObject()
+            delete userObject.password
+            delete userObject.__v
+            res.status(StatusCodes.CREATED).json({ success: true, user: userObject, token })
         }
     }
-    else{
-        throw new BadRequestError('You Need A Verified OTP Firstly !')
+    catch(error){
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(val => val.message);
+            throw new BadRequestError(messages.join(', '));
+        }
+        throw error;
     }
 };
 
