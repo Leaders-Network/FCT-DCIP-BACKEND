@@ -592,7 +592,6 @@ const createAssignment = async (req, res) => {
       deadline: new Date(deadline),
       priority,
       instructions,
-      specialRequirements: policy.requestDetails.specialRequests ? [policy.requestDetails.specialRequests] : [],
       location: {
         address: policy.propertyDetails.address,
         contactPerson: {
