@@ -234,17 +234,18 @@ const submitSurvey = async (req, res) => {
     const {
       policyId,
       assignmentId,
-      surveyDetails,
       surveyNotes,
       contactLog,
       recommendedAction
     } = req.body;
 
+    const surveyDetails = JSON.parse(req.body.surveyDetails);
+
     // Validate policy exists and is assigned to this surveyor
     const assignment = await Assignment.findOne({
       _id: assignmentId,
       surveyorId: surveyorUserId,
-      status: { $in: ['accepted', 'in-progress'] }
+      status: { $nin: ['rejected', 'cancelled'] }
     });
 
     if (!assignment) {
