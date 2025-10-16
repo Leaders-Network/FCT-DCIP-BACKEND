@@ -225,6 +225,9 @@ const updateAssignmentStatus = async (req, res) => {
 };
 
 // Submit survey
+const cloudinary = require('cloudinary').v2;
+const fs = require('fs');
+
 const submitSurvey = async (req, res) => {
   try {
     const surveyorUserId = req.user.userId;
@@ -232,50 +235,59 @@ const submitSurvey = async (req, res) => {
       policyId,
       assignmentId,
       surveyDetails,
-      surveyDocument,
       surveyNotes,
       contactLog,
       recommendedAction
     } = req.body;
-    
+
     // Validate policy exists and is assigned to this surveyor
     const assignment = await Assignment.findOne({
       _id: assignmentId,
       surveyorId: surveyorUserId,
       status: { $in: ['accepted', 'in-progress'] }
     });
-    
+
     if (!assignment) {
       throw new NotFoundError('Assignment not found or not in progress');
     }
-    
+
+    let surveyDocumentUrl = '';
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        use_filename: true,
+        folder: 'survey-documents'
+      });
+      surveyDocumentUrl = result.secure_url;
+      fs.unlinkSync(req.file.path);
+    }
+
     // Create survey submission
     const submission = new SurveySubmission({
       policyId,
       surveyorId: surveyorUserId,
       assignmentId,
       surveyDetails,
-      surveyDocument,
+      surveyDocument: surveyDocumentUrl,
       surveyNotes,
       contactLog: contactLog || [],
       recommendedAction,
       status: 'submitted'
     });
-    
+
     await submission.save();
-    
+
     // Update assignment status
     assignment.status = 'completed';
     assignment.progressTracking.completedAt = new Date();
     await assignment.save();
-    
+
     // Update policy request status
     await PolicyRequest.findByIdAndUpdate(policyId, {
       status: 'surveyed',
-      surveyDocument,
+      surveyDocument: surveyDocumentUrl,
       surveyNotes
     });
-    
+
     res.status(StatusCodes.CREATED).json({
       success: true,
       message: 'Survey submitted successfully',
