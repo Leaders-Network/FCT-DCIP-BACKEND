@@ -16,7 +16,12 @@ const PolicyRequestSchema = new mongoose.Schema({
     },
     propertyType: {
       type: String,
-      enum: ['Residential House', 'Commercial Building', 'Industrial Facility', 'Apartment Building', 'Office Space', 'Warehouse'],
+      enum: [ 'Residential House',
+    'Apartment/Condo',
+    'Commercial Building',
+    'Industrial Facility',
+    'Mixed Use'],
+
       required: [true, 'Property type is required']
     },
     buildingValue: {
@@ -37,7 +42,7 @@ const PolicyRequestSchema = new mongoose.Schema({
     },
     constructionMaterial: {
       type: String,
-      enum: ['Concrete Block', 'Steel Frame', 'Wood Frame', 'Brick', 'Mixed Materials'],
+      enum: ['Concrete Block', 'Steel Frame', 'Wood Frame', 'Brick','Stone', 'Mixed Materials'],
       required: [true, 'Construction material is required']
     },
     coordinates: {
