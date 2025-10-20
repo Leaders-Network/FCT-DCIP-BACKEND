@@ -69,17 +69,33 @@ const PolicyRequestSchema = new mongoose.Schema({
   requestDetails: {
     coverageType: {
       type: String,
-      enum: ['Basic Coverage', 'Comprehensive Coverage', 'All Risk Coverage', 'Fire and Allied Perils'],
+      enum: [ 'Contract Works Coverage',
+  'Public Liability Coverage',
+  'Employer’s Liability Coverage',
+  'Contractor’s Plant and Equipment Coverage',
+  'Professional Indemnity'],
       required: [true, 'Coverage type is required']
     },
     policyDuration: {
       type: String,
-      enum: ['1 Year', '2 Years', '3 Years', '5 Years'],
+      enum: ['3 Months (Short-term Project)',
+  '6 Months',
+  '1 Year',
+  'Project-Based (Until Completion)'],
       required: [true, 'Policy duration is required']
     },
     additionalCoverage: [{
       type: String,
-      enum: ['Flood Coverage', 'Theft Protection', 'Business Interruption', 'Equipment Coverage', 'Liability Coverage']
+      enum: [ 'Flood and Storm Damage',
+  'Theft or Vandalism at Site',
+  'Collapse or Structural Failure',
+  'Third-Party Property Damage',
+  'Injury to Non-Employees (Public)',
+  'Machinery Breakdown',
+  'Temporary Structures (Scaffolding, Site Office)',
+  'Fire and Explosion',
+  'Debris Removal Costs',
+  'Cross Liability (Between Contractors/Subcontractors)']
     }],
     specialRequests: String
   },
