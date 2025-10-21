@@ -303,17 +303,34 @@ const removeProperty = async (req, res, next) => {
     } = req
 
     try {
-        const property = await Property.findById({
-        _id: propertyId,
-        ownedBy: userId,
-      })
-      if (!property || property.deleted) {
-        throw new NotFoundError(`Property Not Found Or Already Deleted !`)
-      }
-      property.deleted = true
-      await property.save()
+        const property = await Property.findOne({
+            _id: propertyId,
+            ownedBy: userId,
+        })
+        
+        if (!property || property.deleted) {
+            throw new NotFoundError(`Property Not Found Or Already Deleted !`)
+        }
+        
+        // Check if property is referenced in any active policy requests
+        const PolicyRequest = require('../models/PolicyRequest');
+        const activePolicyRequests = await PolicyRequest.find({
+            propertyId: propertyId,
+            status: { $in: ['submitted', 'assigned', 'surveyed', 'approved'] }
+        });
+        
+        if (activePolicyRequests.length > 0) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                success: false,
+                message: 'Cannot delete property with active policy requests. Please complete or cancel related policies first.'
+            });
+        }
+        
+        property.deleted = true
+        property.status = 'Cancelled'
+        await property.save()
 
-      return res.status(StatusCodes.OK).json({ success: true, message: 'Property Deleted Successfully !' })
+        return res.status(StatusCodes.OK).json({ success: true, message: 'Property Deleted Successfully !' })
     }
     catch(error){
         next(error)
@@ -352,9 +369,18 @@ const getAllUsers = async (req, res) => {
   
 
 const getAllProperties = async (req, res, message = null) => {
-    const properties = await Property.find({ ownedBy: req.user.userId }).populate(['category', 'ownedBy'])
-    if(!properties){ return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "User Has No Properties !" }) }
-    if(message){ return res.status(StatusCodes.OK).json({ success: true, message, allProperties: { count: properties.length, properties } }) }
+    const properties = await Property.find({ 
+        ownedBy: req.user.userId, 
+        deleted: { $ne: true } 
+    }).populate(['category', 'ownedBy'])
+    
+    if(!properties || properties.length === 0){ 
+        return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "User Has No Properties !" }) 
+    }
+    
+    if(message){ 
+        return res.status(StatusCodes.OK).json({ success: true, message, allProperties: { count: properties.length, properties } }) 
+    }
     return res.status(StatusCodes.OK).json({ success: true, allProperties: { count: properties.length, properties } })
 }
 

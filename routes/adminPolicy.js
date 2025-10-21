@@ -37,4 +37,7 @@ router.post('/review-submission/:submissionId', reviewSurveySubmission);
 // Send policy to user
 router.post('/:policyId/send-to-user', sendPolicyToUser);
 
+// Delete policy request (admin only)
+router.delete('/:policyId', require('../controllers/policy').deletePolicyRequest);
+
 module.exports = router;

@@ -21,4 +21,7 @@ router.post('/:policyId/assign', restrictTo('Admin', 'Super-admin'), policyContr
 // Survey review
 router.post('/submissions/:submissionId/review', restrictTo('Admin', 'Super-admin'), policyController.reviewSurveySubmission);
 
+// Delete policy request (users can delete their own, admins can delete any)
+router.delete('/:policyId', policyController.deletePolicyRequest);
+
 module.exports = router;

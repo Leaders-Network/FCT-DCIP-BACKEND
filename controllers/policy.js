@@ -470,6 +470,55 @@ const getUserPolicyRequests = async (req, res) => {
   }
 };
 
+// Delete policy request (for admin and user)
+const deletePolicyRequest = async (req, res) => {
+  try {
+    const { policyId } = req.params;
+    const { userId, role } = req.user;
+    
+    const policyRequest = await PolicyRequest.findById(policyId);
+    if (!policyRequest) {
+      throw new NotFoundError('Policy request not found');
+    }
+    
+    // Check permissions - users can only delete their own policies
+    if (role === 'User' && policyRequest.userId !== userId) {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: 'You can only delete your own policy requests'
+      });
+    }
+    
+    // Check if policy can be deleted based on status
+    const undeletableStatuses = ['approved', 'completed', 'sent_to_user'];
+    if (undeletableStatuses.includes(policyRequest.status)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: `Cannot delete policy request with status: ${policyRequest.status}`
+      });
+    }
+    
+    // Delete related assignments and submissions
+    await Assignment.deleteMany({ policyId });
+    await SurveySubmission.deleteMany({ policyId });
+    
+    // Delete the policy request
+    await PolicyRequest.findByIdAndDelete(policyId);
+    
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: 'Policy request deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete policy request error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to delete policy request',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   createPolicyRequest,
   getAllPolicyRequests,
@@ -479,5 +528,6 @@ module.exports = {
   getAvailableSurveyors,
   reviewSurveySubmission,
   getUserPolicyRequests,
-  sendPolicyToUser
+  sendPolicyToUser,
+  deletePolicyRequest
 };
