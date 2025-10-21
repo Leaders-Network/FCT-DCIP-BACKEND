@@ -322,11 +322,16 @@ const reviewSurveySubmission = async (req, res) => {
       throw new NotFoundError('Survey submission not found');
     }
     
+    console.log('Before update:', submission);
+
     // Update submission
     submission.status = decision === 'approved' ? 'approved' : 'revision_required';
     submission.reviewedBy = reviewerId;
     submission.reviewedAt = new Date();
     submission.reviewNotes = reviewNotes;
+
+    console.log('After update:', submission);
+
     
     if (qualityCheck) {
       submission.qualityCheck = {

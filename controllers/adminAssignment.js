@@ -267,6 +267,10 @@ const reassignAssignment = async (req, res) => {
     if (!newSurveyor) {
       throw new BadRequestError('New surveyor not found or inactive');
     }
+
+    if (!newSurveyor.userId) {
+      throw new BadRequestError('The selected surveyor does not have a valid employee record.');
+    }
     
     const oldSurveyor = assignment.surveyorId;
     

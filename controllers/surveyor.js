@@ -84,11 +84,14 @@ const getSurveyorDashboard = async (req, res) => {
 const getSurveyorAssignments = async (req, res) => {
   try {
     const surveyorUserId = req.user.userId;
-    const { status, page = 1, limit = 10 } = req.query;
+    const { status, priority, page = 1, limit = 10 } = req.query;
     
     const query = { surveyorId: surveyorUserId };
     if (status && status !== 'all') {
       query.status = status;
+    }
+    if (priority && priority !== 'all') {
+      query.priority = priority;
     }
     
     const skip = (page - 1) * limit;
@@ -235,11 +238,11 @@ const submitSurvey = async (req, res) => {
       policyId,
       assignmentId,
       surveyNotes,
-      contactLog,
       recommendedAction
     } = req.body;
 
     const surveyDetails = JSON.parse(req.body.surveyDetails);
+    const contactLog = req.body.contactLog ? JSON.parse(req.body.contactLog) : [];
 
     // Validate policy exists and is assigned to this surveyor
     const assignment = await Assignment.findOne({
@@ -312,13 +315,13 @@ const getSurveyorSubmissions = async (req, res) => {
     
     const query = { surveyorId: surveyorUserId };
     if (status && status !== 'all') {
-      query.status = status;
+      query.status = { $in: status.split(',') };
     }
     
     const skip = (page - 1) * limit;
     
     const submissions = await SurveySubmission.find(query)
-      .populate('policyId', 'propertyDetails contactDetails status')
+      .populate('policyId', 'propertyDetails contactDetails status requestDetails')
       .populate('reviewedBy', 'firstname lastname')
       .sort({ submissionTime: -1 })
       .skip(skip)
