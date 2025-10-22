@@ -71,12 +71,12 @@ All routes require authentication.
 - `POST /policy` - Create policy request (users)
 - `GET /policy/user?status=all&page=1&limit=10` - Get user's policy requests
 - `GET /policy?status=all&page=1&limit=10` - Get all policy requests (admin)
-- `GET /policy/:policyId` - Get specific policy request
-- `PATCH /policy/:policyId` - Update policy request
+- `GET /policy/:ammcId` - Get specific policy request
+- `PATCH /policy/:ammcId` - Update policy request
 
 #### Surveyor Assignment
 - `GET /policy/surveyors/available` - Get available surveyors
-- `POST /policy/:policyId/assign` - Assign surveyors to policy
+- `POST /policy/:ammcId/assign` - Assign surveyors to policy
 
 #### Survey Review
 - `POST /policy/submissions/:submissionId/review` - Review survey submission
@@ -151,7 +151,7 @@ All routes require authentication.
 ### 📝 Survey Submission Model
 ```javascript
 {
-  policyId: ObjectId,
+  ammcId: ObjectId,
   surveyorId: ObjectId,
   assignmentId: ObjectId,
   surveyDetails: {
@@ -179,7 +179,7 @@ All routes require authentication.
 ### 📋 Assignment Model
 ```javascript
 {
-  policyId: ObjectId,
+  ammcId: ObjectId,
   surveyorId: ObjectId,
   assignedBy: ObjectId,
   deadline: Date,

@@ -25,10 +25,10 @@ const ContactLogEntrySchema = new mongoose.Schema({
 }, { _id: false });
 
 const SurveySubmissionSchema = new mongoose.Schema({
-  policyId: {
+  ammcId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'PolicyRequest',
-    required: [true, 'Policy ID is required']
+    required: [true, 'AMMC ID is required']
   },
   surveyorId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -191,7 +191,7 @@ const SurveySubmissionSchema = new mongoose.Schema({
 });
 
 // Indexes for efficient queries
-SurveySubmissionSchema.index({ policyId: 1 });
+SurveySubmissionSchema.index({ ammcId: 1 });
 SurveySubmissionSchema.index({ surveyorId: 1 });
 SurveySubmissionSchema.index({ status: 1 });
 SurveySubmissionSchema.index({ submissionTime: -1 });

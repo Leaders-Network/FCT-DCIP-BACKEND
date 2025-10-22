@@ -3,7 +3,7 @@ const {
   getUserProperties, 
   deleteProperty 
 } = require('../controllers/property');
-const { protect, restrictToModel } = require('../middlewares/authentication');
+const { protect, restrictToModel, allowUserOrAdmin } = require('../middlewares/authentication');
 
 const router = express.Router();
 
@@ -11,7 +11,7 @@ const router = express.Router();
 router.use(protect);
 
 // User property routes
-router.get('/user', restrictToModel('User'), getUserProperties);
+router.get('/user', allowUserOrAdmin, getUserProperties);
 router.delete('/:propertyId', deleteProperty); // Both users and admins can delete
 
 module.exports = router;

@@ -101,7 +101,7 @@ const PolicyRequestSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['submitted', 'assigned', 'surveyed', 'approved', 'rejected', 'completed', 'sent_to_user'],
+    enum: ['submitted', 'assigned', 'surveyed', 'approved', 'rejected', 'requires_more_info', 'completed', 'sent_to_user'],
     default: 'submitted'
   },
   assignedSurveyors: [{
@@ -190,7 +190,7 @@ const PolicyRequestSchema = new mongoose.Schema({
   statusHistory: [{
     status: {
       type: String,
-      enum: ['submitted', 'assigned', 'surveyed', 'approved', 'rejected', 'completed', 'sent_to_user']
+      enum: ['submitted', 'assigned', 'surveyed', 'approved', 'rejected', 'requires_more_info', 'completed', 'sent_to_user']
     },
     changedBy: {
       type: mongoose.Schema.Types.ObjectId,

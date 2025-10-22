@@ -105,8 +105,8 @@ router.post('/upload/multiple',
 );
 
 // Document management routes
-router.get('/', getDocuments); // Get documents by assignmentId or policyId
+router.get('/', getDocuments); // Get documents by assignmentId or ammcId
 router.get('/download/:publicId', getDocumentDownloadUrl); // Get download URL
 router.delete('/assignment/:assignmentId/document/:documentId', deleteDocument); // Delete from assignment
-router.delete('/policy/:policyId/document/:documentId', deleteDocument); // Delete from policy
+router.delete('/policy/:ammcId/document/:documentId', deleteDocument); // Delete from policy
 module.exports = router;

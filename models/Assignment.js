@@ -1,10 +1,10 @@
 const mongoose = require('mongoose');
 
 const AssignmentSchema = new mongoose.Schema({
-  policyId: {
+  ammcId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'PolicyRequest',
-    required: [true, 'Policy ID is required']
+    required: [true, 'AMMC ID is required']
   },
   surveyorId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -247,7 +247,7 @@ const AssignmentSchema = new mongoose.Schema({
 
 // Indexes for efficient queries
 AssignmentSchema.index({ surveyorId: 1, status: 1 });
-AssignmentSchema.index({ policyId: 1 });
+AssignmentSchema.index({ ammcId: 1 });
 AssignmentSchema.index({ assignedAt: -1 });
 AssignmentSchema.index({ deadline: 1 });
 AssignmentSchema.index({ priority: 1, deadline: 1 });

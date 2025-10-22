@@ -12,7 +12,7 @@ const getAllAssignments = async (req, res) => {
       status, 
       priority, 
       surveyorId, 
-      policyId,
+      ammcId,
       dateRange,
       page = 1, 
       limit = 20, 
@@ -33,8 +33,8 @@ const getAllAssignments = async (req, res) => {
     if (surveyorId) {
       query.surveyorId = surveyorId;
     }
-    if (policyId) {
-      query.policyId = policyId;
+    if (ammcId) {
+      query.ammcId = ammcId;
     }
     
     // Date range filter
@@ -57,7 +57,7 @@ const getAllAssignments = async (req, res) => {
     if (search) {
       assignments = await Assignment.find(query)
         .populate({
-          path: 'policyId',
+          path: 'ammcId',
           match: {
             $or: [
               { 'contactDetails.fullName': { $regex: search, $options: 'i' } },
@@ -73,10 +73,10 @@ const getAllAssignments = async (req, res) => {
         .limit(parseInt(limit));
       
       // Filter out null populated fields
-      assignments = assignments.filter(assignment => assignment.policyId);
+      assignments = assignments.filter(assignment => assignment.ammcId);
     } else {
       assignments = await Assignment.find(query)
-        .populate('policyId', 'policyNumber contactDetails propertyDetails status priority')
+        .populate('ammcId', 'policyNumber contactDetails propertyDetails status priority')
         .populate('surveyorId', 'firstname lastname email phonenumber')
         .populate('assignedBy', 'firstname lastname')
         .sort(sortOptions)
@@ -134,7 +134,7 @@ const getAssignmentById = async (req, res) => {
     
     const assignment = await Assignment.findById(assignmentId)
       .populate({
-        path: 'policyId',
+        path: 'ammcId',
         populate: {
           path: 'assignedSurveyors',
           select: 'firstname lastname email'
@@ -157,7 +157,7 @@ const getAssignmentById = async (req, res) => {
       surveyorId: assignment.surveyorId._id,
       _id: { $ne: assignmentId }
     })
-    .populate('policyId', 'policyNumber status')
+    .populate('ammcId', 'policyNumber status')
     .sort({ assignedAt: -1 })
     .limit(5);
     
@@ -224,7 +224,7 @@ const updateAssignment = async (req, res) => {
     await assignment.save();
     
     const updatedAssignment = await Assignment.findById(assignmentId)
-      .populate('policyId', 'policyNumber contactDetails')
+      .populate('ammcId', 'policyNumber contactDetails')
       .populate('surveyorId', 'firstname lastname email')
       .populate('assignedBy', 'firstname lastname');
     
@@ -252,7 +252,7 @@ const reassignAssignment = async (req, res) => {
     
     const assignment = await Assignment.findById(assignmentId)
       .populate('surveyorId', 'firstname lastname')
-      .populate('policyId', 'policyNumber');
+      .populate('ammcId', 'policyNumber');
     
     if (!assignment) {
       throw new NotFoundError('Assignment not found');
@@ -296,7 +296,7 @@ const reassignAssignment = async (req, res) => {
     await assignment.save();
     
     const updatedAssignment = await Assignment.findById(assignmentId)
-      .populate('policyId', 'policyNumber contactDetails')
+      .populate('ammcId', 'policyNumber contactDetails')
       .populate('surveyorId', 'firstname lastname email')
       .populate('assignedBy', 'firstname lastname');
     
@@ -343,11 +343,11 @@ const cancelAssignment = async (req, res) => {
     await assignment.save();
     
     // Update policy request status if needed
-    const policyRequest = await PolicyRequest.findById(assignment.policyId);
+    const policyRequest = await PolicyRequest.findById(assignment.ammcId);
     if (policyRequest) {
       // Check if this was the last active assignment
       const activeAssignments = await Assignment.countDocuments({
-        policyId: assignment.policyId,
+        ammcId: assignment.ammcId,
         status: { $in: ['assigned', 'in_progress'] }
       });
       
@@ -364,7 +364,7 @@ const cancelAssignment = async (req, res) => {
     }
     
     const updatedAssignment = await Assignment.findById(assignmentId)
-      .populate('policyId', 'policyNumber contactDetails')
+      .populate('ammcId', 'policyNumber contactDetails')
       .populate('surveyorId', 'firstname lastname email')
       .populate('assignedBy', 'firstname lastname');
     
@@ -563,16 +563,16 @@ const getAssignmentAnalytics = async (req, res) => {
 
 const createAssignment = async (req, res) => {
   try {
-    const { policyId, surveyorId, priority, instructions, deadline } = req.body;
+    const { ammcId, surveyorId, priority, instructions, deadline } = req.body;
 
-    if (!policyId || !surveyorId || !priority || !deadline) {
+    if (!ammcId || !surveyorId || !priority || !deadline) {
       throw new BadRequestError('Missing required assignment fields');
     }
 
     // Check if policy exists and is in a state to be assigned
-    const policy = await PolicyRequest.findById(policyId);
+    const policy = await PolicyRequest.findById(ammcId);
     if (!policy) {
-      throw new NotFoundError('Policy not found');
+      throw new NotFoundError('AMMC not found');
     }
     if (policy.status !== 'submitted' && policy.status !== 'pending') {
       throw new BadRequestError(`Policy status is ${policy.status}, cannot assign surveyor.`);
@@ -589,7 +589,7 @@ const createAssignment = async (req, res) => {
     }
 
     const newAssignment = await Assignment.create({
-      policyId,
+      ammcId,
       surveyorId: validSurveyor.userId, // Use the Employee ID here
       assignedBy: req.user.userId, // Admin who assigned it
       assignedAt: new Date(),
@@ -609,7 +609,7 @@ const createAssignment = async (req, res) => {
         action: 'assignment_created',
         timestamp: new Date(),
         performedBy: req.user.userId,
-        details: `Assignment created for policy ${policy.policyNumber || policyId}`
+        details: `Assignment created for policy ${policy.policyNumber || ammcId}`
       }]
     });
 
@@ -640,12 +640,12 @@ const createAssignment = async (req, res) => {
   }
 };
 
-const getAssignmentByPolicyId = async (req, res) => {
+const getAssignmentByAmmcId = async (req, res) => {
   try {
-    const { policyId } = req.params;
+    const { ammcId } = req.params;
     
-    const assignment = await Assignment.findOne({ policyId: policyId })
-      .populate('policyId', 'policyNumber contactDetails propertyDetails status priority')
+    const assignment = await Assignment.findOne({ ammcId: ammcId })
+      .populate('ammcId', 'policyNumber contactDetails propertyDetails status priority')
       .populate('surveyorId', 'firstname lastname email phonenumber')
       .populate('assignedBy', 'firstname lastname');
     
@@ -658,7 +658,7 @@ const getAssignmentByPolicyId = async (req, res) => {
       data: assignment
     });
   } catch (error) {
-    console.error('Get assignment by policy ID error:', error);
+    console.error('Get assignment by AMMC ID error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: 'Failed to get assignment',
@@ -675,5 +675,5 @@ module.exports = {
   cancelAssignment,
   getAssignmentAnalytics,
   createAssignment,
-  getAssignmentByPolicyId
+  getAssignmentByAmmcId
 };

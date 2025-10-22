@@ -62,4 +62,12 @@ const restrictToModel = (...models) => {
   };
 };
 
-module.exports = { protect, restrictTo, restrictToModel }
+// Allow both Users and Admins to access user-related endpoints
+const allowUserOrAdmin = (req, res, next) => {
+  if (req.user.model === 'User' || (req.user.model === 'Employee' && ['Admin', 'Super-admin'].includes(req.user.role))) {
+    return next();
+  }
+  throw new UnauthenticatedError('You do not have permission to perform this action');
+};
+
+module.exports = { protect, restrictTo, restrictToModel, allowUserOrAdmin }

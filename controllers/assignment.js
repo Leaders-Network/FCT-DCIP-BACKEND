@@ -1,12 +1,12 @@
 // Create a new assignment (admin only)
 const createAssignment = async (req, res) => {
   try {
-    const { policyId, surveyorId, assignedBy, status, priority, deadline } = req.body;
-    if (!policyId || !surveyorId) {
-      throw new BadRequestError('policyId and surveyorId are required');
+    const { ammcId, surveyorId, assignedBy, status, priority, deadline } = req.body;
+    if (!ammcId || !surveyorId) {
+      throw new BadRequestError('ammcId and surveyorId are required');
     }
     const assignment = await Assignment.create({
-      policyId,
+      ammcId,
       surveyorId,
       assignedBy,
       status: status || 'assigned',
@@ -43,7 +43,7 @@ const getSurveyorAssignments = async (req, res) => {
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
     
     const assignments = await Assignment.find(query)
-      .populate('policyId', 'policyNumber contactDetails propertyDetails status priority')
+      .populate('ammcId', 'policyNumber contactDetails propertyDetails status priority')
       .populate('assignedBy', 'firstname lastname email')
       .sort(sortOptions)
       .skip(skip)
@@ -93,7 +93,7 @@ const getAssignmentById = async (req, res) => {
       surveyorId: userId
     })
     .populate({
-      path: 'policyId',
+      path: 'ammcId',
       populate: {
         path: 'assignedSurveyors',
         select: 'firstname lastname email'

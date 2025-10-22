@@ -23,15 +23,15 @@ const getSurveyorDashboard = async (req, res) => {
     const assignments = await Assignment.find({ 
       surveyorId: surveyorUserId 
     })
-    .populate('policyId', 'propertyDetails contactDetails requestDetails status priority deadline')
-    .sort({ deadline: 1 })
+    .populate('ammcId', 'propertyDetails contactDetails requestDetails status priority deadline')
+    .sort({ assignedAt: -1, deadline: 1 })
     .limit(10);
     
     // Get recent submissions
     const recentSubmissions = await SurveySubmission.find({ 
       surveyorId: surveyorUserId 
     })
-    .populate('policyId', 'propertyDetails status')
+    .populate('ammcId', 'propertyDetails status')
     .sort({ submissionTime: -1 })
     .limit(5);
     
@@ -41,7 +41,14 @@ const getSurveyorDashboard = async (req, res) => {
       surveyorId: surveyorUserId, 
       status: { $in: ['assigned', 'accepted', 'in-progress'] }
     });
-    const completedSurveys = await SurveySubmission.countDocuments({ surveyorId: surveyorUserId });
+    const inProgressAssignments = await Assignment.countDocuments({ 
+      surveyorId: surveyorUserId, 
+      status: 'in-progress'
+    });
+    const completedSurveys = await Assignment.countDocuments({ 
+      surveyorId: surveyorUserId, 
+      status: 'completed'
+    });
     const overdueAssignments = await Assignment.countDocuments({
       surveyorId: surveyorUserId,
       deadline: { $lt: new Date() },
@@ -57,10 +64,11 @@ const getSurveyorDashboard = async (req, res) => {
     const dashboardData = {
       profile: surveyor,
       statistics: {
-        totalAssignments,
-        pendingAssignments,
-        completedSurveys,
-        overdueAssignments
+        total: totalAssignments,
+        pending: pendingAssignments,
+        inProgress: inProgressAssignments,
+        completed: completedSurveys,
+        overdue: overdueAssignments
       },
       recentAssignments: assignments,
       recentSubmissions
@@ -88,7 +96,14 @@ const getSurveyorAssignments = async (req, res) => {
     
     const query = { surveyorId: surveyorUserId };
     if (status && status !== 'all') {
-      query.status = status;
+      // Map frontend filter values to backend statuses
+      if (status === 'pending') {
+        query.status = { $in: ['assigned', 'accepted'] };
+      } else if (status === 'completed') {
+        query.status = 'completed';
+      } else {
+        query.status = status;
+      }
     }
     if (priority && priority !== 'all') {
       query.priority = priority;
@@ -97,9 +112,9 @@ const getSurveyorAssignments = async (req, res) => {
     const skip = (page - 1) * limit;
     
     const assignments = await Assignment.find(query)
-      .populate('policyId', 'propertyDetails contactDetails requestDetails status priority deadline')
+      .populate('ammcId', 'propertyDetails contactDetails requestDetails status priority deadline')
       .populate('assignedBy', 'firstname lastname email')
-      .sort({ deadline: 1, priority: -1 })
+      .sort({ assignedAt: -1, deadline: 1, priority: -1 })
       .skip(skip)
       .limit(parseInt(limit));
     
@@ -139,7 +154,7 @@ const getAssignmentById = async (req, res) => {
       surveyorId: surveyorUserId
     })
       .populate({
-        path: 'policyId',
+        path: 'ammcId',
         populate: {
           path: 'assignedSurveyors',
           select: 'firstname lastname email'
@@ -235,7 +250,7 @@ const submitSurvey = async (req, res) => {
   try {
     const surveyorUserId = req.user.userId;
     const {
-      policyId,
+      ammcId,
       assignmentId,
       surveyNotes,
       recommendedAction
@@ -267,7 +282,7 @@ const submitSurvey = async (req, res) => {
 
     // Create survey submission
     const submission = new SurveySubmission({
-      policyId,
+      ammcId,
       surveyorId: surveyorUserId,
       assignmentId,
       surveyDetails,
@@ -286,7 +301,7 @@ const submitSurvey = async (req, res) => {
     await assignment.save();
 
     // Update policy request status
-    await PolicyRequest.findByIdAndUpdate(policyId, {
+    await PolicyRequest.findByIdAndUpdate(ammcId, {
       status: 'surveyed',
       surveyDocument: surveyDocumentUrl,
       surveyNotes
@@ -321,7 +336,7 @@ const getSurveyorSubmissions = async (req, res) => {
     const skip = (page - 1) * limit;
     
     const submissions = await SurveySubmission.find(query)
-      .populate('policyId', 'propertyDetails contactDetails status requestDetails')
+      .populate('ammcId', 'propertyDetails contactDetails status requestDetails')
       .populate('reviewedBy', 'firstname lastname')
       .sort({ submissionTime: -1 })
       .skip(skip)

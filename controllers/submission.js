@@ -21,7 +21,7 @@ const createSurveySubmission = async (req, res) => {
         throw new NotFoundError('Assignment not found or access denied');
       }
       
-      submissionData.policyId = assignment.policyId;
+      submissionData.ammcId = assignment.ammcId;
     }
     
     // Check if submission already exists for this assignment
@@ -38,7 +38,7 @@ const createSurveySubmission = async (req, res) => {
     await submission.save();
     
     const populatedSubmission = await SurveySubmission.findById(submission._id)
-      .populate('policyId', 'policyNumber contactDetails')
+      .populate('ammcId', 'policyNumber contactDetails')
       .populate('assignmentId', 'deadline priority');
     
     res.status(StatusCodes.CREATED).json({
@@ -84,7 +84,7 @@ const getSurveyorSubmissions = async (req, res) => {
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
     
     const submissions = await SurveySubmission.find(query)
-      .populate('policyId', 'policyNumber contactDetails propertyDetails status')
+      .populate('ammcId', 'policyNumber contactDetails propertyDetails status')
       .populate('assignmentId', 'deadline priority status')
       .populate('reviewedBy', 'firstname lastname')
       .sort(sortOptions)
@@ -134,7 +134,7 @@ const getSubmissionById = async (req, res) => {
       _id: submissionId,
       surveyorId: userId
     })
-    .populate('policyId')
+    .populate('ammcId')
     .populate('assignmentId')
     .populate('reviewedBy', 'firstname lastname email');
     
@@ -203,7 +203,7 @@ const updateSurveySubmission = async (req, res) => {
     await submission.save();
     
     const updatedSubmission = await SurveySubmission.findById(submissionId)
-      .populate('policyId', 'policyNumber contactDetails')
+      .populate('ammcId', 'policyNumber contactDetails')
       .populate('assignmentId', 'deadline priority');
     
     res.status(StatusCodes.OK).json({
@@ -260,7 +260,7 @@ const submitSurvey = async (req, res) => {
     await submission.save();
     
     const submittedSubmission = await SurveySubmission.findById(submissionId)
-      .populate('policyId', 'policyNumber contactDetails')
+      .populate('ammcId', 'policyNumber contactDetails')
       .populate('assignmentId', 'deadline priority');
     
     res.status(StatusCodes.OK).json({
@@ -345,7 +345,7 @@ const getSubmissionByAssignment = async (req, res) => {
       assignmentId: assignmentId,
       surveyorId: userId
     })
-    .populate('policyId', 'policyNumber contactDetails propertyDetails')
+    .populate('ammcId', 'policyNumber contactDetails propertyDetails')
     .populate('reviewedBy', 'firstname lastname email');
     
     res.status(StatusCodes.OK).json({
