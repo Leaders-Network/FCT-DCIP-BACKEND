@@ -347,18 +347,37 @@ const getSubmissionByAssignment = async (req, res) => {
       surveyorId: assignment.surveyorId
     });
 
-    // Check if user is the assigned surveyor or an admin
+    // Check if user is the assigned surveyor, an admin, or the policy owner
     const isAssignedSurveyor = assignment.surveyorId && assignment.surveyorId.toString() === userId.toString();
     const isAdmin = role === 'Admin' || role === 'Super-admin';
+
+    let isPolicyOwner = false;
+    if (role === 'user') {
+      // For regular users, check if they own the policy
+      const User = require('../models/User');
+      const user = await User.findById(userId);
+
+      if (user && assignment.ammcId) {
+        // Populate the assignment's ammcId to get policy details
+        await assignment.populate('ammcId', 'contactDetails');
+        isPolicyOwner = user.email === assignment.ammcId?.contactDetails?.email;
+        console.log('Policy ownership check:', {
+          userEmail: user.email,
+          policyEmail: assignment.ammcId?.contactDetails?.email,
+          isPolicyOwner
+        });
+      }
+    }
 
     console.log('Access check:', {
       isAssignedSurveyor,
       isAdmin,
+      isPolicyOwner,
       userRole: role,
       surveyorIdMatch: assignment.surveyorId?.toString() === userId.toString()
     });
 
-    if (!isAssignedSurveyor && !isAdmin) {
+    if (!isAssignedSurveyor && !isAdmin && !isPolicyOwner) {
       console.log('Access denied for user:', { userId, role });
       throw new NotFoundError('Access denied');
     }

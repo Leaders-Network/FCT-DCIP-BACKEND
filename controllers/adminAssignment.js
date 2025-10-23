@@ -8,21 +8,21 @@ const { BadRequestError, NotFoundError } = require('../errors');
 // Get all assignments with comprehensive filters for admin dashboard
 const getAllAssignments = async (req, res) => {
   try {
-    const { 
-      status, 
-      priority, 
-      surveyorId, 
+    const {
+      status,
+      priority,
+      surveyorId,
       ammcId,
       dateRange,
-      page = 1, 
-      limit = 20, 
+      page = 1,
+      limit = 20,
       search,
       sortBy = 'assignedAt',
       sortOrder = 'desc'
     } = req.query;
-    
+
     const query = {};
-    
+
     // Apply filters
     if (status && status !== 'all') {
       query.status = status;
@@ -36,7 +36,7 @@ const getAllAssignments = async (req, res) => {
     if (ammcId) {
       query.ammcId = ammcId;
     }
-    
+
     // Date range filter
     if (dateRange) {
       const { start, end } = JSON.parse(dateRange);
@@ -47,11 +47,11 @@ const getAllAssignments = async (req, res) => {
         };
       }
     }
-    
+
     const skip = (page - 1) * limit;
     const sortOptions = {};
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
-    
+
     // If search is provided, we need to populate and filter
     let assignments;
     if (search) {
@@ -71,7 +71,7 @@ const getAllAssignments = async (req, res) => {
         .sort(sortOptions)
         .skip(skip)
         .limit(parseInt(limit));
-      
+
       // Filter out null populated fields
       assignments = assignments.filter(assignment => assignment.ammcId);
     } else {
@@ -83,23 +83,23 @@ const getAllAssignments = async (req, res) => {
         .skip(skip)
         .limit(parseInt(limit));
     }
-    
+
     const total = await Assignment.countDocuments(query);
-    
+
     // Get assignment statistics
     const statusStats = await Assignment.aggregate([
       { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);
-    
+
     const priorityStats = await Assignment.aggregate([
       { $group: { _id: '$priority', count: { $sum: 1 } } }
     ]);
-    
+
     const overdueCount = await Assignment.countDocuments({
       status: { $in: ['assigned', 'in_progress'] },
       deadline: { $lt: new Date() }
     });
-    
+
     res.status(StatusCodes.OK).json({
       success: true,
       data: {
@@ -131,7 +131,7 @@ const getAllAssignments = async (req, res) => {
 const getAssignmentById = async (req, res) => {
   try {
     const { assignmentId } = req.params;
-    
+
     const assignment = await Assignment.findById(assignmentId)
       .populate({
         path: 'ammcId',
@@ -142,25 +142,25 @@ const getAssignmentById = async (req, res) => {
       })
       .populate('surveyorId', 'firstname lastname email phonenumber')
       .populate('assignedBy', 'firstname lastname email');
-    
+
     if (!assignment) {
       throw new NotFoundError('Assignment not found');
     }
-    
+
     // Get related submissions
-    const submissions = await SurveySubmission.find({ 
-      assignmentId: assignmentId 
+    const submissions = await SurveySubmission.find({
+      assignmentId: assignmentId
     }).sort({ submissionTime: -1 });
-    
+
     // Get surveyor's recent assignments for context
     const recentAssignments = await Assignment.find({
       surveyorId: assignment.surveyorId._id,
       _id: { $ne: assignmentId }
     })
-    .populate('ammcId', 'policyNumber status')
-    .sort({ assignedAt: -1 })
-    .limit(5);
-    
+      .populate('ammcId', 'policyNumber status')
+      .sort({ assignedAt: -1 })
+      .limit(5);
+
     res.status(StatusCodes.OK).json({
       success: true,
       data: {
@@ -188,12 +188,12 @@ const updateAssignment = async (req, res) => {
     const { assignmentId } = req.params;
     const updates = req.body;
     const adminId = req.user.userId;
-    
+
     const assignment = await Assignment.findById(assignmentId);
     if (!assignment) {
       throw new NotFoundError('Assignment not found');
     }
-    
+
     // Track significant changes
     const significantChanges = [];
     if (updates.deadline && new Date(updates.deadline).getTime() !== assignment.deadline.getTime()) {
@@ -202,14 +202,14 @@ const updateAssignment = async (req, res) => {
     if (updates.priority && updates.priority !== assignment.priority) {
       significantChanges.push(`Priority changed from ${assignment.priority} to ${updates.priority}`);
     }
-    
+
     // Apply updates
     Object.keys(updates).forEach(key => {
       if (key !== 'timeline') {
         assignment[key] = updates[key];
       }
     });
-    
+
     // Add timeline entry for significant changes
     if (significantChanges.length > 0) {
       assignment.timeline.push({
@@ -220,14 +220,14 @@ const updateAssignment = async (req, res) => {
         notes: updates.updateReason || 'Assignment updated by admin'
       });
     }
-    
+
     await assignment.save();
-    
+
     const updatedAssignment = await Assignment.findById(assignmentId)
       .populate('ammcId', 'policyNumber contactDetails')
       .populate('surveyorId', 'firstname lastname email')
       .populate('assignedBy', 'firstname lastname');
-    
+
     res.status(StatusCodes.OK).json({
       success: true,
       message: 'Assignment updated successfully',
@@ -249,21 +249,21 @@ const reassignAssignment = async (req, res) => {
     const { assignmentId } = req.params;
     const { newSurveyorId, reason, deadline, priority } = req.body;
     const adminId = req.user.userId;
-    
+
     const assignment = await Assignment.findById(assignmentId)
       .populate('surveyorId', 'firstname lastname')
       .populate('ammcId', 'policyNumber');
-    
+
     if (!assignment) {
       throw new NotFoundError('Assignment not found');
     }
-    
+
     // Validate new surveyor
     const newSurveyor = await Surveyor.findOne({
       _id: newSurveyorId,
       status: 'active'
     }).populate('userId', 'firstname lastname');
-    
+
     if (!newSurveyor) {
       throw new BadRequestError('New surveyor not found or inactive');
     }
@@ -271,17 +271,17 @@ const reassignAssignment = async (req, res) => {
     if (!newSurveyor.userId) {
       throw new BadRequestError('The selected surveyor does not have a valid employee record.');
     }
-    
+
     const oldSurveyor = assignment.surveyorId;
-    
+
     // Update assignment
     assignment.surveyorId = newSurveyor.userId._id; // use the Employee ID
     assignment.status = 'assigned'; // Reset status
     if (deadline) assignment.deadline = deadline;
     if (priority) assignment.priority = priority;
-    
+
     // Add timeline entry
-    const details = oldSurveyor 
+    const details = oldSurveyor
       ? `Reassigned from ${oldSurveyor.firstname} ${oldSurveyor.lastname} to ${newSurveyor.userId.firstname} ${newSurveyor.userId.lastname}`
       : `Assigned to ${newSurveyor.userId.firstname} ${newSurveyor.userId.lastname}`;
 
@@ -292,14 +292,14 @@ const reassignAssignment = async (req, res) => {
       details: details,
       notes: reason || 'Assignment reassigned by admin'
     });
-    
+
     await assignment.save();
-    
+
     const updatedAssignment = await Assignment.findById(assignmentId)
       .populate('ammcId', 'policyNumber contactDetails')
       .populate('surveyorId', 'firstname lastname email')
       .populate('assignedBy', 'firstname lastname');
-    
+
     res.status(StatusCodes.OK).json({
       success: true,
       message: 'Assignment reassigned successfully',
@@ -321,16 +321,16 @@ const cancelAssignment = async (req, res) => {
     const { assignmentId } = req.params;
     const { reason } = req.body;
     const adminId = req.user.userId;
-    
+
     const assignment = await Assignment.findById(assignmentId);
     if (!assignment) {
       throw new NotFoundError('Assignment not found');
     }
-    
+
     if (assignment.status === 'completed' || assignment.status === 'cancelled') {
       throw new BadRequestError(`Cannot cancel assignment with status: ${assignment.status}`);
     }
-    
+
     assignment.status = 'cancelled';
     assignment.timeline.push({
       action: 'assignment_cancelled',
@@ -339,9 +339,9 @@ const cancelAssignment = async (req, res) => {
       details: 'Assignment cancelled by admin',
       notes: reason || 'Assignment cancelled'
     });
-    
+
     await assignment.save();
-    
+
     // Update policy request status if needed
     const policyRequest = await PolicyRequest.findById(assignment.ammcId);
     if (policyRequest) {
@@ -350,7 +350,7 @@ const cancelAssignment = async (req, res) => {
         ammcId: assignment.ammcId,
         status: { $in: ['assigned', 'in_progress'] }
       });
-      
+
       if (activeAssignments === 0) {
         policyRequest.status = 'pending'; // Back to pending for reassignment
         policyRequest.statusHistory.push({
@@ -362,12 +362,12 @@ const cancelAssignment = async (req, res) => {
         await policyRequest.save();
       }
     }
-    
+
     const updatedAssignment = await Assignment.findById(assignmentId)
       .populate('ammcId', 'policyNumber contactDetails')
       .populate('surveyorId', 'firstname lastname email')
       .populate('assignedBy', 'firstname lastname');
-    
+
     res.status(StatusCodes.OK).json({
       success: true,
       message: 'Assignment cancelled successfully',
@@ -387,11 +387,11 @@ const cancelAssignment = async (req, res) => {
 const getAssignmentAnalytics = async (req, res) => {
   try {
     const { period = '30d' } = req.query;
-    
+
     // Calculate date range based on period
     const now = new Date();
     let startDate;
-    
+
     switch (period) {
       case '7d':
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -405,22 +405,22 @@ const getAssignmentAnalytics = async (req, res) => {
       default:
         startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
-    
+
     // Assignment metrics
     const totalAssignments = await Assignment.countDocuments({
       assignedAt: { $gte: startDate }
     });
-    
+
     const completedAssignments = await Assignment.countDocuments({
       status: 'completed',
       assignedAt: { $gte: startDate }
     });
-    
+
     const overdueAssignments = await Assignment.countDocuments({
       status: { $in: ['assigned', 'in_progress'] },
       deadline: { $lt: now }
     });
-    
+
     const avgCompletionTime = await Assignment.aggregate([
       {
         $match: {
@@ -442,7 +442,7 @@ const getAssignmentAnalytics = async (req, res) => {
         }
       }
     ]);
-    
+
     // Performance by surveyor
     const surveyorPerformance = await Assignment.aggregate([
       {
@@ -513,7 +513,7 @@ const getAssignmentAnalytics = async (req, res) => {
         $limit: 10
       }
     ]);
-    
+
     // Assignment timeline data
     const timelineData = await Assignment.aggregate([
       {
@@ -536,7 +536,7 @@ const getAssignmentAnalytics = async (req, res) => {
         $sort: { '_id.date': 1 }
       }
     ]);
-    
+
     res.status(StatusCodes.OK).json({
       success: true,
       data: {
@@ -643,16 +643,48 @@ const createAssignment = async (req, res) => {
 const getAssignmentByAmmcId = async (req, res) => {
   try {
     const { ammcId } = req.params;
-    
+    const { userId, role } = req.user;
+
+    console.log('getAssignmentByAmmcId - User:', { userId, role });
+    console.log('getAssignmentByAmmcId - AMMC ID:', ammcId);
+
     const assignment = await Assignment.findOne({ ammcId: ammcId })
       .populate('ammcId', 'policyNumber contactDetails propertyDetails status priority')
       .populate('surveyorId', 'firstname lastname email phonenumber')
       .populate('assignedBy', 'firstname lastname');
-    
+
     if (!assignment) {
+      console.log('Assignment not found for AMMC ID:', ammcId);
       throw new NotFoundError('Assignment not found for this policy');
     }
-    
+
+    console.log('Assignment found:', {
+      assignmentId: assignment._id,
+      ammcId: assignment.ammcId?._id,
+      policyOwner: assignment.ammcId?.contactDetails?.email
+    });
+
+    // For non-admin users, verify they own the policy
+    if (role !== 'Admin' && role !== 'Super-admin') {
+      // Get the user's email from their profile to match with policy
+      const User = require('../models/User');
+      const user = await User.findById(userId);
+
+      if (!user) {
+        console.log('User not found:', userId);
+        throw new NotFoundError('User not found');
+      }
+
+      console.log('User email:', user.email);
+      console.log('Policy email:', assignment.ammcId?.contactDetails?.email);
+
+      // Check if the user owns this policy by comparing emails
+      if (user.email !== assignment.ammcId?.contactDetails?.email) {
+        console.log('Access denied - user does not own this policy');
+        throw new NotFoundError('Access denied - you can only view your own policies');
+      }
+    }
+
     res.status(StatusCodes.OK).json({
       success: true,
       data: assignment

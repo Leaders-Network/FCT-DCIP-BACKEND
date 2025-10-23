@@ -35,14 +35,14 @@ const app = express()
 const corsOptions = {
   origin: [
     'http://localhost:3000',
-     'http://localhost:3001',
+    'http://localhost:3001',
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ["Content-Type", "Authorization", 'apiKey', 'x-api-key'],
   credentials: true,
 }
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions)); 
+app.options("*", cors(corsOptions));
 
 app.use(express.json());
 app.use('/api/v1/auth', authRouter);
@@ -68,19 +68,19 @@ app.use(errorHandlerMiddleware);
 
 const PORT = process.env.PORT || 5000
 const start = async () => {
-    try {
-      await connectDB(process.env.MONGO_URI);
-      await createStatuses()
-      await createRoles()
-      await createPropertyCategories()
-      await createSurveyorRoles()
-      await createFirstSuperAdmin()
-      app.listen(PORT, () =>
-        console.log(`Server is listening on port ${PORT}...`)
-      );
-    } catch (error) {
-      console.log(error);
-    }
+  try {
+    await connectDB(process.env.MONGO_URI);
+    await createStatuses()
+    await createRoles()
+    await createPropertyCategories()
+    await createSurveyorRoles()
+    await createFirstSuperAdmin()
+    app.listen(PORT, () =>
+      console.log(`Server is listening on port ${PORT}...`)
+    );
+  } catch (error) {
+    console.log(error);
+  }
 };
-  
+
 start();

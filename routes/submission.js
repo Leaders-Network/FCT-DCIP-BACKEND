@@ -13,8 +13,8 @@ const { protect, restrictTo } = require('../middlewares/authentication');
 
 const router = express.Router();
 
-// Assignment-based routes (accessible by both surveyors and admins)
-router.get('/assignment/:assignmentId', protect, restrictTo('Surveyor', 'Admin', 'Super-admin'), getSubmissionByAssignment);
+// Assignment-based routes (accessible by surveyors, admins, and users for their own policies)
+router.get('/assignment/:assignmentId', protect, getSubmissionByAssignment);
 
 // All other routes require authentication and surveyor role
 router.use(protect);
