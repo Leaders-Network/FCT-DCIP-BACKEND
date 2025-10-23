@@ -96,19 +96,19 @@ const getDashboardData = async (req, res) => {
     
     // Recent Activity - Assignments
     const recentAssignments = await Assignment.find()
-      .populate('policyId', 'policyNumber contactDetails')
+      .populate('ammcId', 'policyNumber contactDetails')
       .populate('surveyorId', 'userid firstname lastname')
       .sort({ assignedAt: -1 })
       .limit(10)
-      .select('policyId surveyorId status priority assignedAt deadline');
+      .select('ammcId surveyorId status priority assignedAt deadline');
     
     // Recent Activity - Survey Submissions
     const recentSubmissions = await SurveySubmission.find()
-      .populate('policyId', 'policyNumber contactDetails')
+      .populate('ammcId', 'policyNumber contactDetails')
       .populate('surveyorId', 'userid firstname lastname')
       .sort({ submissionTime: -1 })
       .limit(5)
-      .select('policyId surveyorId status submissionTime reviewedAt');
+      .select('ammcId surveyorId status submissionTime reviewedAt');
     
     // Performance Trends - Daily data for the period
     const dailyTrends = await PolicyRequest.aggregate([
@@ -358,7 +358,7 @@ const getAdminAlerts = async (req, res) => {
       status: { $in: ['assigned', 'in_progress'] },
       deadline: { $lt: now }
     })
-    .populate('policyId', 'policyNumber')
+    .populate('ammcId', 'policyNumber')
     .populate('surveyorId', 'userid firstname lastname')
     .limit(10);
     
@@ -367,10 +367,10 @@ const getAdminAlerts = async (req, res) => {
         type: 'overdue_assignment',
         severity: 'high',
         title: 'Overdue Assignment',
-        message: `Assignment for policy ${assignment.policyId.policyNumber} is overdue`,
+        message: `Assignment for policy ${assignment.ammcId.policyNumber} is overdue`,
         data: {
           assignmentId: assignment._id,
-          policyNumber: assignment.policyId.policyNumber,
+          policyNumber: assignment.ammcId.policyNumber,
           surveyor: `${assignment.surveyorId.firstname} ${assignment.surveyorId.lastname}`,
           deadline: assignment.deadline
         },
@@ -382,7 +382,7 @@ const getAdminAlerts = async (req, res) => {
     const pendingReviews = await SurveySubmission.find({
       status: 'pending'
     })
-    .populate('policyId', 'policyNumber')
+    .populate('ammcId', 'policyNumber')
     .populate('surveyorId', 'userid firstname lastname')
     .limit(5);
     
@@ -391,10 +391,10 @@ const getAdminAlerts = async (req, res) => {
         type: 'pending_review',
         severity: 'medium',
         title: 'Pending Survey Review',
-        message: `Survey for policy ${submission.policyId.policyNumber} awaits review`,
+        message: `Survey for policy ${submission.ammcId.policyNumber} awaits review`,
         data: {
           submissionId: submission._id,
-          policyNumber: submission.policyId.policyNumber,
+          policyNumber: submission.ammcId.policyNumber,
           surveyor: `${submission.surveyorId.firstname} ${submission.surveyorId.lastname}`,
           submissionTime: submission.submissionTime
         },
@@ -415,7 +415,7 @@ const getAdminAlerts = async (req, res) => {
         title: 'Unassigned High Priority Policy',
         message: `High priority policy ${policy.policyNumber} needs assignment`,
         data: {
-          policyId: policy._id,
+          ammcId: policy._id,
           policyNumber: policy.policyNumber,
           priority: policy.priority,
           createdAt: policy.createdAt

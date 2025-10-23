@@ -4,46 +4,52 @@ const Otp = require("../models/OTP");
 
 
 module.exports = async (email, mailType, content) => {
-  try {
+  nodemailer.createTestAccount(async (err, account) => {
+    if (err) {
+      console.error('Failed to create a testing account. ' + err.message);
+      return process.exit(1);
+    }
+
+    console.log('Credentials obtained, sending message...');
+
     const transporter = nodemailer.createTransport({
-      service: "gmail",
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: true,
+      host: account.smtp.host,
+      port: account.smtp.port,
+      secure: account.smtp.secure,
       auth: {
-        user: process.env.EMAIL,
-        pass: process.env.EMAIL_PASSWORD,
-      },
+        user: account.user,
+        pass: account.pass
+      }
     });
 
     let mailOptions;
     if (mailType === "verifyemail") {
       mailOptions = {
-        from: `${process.env.EMAIL_FROM}  <${process.env.EMAIL}>`,
+        from: `"${process.env.EMAIL_FROM}" <${process.env.EMAIL}>`,
         to: email,
         subject: "Verify Your Email",
         html: content,
       };
     } else if (mailType === "surveyorCredentials") {
       mailOptions = {
-        from: `${process.env.EMAIL_FROM}  <${process.env.EMAIL}>`,
+        from: `"${process.env.EMAIL_FROM}" <${process.env.EMAIL}>`,
         to: email,
         subject: "Your DCIP Surveyor Account Credentials",
         html: content,
       };
     } else {
       mailOptions = {
-        from: `${process.env.EMAIL_FROM}  <${process.env.EMAIL}>`,
+        from: `"${process.env.EMAIL_FROM}" <${process.env.EMAIL}>`,
         to: email,
         subject: "Reset Your Password",
         html: content,
       };
     }
 
-    await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully!");
-  } catch (error) {
-    console.log("Error sending email:", error);
-  }
+    let info = await transporter.sendMail(mailOptions);
+
+    console.log('Message sent: %s', info.messageId);
+    console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
+  });
 };
 

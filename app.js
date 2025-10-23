@@ -1,4 +1,10 @@
 require('dotenv').config();
+const cloudinary = require('cloudinary').v2;
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 require('express-async-errors');
 const connectDB = require('./database/connect');
 const express = require("express")
@@ -6,6 +12,7 @@ const authRouter = require('./routes/auth');
 const filesRouter = require('./routes/files');
 const surveyorRouter = require('./routes/surveyor');
 const policyRouter = require('./routes/policy');
+const propertyRouter = require('./routes/property');
 const adminSurveyorRouter = require('./routes/adminSurveyor');
 const adminAssignmentRouter = require('./routes/adminAssignment');
 const adminDashboardRouter = require('./routes/adminDashboard');
@@ -41,6 +48,7 @@ app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/files', filesRouter);
 app.use('/api/v1/surveyor', surveyorRouter);
 app.use('/api/v1/policy', policyRouter);
+app.use('/api/v1/property', propertyRouter);
 app.use('/api/v1/admin/surveyor', adminSurveyorRouter);
 app.use('/api/v1/admin/assignment', adminAssignmentRouter);
 app.use('/api/v1/admin/dashboard', adminDashboardRouter);

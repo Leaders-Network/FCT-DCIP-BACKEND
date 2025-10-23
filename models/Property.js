@@ -23,6 +23,21 @@ const PropertySchema = new mongoose.Schema({
         type: String,
         required: [true, 'Please provide property address']
     },
+    propertyType: {
+        type: String,
+    },
+    buildingValue: {
+        type: Number,
+    },
+    yearBuilt: {
+        type: Number,
+    },
+    squareFootage: {
+        type: Number,
+    },
+    constructionMaterial: {
+        type: String,
+    },
     phonenumber: {
         type: String,
         match: [/^(?:\+234\d{10}|234\d{10}|0\d{10})$/, 'Please provide a valid phone number'],

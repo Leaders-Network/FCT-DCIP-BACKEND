@@ -15,7 +15,7 @@ const uploadSurveyDocument = async (req, res) => {
     const { originalname, buffer, mimetype, size } = req.file;
     const { 
       assignmentId, 
-      policyId,
+      ammcId,
       category = 'general',
       description = '',
       documentType = 'survey_document'
@@ -24,8 +24,8 @@ const uploadSurveyDocument = async (req, res) => {
     const { userId } = req.user;
 
     // Validate required parameters
-    if (!assignmentId && !policyId) {
-      throw new BadRequestError('Either assignmentId or policyId is required');
+    if (!assignmentId && !ammcId) {
+      throw new BadRequestError('Either assignmentId or ammcId is required');
     }
 
     // Validate file type
@@ -54,7 +54,7 @@ const uploadSurveyDocument = async (req, res) => {
     // Determine folder structure
     const folder = assignmentId 
       ? `survey-documents/${assignmentId}` 
-      : `policy-documents/${policyId}`;
+      : `policy-documents/${ammcId}`;
 
     // Upload to Cloudinary
     const uploadResult = await uploadToCloudinary(buffer, originalname, folder);
@@ -92,10 +92,10 @@ const uploadSurveyDocument = async (req, res) => {
       await assignment.save();
     }
 
-    if (policyId) {
-      const policy = await PolicyRequest.findById(policyId);
+    if (ammcId) {
+      const policy = await PolicyRequest.findById(ammcId);
       if (!policy) {
-        throw new NotFoundError('Policy request not found');
+        throw new NotFoundError('AMMC request not found');
       }
 
       if (!policy.documents) {
@@ -135,7 +135,7 @@ const uploadMultipleSurveyDocuments = async (req, res) => {
 
     const { 
       assignmentId, 
-      policyId,
+      ammcId,
       category = 'general',
       description = '',
       documentType = 'survey_document'
@@ -144,8 +144,8 @@ const uploadMultipleSurveyDocuments = async (req, res) => {
     const { userId } = req.user;
 
     // Validate required parameters
-    if (!assignmentId && !policyId) {
-      throw new BadRequestError('Either assignmentId or policyId is required');
+    if (!assignmentId && !ammcId) {
+      throw new BadRequestError('Either assignmentId or ammcId is required');
     }
 
     const uploadedDocuments = [];
@@ -188,7 +188,7 @@ const uploadMultipleSurveyDocuments = async (req, res) => {
         // Determine folder structure
         const folder = assignmentId 
           ? `survey-documents/${assignmentId}` 
-          : `policy-documents/${policyId}`;
+          : `policy-documents/${ammcId}`;
 
         // Upload to Cloudinary
         const uploadResult = await uploadToCloudinary(buffer, originalname, folder);
@@ -231,10 +231,10 @@ const uploadMultipleSurveyDocuments = async (req, res) => {
         await assignment.save();
       }
 
-      if (policyId) {
-        const policy = await PolicyRequest.findById(policyId);
+      if (ammcId) {
+        const policy = await PolicyRequest.findById(ammcId);
         if (!policy) {
-          throw new NotFoundError('Policy request not found');
+          throw new NotFoundError('AMMC request not found');
         }
 
         if (!policy.documents) {
@@ -271,11 +271,11 @@ const uploadMultipleSurveyDocuments = async (req, res) => {
 // Get documents for assignment or policy
 const getDocuments = async (req, res) => {
   try {
-    const { assignmentId, policyId } = req.query;
+    const { assignmentId, ammcId } = req.query;
     const { category, documentType } = req.query;
 
-    if (!assignmentId && !policyId) {
-      throw new BadRequestError('Either assignmentId or policyId is required');
+    if (!assignmentId && !ammcId) {
+      throw new BadRequestError('Either assignmentId or ammcId is required');
     }
 
     let documents = [];
@@ -292,12 +292,12 @@ const getDocuments = async (req, res) => {
       documents = assignment.documents || [];
     }
 
-    if (policyId) {
-      const policy = await PolicyRequest.findById(policyId)
+    if (ammcId) {
+      const policy = await PolicyRequest.findById(ammcId)
         .select('documents');
       
       if (!policy) {
-        throw new NotFoundError('Policy request not found');
+        throw new NotFoundError('AMMC request not found');
       }
       
       documents = [...documents, ...(policy.documents || [])];
@@ -346,11 +346,11 @@ const getDocuments = async (req, res) => {
 // Delete document
 const deleteDocument = async (req, res) => {
   try {
-    const { assignmentId, policyId, documentId } = req.params;
+    const { assignmentId, ammcId, documentId } = req.params;
     const { userId } = req.user;
 
-    if (!assignmentId && !policyId) {
-      throw new BadRequestError('Either assignmentId or policyId is required');
+    if (!assignmentId && !ammcId) {
+      throw new BadRequestError('Either assignmentId or ammcId is required');
     }
 
     let targetModel, targetDocument, documentToDelete;
@@ -364,10 +364,10 @@ const deleteDocument = async (req, res) => {
       documentToDelete = targetModel.documents?.find(doc => doc._id.toString() === documentId);
     }
 
-    if (policyId) {
-      targetModel = await PolicyRequest.findById(policyId);
+    if (ammcId) {
+      targetModel = await PolicyRequest.findById(ammcId);
       if (!targetModel) {
-        throw new NotFoundError('Policy request not found');
+        throw new NotFoundError('AMMC request not found');
       }
       
       documentToDelete = targetModel.documents?.find(doc => doc._id.toString() === documentId);
@@ -397,7 +397,7 @@ const deleteDocument = async (req, res) => {
       targetModel.documents = targetModel.documents.filter(doc => doc._id.toString() !== documentId);
     }
     
-    if (policyId) {
+    if (ammcId) {
       targetModel.documents = targetModel.documents.filter(doc => doc._id.toString() !== documentId);
     }
 

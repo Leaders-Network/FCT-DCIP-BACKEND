@@ -20,13 +20,13 @@ router.use(restrictTo('Admin', 'Super-admin'));
 router.get('/', getAllPolicyRequests);
 
 // Get a single policy request by ID (for admin)
-router.get('/:policyId', getPolicyRequestById);
+router.get('/:ammcId', getPolicyRequestById);
 
 // Update a policy request (for admin)
-router.patch('/:policyId', updatePolicyRequest);
+router.patch('/:ammcId', updatePolicyRequest);
 
 // Assign a surveyor to a policy
-router.post('/:policyId/assign', assignSurveyor);
+router.post('/:ammcId/assign', assignSurveyor);
 
 // Get available surveyors for assignment
 router.get('/available-surveyors', getAvailableSurveyors);
@@ -35,6 +35,9 @@ router.get('/available-surveyors', getAvailableSurveyors);
 router.post('/review-submission/:submissionId', reviewSurveySubmission);
 
 // Send policy to user
-router.post('/:policyId/send-to-user', sendPolicyToUser);
+router.post('/:ammcId/send-to-user', sendPolicyToUser);
+
+// Delete policy request (admin only)
+router.delete('/:ammcId', require('../controllers/policy').deletePolicyRequest);
 
 module.exports = router;

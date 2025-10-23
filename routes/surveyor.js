@@ -2,6 +2,7 @@ const express = require('express');
 const {
   getSurveyorDashboard,
   getSurveyorAssignments,
+  getAssignmentById,
   updateAssignmentStatus,
   submitSurvey,
   getSurveyorSubmissions,
@@ -9,6 +10,7 @@ const {
   updateSurveyorProfile
 } = require('../controllers/surveyor');
 const { protect, restrictTo } = require('../middlewares/authentication');
+const upload = require('../middlewares/file-upload');
 
 const router = express.Router();
 
@@ -21,10 +23,11 @@ router.get('/dashboard', getSurveyorDashboard);
 
 // Assignments
 router.get('/assignments', getSurveyorAssignments);
+router.get('/assignments/:assignmentId', getAssignmentById);
 router.patch('/assignments/:assignmentId/status', updateAssignmentStatus);
 
 // Survey submissions
-router.post('/surveys', submitSurvey);
+router.post('/surveys', upload.single('surveyDocument'), submitSurvey);
 router.get('/submissions', getSurveyorSubmissions);
 
 // Profile management

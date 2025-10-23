@@ -132,7 +132,12 @@ const createSurveyor = async (req, res) => {
 // Get all surveyors
 const getAllSurveyors = async (req, res) => {
   try {
-    const surveyors = await Surveyor.find({}).populate('userId', 'firstname lastname email phonenumber');
+    const { status } = req.query;
+    const query = {};
+    if (status) {
+      query.status = status;
+    }
+    const surveyors = await Surveyor.find(query).populate('userId', 'firstname lastname email phonenumber');
     res.status(StatusCodes.OK).json({ success: true, data: surveyors });
   } catch (error) {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });

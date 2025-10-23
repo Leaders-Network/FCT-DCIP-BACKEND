@@ -107,22 +107,22 @@ const getAllPolicyRequests = async (req, res) => {
 // Get policy request by ID
 const getPolicyRequestById = async (req, res) => {
   try {
-    const { policyId } = req.params;
+    const { ammcId } = req.params;
     
-    const policyRequest = await PolicyRequest.findById(policyId)
+    const policyRequest = await PolicyRequest.findById(ammcId)
       .populate('assignedSurveyors', 'firstname lastname email phonenumber')
       .populate('statusHistory.changedBy', 'firstname lastname');
     
     if (!policyRequest) {
-      throw new NotFoundError('Policy request not found');
+      throw new NotFoundError('AMMC request not found');
     }
     
     // Get associated assignments and submissions
-    const assignments = await Assignment.find({ policyId })
+    const assignments = await Assignment.find({ ammcId })
       .populate('surveyorId', 'firstname lastname email')
       .sort({ assignedAt: -1 });
     
-    const submissions = await SurveySubmission.find({ policyId })
+    const submissions = await SurveySubmission.find({ ammcId })
       .populate('surveyorId', 'firstname lastname')
       .sort({ submissionTime: -1 });
     
@@ -147,13 +147,13 @@ const getPolicyRequestById = async (req, res) => {
 // Update policy request
 const updatePolicyRequest = async (req, res) => {
   try {
-    const { policyId } = req.params;
+    const { ammcId } = req.params;
     const updates = req.body;
     const { userId } = req.user;
     
-    const policyRequest = await PolicyRequest.findById(policyId);
+    const policyRequest = await PolicyRequest.findById(ammcId);
     if (!policyRequest) {
-      throw new NotFoundError('Policy request not found');
+      throw new NotFoundError('AMMC request not found');
     }
     
     // Track status changes
@@ -196,13 +196,13 @@ const updatePolicyRequest = async (req, res) => {
 // Assign surveyor to policy
 const assignSurveyor = async (req, res) => {
   try {
-    const { policyId } = req.params;
+    const { ammcId } = req.params;
     const { surveyorIds, deadline, priority, instructions, specialRequirements } = req.body;
     const adminId = req.user.userId;
     
-    const policyRequest = await PolicyRequest.findById(policyId);
+    const policyRequest = await PolicyRequest.findById(ammcId);
     if (!policyRequest) {
-      throw new NotFoundError('Policy request not found');
+      throw new NotFoundError('AMMC request not found');
     }
     
     // Validate surveyors exist and are available
@@ -220,7 +220,7 @@ const assignSurveyor = async (req, res) => {
     const assignments = [];
     for (const surveyorId of surveyorIds) {
       const assignment = new Assignment({
-        policyId,
+        ammcId,
         surveyorId,
         assignedBy: adminId,
         deadline: deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days default
@@ -316,17 +316,22 @@ const reviewSurveySubmission = async (req, res) => {
     const reviewerId = req.user.userId;
     
     const submission = await SurveySubmission.findById(submissionId)
-      .populate('policyId');
+      .populate('ammcId');
     
     if (!submission) {
       throw new NotFoundError('Survey submission not found');
     }
     
+    console.log('Before update:', submission);
+
     // Update submission
     submission.status = decision === 'approved' ? 'approved' : 'revision_required';
     submission.reviewedBy = reviewerId;
     submission.reviewedAt = new Date();
     submission.reviewNotes = reviewNotes;
+
+    console.log('After update:', submission);
+
     
     if (qualityCheck) {
       submission.qualityCheck = {
@@ -340,12 +345,16 @@ const reviewSurveySubmission = async (req, res) => {
     await submission.save();
     
     // Update policy request status based on decision
-    const policyRequest = submission.policyId;
+    const policyRequest = submission.ammcId;
     if (decision === 'approved') {
       policyRequest.status = 'approved';
       policyRequest.adminNotes = reviewNotes;
+    } else if (decision === 'rejected') {
+      policyRequest.status = 'rejected';
+      policyRequest.adminNotes = reviewNotes;
     } else {
-      policyRequest.status = 'assigned'; // Back to assigned for revision
+      policyRequest.status = 'requires_more_info'; // Requires more information
+      policyRequest.adminNotes = reviewNotes;
       submission.revisionHistory.push({
         version: submission.revisionHistory.length + 1,
         changes: reviewNotes,
@@ -383,12 +392,12 @@ const reviewSurveySubmission = async (req, res) => {
 
 const sendPolicyToUser = async (req, res) => {
   try {
-    const { policyId } = req.params;
+    const { ammcId } = req.params;
     const { userId } = req.user;
 
-    const policyRequest = await PolicyRequest.findById(policyId);
+    const policyRequest = await PolicyRequest.findById(ammcId);
     if (!policyRequest) {
-      throw new NotFoundError('Policy request not found');
+      throw new NotFoundError('AMMC request not found');
     }
 
     if (policyRequest.status !== 'approved') {
@@ -425,10 +434,25 @@ const sendPolicyToUser = async (req, res) => {
 // Get user's policy requests
 const getUserPolicyRequests = async (req, res) => {
   try {
-    const { userId } = req.user;
+    const { userId, model, role } = req.user;
     const { status, page = 1, limit = 10 } = req.query;
     
-    const query = { userId: userId };
+    let query = {};
+    
+    // If it's a regular user, filter by their userId
+    // If it's an admin, they can see all policies or specify a userId in query params
+    if (model === 'User') {
+      query.userId = userId;
+    } else if (model === 'Employee' && ['Admin', 'Super-admin'].includes(role)) {
+      // Admins can optionally filter by userId, otherwise see all
+      if (req.query.userId) {
+        query.userId = req.query.userId;
+      }
+      // If no userId specified, admins see all policies (no userId filter)
+    } else {
+      query.userId = userId; // Fallback to user's own policies
+    }
+    
     if (status && status !== 'all') {
       query.status = status;
     }
@@ -465,6 +489,55 @@ const getUserPolicyRequests = async (req, res) => {
   }
 };
 
+// Delete policy request (for admin and user)
+const deletePolicyRequest = async (req, res) => {
+  try {
+    const { ammcId } = req.params;
+    const { userId, role } = req.user;
+    
+    const policyRequest = await PolicyRequest.findById(ammcId);
+    if (!policyRequest) {
+      throw new NotFoundError('AMMC request not found');
+    }
+    
+    // Check permissions - users can only delete their own policies
+    if (role === 'User' && policyRequest.userId !== userId) {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: 'You can only delete your own policy requests'
+      });
+    }
+    
+    // Check if policy can be deleted based on status
+    const undeletableStatuses = ['approved', 'completed', 'sent_to_user'];
+    if (undeletableStatuses.includes(policyRequest.status)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: `Cannot delete policy request with status: ${policyRequest.status}`
+      });
+    }
+    
+    // Delete related assignments and submissions
+    await Assignment.deleteMany({ ammcId });
+    await SurveySubmission.deleteMany({ ammcId });
+    
+    // Delete the policy request
+    await PolicyRequest.findByIdAndDelete(ammcId);
+    
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: 'Policy request deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete policy request error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to delete policy request',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   createPolicyRequest,
   getAllPolicyRequests,
@@ -474,5 +547,6 @@ module.exports = {
   getAvailableSurveyors,
   reviewSurveySubmission,
   getUserPolicyRequests,
-  sendPolicyToUser
+  sendPolicyToUser,
+  deletePolicyRequest
 };

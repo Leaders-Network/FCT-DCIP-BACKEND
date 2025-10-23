@@ -12,7 +12,7 @@ const getAllAssignments = async (req, res) => {
       status, 
       priority, 
       surveyorId, 
-      policyId,
+      ammcId,
       dateRange,
       page = 1, 
       limit = 20, 
@@ -33,8 +33,8 @@ const getAllAssignments = async (req, res) => {
     if (surveyorId) {
       query.surveyorId = surveyorId;
     }
-    if (policyId) {
-      query.policyId = policyId;
+    if (ammcId) {
+      query.ammcId = ammcId;
     }
     
     // Date range filter
@@ -57,7 +57,7 @@ const getAllAssignments = async (req, res) => {
     if (search) {
       assignments = await Assignment.find(query)
         .populate({
-          path: 'policyId',
+          path: 'ammcId',
           match: {
             $or: [
               { 'contactDetails.fullName': { $regex: search, $options: 'i' } },
@@ -66,18 +66,18 @@ const getAllAssignments = async (req, res) => {
             ]
           }
         })
-        .populate('surveyorId', 'userid firstname lastname email phonenumber profile')
+        .populate('surveyorId', 'firstname lastname email phonenumber')
         .populate('assignedBy', 'firstname lastname')
         .sort(sortOptions)
         .skip(skip)
         .limit(parseInt(limit));
       
       // Filter out null populated fields
-      assignments = assignments.filter(assignment => assignment.policyId);
+      assignments = assignments.filter(assignment => assignment.ammcId);
     } else {
       assignments = await Assignment.find(query)
-        .populate('policyId', 'policyNumber contactDetails propertyDetails status priority')
-        .populate('surveyorId', 'userid firstname lastname email phonenumber profile')
+        .populate('ammcId', 'policyNumber contactDetails propertyDetails status priority')
+        .populate('surveyorId', 'firstname lastname email phonenumber')
         .populate('assignedBy', 'firstname lastname')
         .sort(sortOptions)
         .skip(skip)
@@ -134,13 +134,13 @@ const getAssignmentById = async (req, res) => {
     
     const assignment = await Assignment.findById(assignmentId)
       .populate({
-        path: 'policyId',
+        path: 'ammcId',
         populate: {
           path: 'assignedSurveyors',
           select: 'firstname lastname email'
         }
       })
-      .populate('surveyorId', 'userid firstname lastname email phonenumber profile statistics')
+      .populate('surveyorId', 'firstname lastname email phonenumber')
       .populate('assignedBy', 'firstname lastname email');
     
     if (!assignment) {
@@ -157,7 +157,7 @@ const getAssignmentById = async (req, res) => {
       surveyorId: assignment.surveyorId._id,
       _id: { $ne: assignmentId }
     })
-    .populate('policyId', 'policyNumber status')
+    .populate('ammcId', 'policyNumber status')
     .sort({ assignedAt: -1 })
     .limit(5);
     
@@ -224,7 +224,7 @@ const updateAssignment = async (req, res) => {
     await assignment.save();
     
     const updatedAssignment = await Assignment.findById(assignmentId)
-      .populate('policyId', 'policyNumber contactDetails')
+      .populate('ammcId', 'policyNumber contactDetails')
       .populate('surveyorId', 'firstname lastname email')
       .populate('assignedBy', 'firstname lastname');
     
@@ -252,7 +252,7 @@ const reassignAssignment = async (req, res) => {
     
     const assignment = await Assignment.findById(assignmentId)
       .populate('surveyorId', 'firstname lastname')
-      .populate('policyId', 'policyNumber');
+      .populate('ammcId', 'policyNumber');
     
     if (!assignment) {
       throw new NotFoundError('Assignment not found');
@@ -260,35 +260,43 @@ const reassignAssignment = async (req, res) => {
     
     // Validate new surveyor
     const newSurveyor = await Surveyor.findOne({
-      userId: newSurveyorId,
+      _id: newSurveyorId,
       status: 'active'
     }).populate('userId', 'firstname lastname');
     
     if (!newSurveyor) {
       throw new BadRequestError('New surveyor not found or inactive');
     }
+
+    if (!newSurveyor.userId) {
+      throw new BadRequestError('The selected surveyor does not have a valid employee record.');
+    }
     
     const oldSurveyor = assignment.surveyorId;
     
     // Update assignment
-    assignment.surveyorId = newSurveyorId;
+    assignment.surveyorId = newSurveyor.userId._id; // use the Employee ID
     assignment.status = 'assigned'; // Reset status
     if (deadline) assignment.deadline = deadline;
     if (priority) assignment.priority = priority;
     
     // Add timeline entry
+    const details = oldSurveyor 
+      ? `Reassigned from ${oldSurveyor.firstname} ${oldSurveyor.lastname} to ${newSurveyor.userId.firstname} ${newSurveyor.userId.lastname}`
+      : `Assigned to ${newSurveyor.userId.firstname} ${newSurveyor.userId.lastname}`;
+
     assignment.timeline.push({
       action: 'assignment_reassigned',
       timestamp: new Date(),
       performedBy: adminId,
-      details: `Reassigned from ${oldSurveyor.firstname} ${oldSurveyor.lastname} to ${newSurveyor.userId.firstname} ${newSurveyor.userId.lastname}`,
+      details: details,
       notes: reason || 'Assignment reassigned by admin'
     });
     
     await assignment.save();
     
     const updatedAssignment = await Assignment.findById(assignmentId)
-      .populate('policyId', 'policyNumber contactDetails')
+      .populate('ammcId', 'policyNumber contactDetails')
       .populate('surveyorId', 'firstname lastname email')
       .populate('assignedBy', 'firstname lastname');
     
@@ -335,11 +343,11 @@ const cancelAssignment = async (req, res) => {
     await assignment.save();
     
     // Update policy request status if needed
-    const policyRequest = await PolicyRequest.findById(assignment.policyId);
+    const policyRequest = await PolicyRequest.findById(assignment.ammcId);
     if (policyRequest) {
       // Check if this was the last active assignment
       const activeAssignments = await Assignment.countDocuments({
-        policyId: assignment.policyId,
+        ammcId: assignment.ammcId,
         status: { $in: ['assigned', 'in_progress'] }
       });
       
@@ -356,7 +364,7 @@ const cancelAssignment = async (req, res) => {
     }
     
     const updatedAssignment = await Assignment.findById(assignmentId)
-      .populate('policyId', 'policyNumber contactDetails')
+      .populate('ammcId', 'policyNumber contactDetails')
       .populate('surveyorId', 'firstname lastname email')
       .populate('assignedBy', 'firstname lastname');
     
@@ -555,52 +563,39 @@ const getAssignmentAnalytics = async (req, res) => {
 
 const createAssignment = async (req, res) => {
   try {
-    const { policyId, surveyorIds, assignedBy, priority, instructions, deadline } = req.body;
+    const { ammcId, surveyorId, priority, instructions, deadline } = req.body;
 
-    if (!policyId || !surveyorIds || surveyorIds.length === 0 || !priority || !deadline) {
+    if (!ammcId || !surveyorId || !priority || !deadline) {
       throw new BadRequestError('Missing required assignment fields');
     }
 
-    const validSpecialRequirements = [
-      'urgent_inspection',
-      'detailed_photos_required',
-      'structural_engineer_needed',
-      'hazmat_assessment',
-      'drone_survey',
-      'night_inspection',
-      'weekend_availability'
-    ];
-
     // Check if policy exists and is in a state to be assigned
-    const policy = await PolicyRequest.findById(policyId);
+    const policy = await PolicyRequest.findById(ammcId);
     if (!policy) {
-      throw new NotFoundError('Policy not found');
+      throw new NotFoundError('AMMC not found');
     }
     if (policy.status !== 'submitted' && policy.status !== 'pending') {
       throw new BadRequestError(`Policy status is ${policy.status}, cannot assign surveyor.`);
     }
 
-    // Check if surveyors exist and are active
-    const validSurveyors = await Surveyor.find({
-      _id: { $in: surveyorIds },
+    // Check if surveyor exists and is active
+    const validSurveyor = await Surveyor.findOne({
+      _id: surveyorId,
       status: 'active'
     });
 
-    if (validSurveyors.length !== surveyorIds.length) {
-      throw new BadRequestError('One or more surveyors not found or inactive');
+    if (!validSurveyor) {
+      throw new BadRequestError('Surveyor not found or inactive');
     }
 
-    const assignedSurveyorEmployeeId = validSurveyors[0].userId; // Get the Employee ID from the Surveyor document
-
     const newAssignment = await Assignment.create({
-      policyId,
-      surveyorId: assignedSurveyorEmployeeId, // Use the Employee ID here
+      ammcId,
+      surveyorId: validSurveyor.userId, // Use the Employee ID here
       assignedBy: req.user.userId, // Admin who assigned it
       assignedAt: new Date(),
       deadline: new Date(deadline),
       priority,
       instructions,
-      specialRequirements: policy.requestDetails.specialRequests && validSpecialRequirements.includes(policy.requestDetails.specialRequests) ? [policy.requestDetails.specialRequests] : [],
       location: {
         address: policy.propertyDetails.address,
         contactPerson: {
@@ -614,13 +609,13 @@ const createAssignment = async (req, res) => {
         action: 'assignment_created',
         timestamp: new Date(),
         performedBy: req.user.userId,
-        details: `Assignment created for policy ${policy.policyNumber || policyId}`
+        details: `Assignment created for policy ${policy.policyNumber || ammcId}`
       }]
     });
 
     // Update policy status and assigned surveyors
     policy.status = 'assigned';
-    policy.assignedSurveyors = surveyorIds;
+    policy.assignedSurveyors = [validSurveyor._id];
     policy.statusHistory.push({
       status: 'assigned',
       changedBy: req.user.userId,
@@ -645,6 +640,33 @@ const createAssignment = async (req, res) => {
   }
 };
 
+const getAssignmentByAmmcId = async (req, res) => {
+  try {
+    const { ammcId } = req.params;
+    
+    const assignment = await Assignment.findOne({ ammcId: ammcId })
+      .populate('ammcId', 'policyNumber contactDetails propertyDetails status priority')
+      .populate('surveyorId', 'firstname lastname email phonenumber')
+      .populate('assignedBy', 'firstname lastname');
+    
+    if (!assignment) {
+      throw new NotFoundError('Assignment not found for this policy');
+    }
+    
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: assignment
+    });
+  } catch (error) {
+    console.error('Get assignment by AMMC ID error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to get assignment',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getAllAssignments,
   getAssignmentById,
@@ -652,5 +674,6 @@ module.exports = {
   reassignAssignment,
   cancelAssignment,
   getAssignmentAnalytics,
-  createAssignment
+  createAssignment,
+  getAssignmentByAmmcId
 };
