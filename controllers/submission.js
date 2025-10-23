@@ -329,20 +329,37 @@ const addContactLogEntry = async (req, res) => {
 const getSubmissionByAssignment = async (req, res) => {
   try {
     const { assignmentId } = req.params;
-    const { userId } = req.user;
+    const { userId, role } = req.user;
+
+    console.log('getSubmissionByAssignment - User:', { userId, role });
+    console.log('getSubmissionByAssignment - Assignment ID:', assignmentId);
 
     // Verify assignment exists and user has access (surveyor or admin)
     const assignment = await Assignment.findById(assignmentId);
 
     if (!assignment) {
+      console.log('Assignment not found:', assignmentId);
       throw new NotFoundError('Assignment not found');
     }
 
+    console.log('Assignment found:', {
+      assignmentId: assignment._id,
+      surveyorId: assignment.surveyorId
+    });
+
     // Check if user is the assigned surveyor or an admin
-    const isAssignedSurveyor = assignment.surveyorId.toString() === userId;
-    const isAdmin = req.user.role === 'Admin' || req.user.role === 'Super-admin';
+    const isAssignedSurveyor = assignment.surveyorId && assignment.surveyorId.toString() === userId.toString();
+    const isAdmin = role === 'Admin' || role === 'Super-admin';
+
+    console.log('Access check:', {
+      isAssignedSurveyor,
+      isAdmin,
+      userRole: role,
+      surveyorIdMatch: assignment.surveyorId?.toString() === userId.toString()
+    });
 
     if (!isAssignedSurveyor && !isAdmin) {
+      console.log('Access denied for user:', { userId, role });
       throw new NotFoundError('Access denied');
     }
 
@@ -351,6 +368,8 @@ const getSubmissionByAssignment = async (req, res) => {
     })
       .populate('ammcId', 'policyNumber contactDetails propertyDetails')
       .populate('reviewedBy', 'firstname lastname email');
+
+    console.log('Submission found:', submission ? 'Yes' : 'No');
 
     res.status(StatusCodes.OK).json({
       success: true,

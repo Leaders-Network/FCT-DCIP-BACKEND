@@ -13,7 +13,10 @@ const { protect, restrictTo } = require('../middlewares/authentication');
 
 const router = express.Router();
 
-// All routes require authentication and surveyor role
+// Assignment-based routes (accessible by both surveyors and admins)
+router.get('/assignment/:assignmentId', protect, restrictTo('Surveyor', 'Admin', 'Super-admin'), getSubmissionByAssignment);
+
+// All other routes require authentication and surveyor role
 router.use(protect);
 router.use(restrictTo('Surveyor'));
 
@@ -27,8 +30,5 @@ router.delete('/:submissionId', deleteDraftSubmission); // Delete draft submissi
 
 // Contact log routes
 router.post('/:submissionId/contact', addContactLogEntry); // Add contact log entry
-
-// Assignment-based routes
-router.get('/assignment/:assignmentId', getSubmissionByAssignment); // Get submission by assignment
 
 module.exports = router;
