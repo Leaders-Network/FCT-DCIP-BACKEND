@@ -113,6 +113,7 @@ const verifyOtp = async(req, res) => {
         if (otpData) {
             await Otp.deleteOne({ email, otp });
             res.status(StatusCodes.OK).json({success: true, message: 'OTP verified successfully!'});
+            await Otp.deleteOne({email})
         } else {
             res.status(StatusCodes.BAD_REQUEST).json({success: false,  message: 'Invalid OTP !'});
         }
