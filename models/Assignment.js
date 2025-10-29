@@ -42,7 +42,7 @@ const AssignmentSchema = new mongoose.Schema({
     type: String,
     enum: [
       'urgent_inspection',
-      'detailed_photos_required', 
+      'detailed_photos_required',
       'structural_engineer_needed',
       'hazmat_assessment',
       'drone_survey',
@@ -61,7 +61,8 @@ const AssignmentSchema = new mongoose.Schema({
       name: String,
       phone: String,
       email: String,
-      availableHours: String
+      availableHours: String,
+      rcNumber: String
     }
   },
   estimatedDuration: {
@@ -254,9 +255,9 @@ AssignmentSchema.index({ priority: 1, deadline: 1 });
 AssignmentSchema.index({ status: 1 });
 
 // Middleware to calculate total expenses
-AssignmentSchema.pre('save', function(next) {
+AssignmentSchema.pre('save', function (next) {
   if (this.expenses) {
-    this.expenses.totalExpenses = 
+    this.expenses.totalExpenses =
       (this.expenses.transportation || 0) +
       (this.expenses.accommodation || 0) +
       (this.expenses.meals || 0) +
@@ -267,12 +268,12 @@ AssignmentSchema.pre('save', function(next) {
 });
 
 // Method to check if assignment is overdue
-AssignmentSchema.methods.isOverdue = function() {
+AssignmentSchema.methods.isOverdue = function () {
   return this.deadline < new Date() && !['completed', 'cancelled'].includes(this.status);
 };
 
 // Method to calculate days remaining
-AssignmentSchema.methods.getDaysRemaining = function() {
+AssignmentSchema.methods.getDaysRemaining = function () {
   if (['completed', 'cancelled'].includes(this.status)) {
     return null;
   }
@@ -281,7 +282,7 @@ AssignmentSchema.methods.getDaysRemaining = function() {
 };
 
 // Method to update progress
-AssignmentSchema.methods.updateProgress = function(milestone, notes) {
+AssignmentSchema.methods.updateProgress = function (milestone, notes) {
   this.progressTracking.milestones.push({
     name: milestone,
     completedAt: new Date(),
@@ -291,7 +292,7 @@ AssignmentSchema.methods.updateProgress = function(milestone, notes) {
 };
 
 // Method to add checkpoint
-AssignmentSchema.methods.addCheckpoint = function(location, notes, photos = []) {
+AssignmentSchema.methods.addCheckpoint = function (location, notes, photos = []) {
   this.progressTracking.checkpoints.push({
     timestamp: new Date(),
     location: location,
@@ -301,7 +302,7 @@ AssignmentSchema.methods.addCheckpoint = function(location, notes, photos = []) 
 };
 
 // Method to add message
-AssignmentSchema.methods.addMessage = function(from, message, type = 'message') {
+AssignmentSchema.methods.addMessage = function (from, message, type = 'message') {
   this.communication.messages.push({
     from: from,
     message: message,
@@ -312,7 +313,7 @@ AssignmentSchema.methods.addMessage = function(from, message, type = 'message') 
 };
 
 // Virtual for assignment duration (if completed)
-AssignmentSchema.virtual('duration').get(function() {
+AssignmentSchema.virtual('duration').get(function () {
   if (this.progressTracking.completedAt && this.progressTracking.startedAt) {
     const diff = this.progressTracking.completedAt - this.progressTracking.startedAt;
     return Math.round(diff / (1000 * 60 * 60)); // in hours
@@ -321,7 +322,7 @@ AssignmentSchema.virtual('duration').get(function() {
 });
 
 // Virtual for progress percentage
-AssignmentSchema.virtual('progressPercentage').get(function() {
+AssignmentSchema.virtual('progressPercentage').get(function () {
   const milestoneCount = this.progressTracking.milestones.length;
   const expectedMilestones = 5; // Define expected number of milestones
   return Math.min(Math.round((milestoneCount / expectedMilestones) * 100), 100);

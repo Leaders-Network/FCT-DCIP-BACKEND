@@ -16,11 +16,11 @@ const PolicyRequestSchema = new mongoose.Schema({
     },
     propertyType: {
       type: String,
-      enum: [ 'Residential House',
-    'Apartment/Condo',
-    'Commercial Building',
-    'Industrial Facility',
-    'Mixed Use'],
+      enum: ['Residential House',
+        'Apartment/Condo',
+        'Commercial Building',
+        'Industrial Facility',
+        'Mixed Use'],
 
       required: [true, 'Property type is required']
     },
@@ -42,7 +42,7 @@ const PolicyRequestSchema = new mongoose.Schema({
     },
     constructionMaterial: {
       type: String,
-      enum: ['Concrete Block', 'Steel Frame', 'Wood Frame', 'Brick','Stone', 'Mixed Materials'],
+      enum: ['Concrete Block', 'Steel Frame', 'Wood Frame', 'Brick', 'Stone', 'Mixed Materials'],
       required: [true, 'Construction material is required']
     },
     coordinates: {
@@ -53,7 +53,7 @@ const PolicyRequestSchema = new mongoose.Schema({
   contactDetails: {
     fullName: {
       type: String,
-      required: [true, 'Full name is required']
+      required: [true, 'Builder/Contractor name is required']
     },
     email: {
       type: String,
@@ -64,38 +64,44 @@ const PolicyRequestSchema = new mongoose.Schema({
       type: String,
       required: [true, 'Phone number is required']
     },
-    alternatePhone: String
+    alternatePhone: String,
+    rcNumber: {
+      type: String,
+      required: [true, 'RC number is required'],
+      trim: true,
+      uppercase: true
+    }
   },
   requestDetails: {
     coverageType: {
       type: String,
-      enum: [ 'Contract Works Coverage',
-  'Public Liability Coverage',
-  'Employer’s Liability Coverage',
-  'Contractor’s Plant and Equipment Coverage',
-  'Professional Indemnity'],
+      enum: ['Contract Works Coverage',
+        'Public Liability Coverage',
+        'Employer’s Liability Coverage',
+        'Contractor’s Plant and Equipment Coverage',
+        'Professional Indemnity'],
       required: [true, 'Coverage type is required']
     },
     policyDuration: {
       type: String,
       enum: ['3 Months (Short-term Project)',
-  '6 Months',
-  '1 Year',
-  'Project-Based (Until Completion)'],
+        '6 Months',
+        '1 Year',
+        'Project-Based (Until Completion)'],
       required: [true, 'Policy duration is required']
     },
     additionalCoverage: [{
       type: String,
-      enum: [ 'Flood and Storm Damage',
-  'Theft or Vandalism at Site',
-  'Collapse or Structural Failure',
-  'Third-Party Property Damage',
-  'Injury to Non-Employees (Public)',
-  'Machinery Breakdown',
-  'Temporary Structures (Scaffolding, Site Office)',
-  'Fire and Explosion',
-  'Debris Removal Costs',
-  'Cross Liability (Between Contractors/Subcontractors)']
+      enum: ['Flood and Storm Damage',
+        'Theft or Vandalism at Site',
+        'Collapse or Structural Failure',
+        'Third-Party Property Damage',
+        'Injury to Non-Employees (Public)',
+        'Machinery Breakdown',
+        'Temporary Structures (Scaffolding, Site Office)',
+        'Fire and Explosion',
+        'Debris Removal Costs',
+        'Cross Liability (Between Contractors/Subcontractors)']
     }],
     specialRequests: String
   },
@@ -182,7 +188,7 @@ const PolicyRequestSchema = new mongoose.Schema({
   },
   deadline: {
     type: Date,
-    default: function() {
+    default: function () {
       // Default deadline is 7 days from creation
       return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     }
@@ -214,7 +220,7 @@ PolicyRequestSchema.index({ createdAt: -1 });
 PolicyRequestSchema.index({ priority: 1, deadline: 1 });
 
 // Middleware to update status history
-PolicyRequestSchema.pre('save', function(next) {
+PolicyRequestSchema.pre('save', function (next) {
   if (this.isModified('status') && !this.isNew) {
     this.statusHistory.push({
       status: this.status,
@@ -225,7 +231,7 @@ PolicyRequestSchema.pre('save', function(next) {
 });
 
 // Method to assign surveyor
-PolicyRequestSchema.methods.assignSurveyor = function(surveyorId, assignedBy) {
+PolicyRequestSchema.methods.assignSurveyor = function (surveyorId, assignedBy) {
   if (!this.assignedSurveyors.includes(surveyorId)) {
     this.assignedSurveyors.push(surveyorId);
     this.status = 'assigned';
@@ -239,12 +245,12 @@ PolicyRequestSchema.methods.assignSurveyor = function(surveyorId, assignedBy) {
 };
 
 // Method to check if overdue
-PolicyRequestSchema.methods.isOverdue = function() {
+PolicyRequestSchema.methods.isOverdue = function () {
   return this.deadline < new Date() && !['completed', 'approved', 'rejected'].includes(this.status);
 };
 
 // Virtual for days remaining
-PolicyRequestSchema.virtual('daysRemaining').get(function() {
+PolicyRequestSchema.virtual('daysRemaining').get(function () {
   if (['completed', 'approved', 'rejected'].includes(this.status)) {
     return null;
   }
