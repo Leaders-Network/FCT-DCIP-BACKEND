@@ -11,33 +11,39 @@ const {
     checkNIAAdminPermission
 } = require('../controllers/niaAdmin');
 
-const authenticateUser = require('../middlewares/authentication');
+const { protect } = require('../middlewares/authentication');
+const {
+    requireNIAAdmin,
+    requireNIAPermission,
+    requireAnyAdmin,
+    logNIAAdminActivity
+} = require('../middlewares/niaAuth');
 
-// Apply authentication middleware to all routes
-router.use(authenticateUser);
+// Apply basic authentication to all routes
+router.use(protect);
 
-// Create NIA admin
-router.post('/', createNIAAdmin);
+// Create NIA admin (requires super admin or existing NIA admin with management permission)
+router.post('/', requireAnyAdmin, logNIAAdminActivity('CREATE_NIA_ADMIN'), createNIAAdmin);
 
-// Get all NIA admins
-router.get('/', getNIAAdmins);
+// Get all NIA admins (requires NIA admin access)
+router.get('/', requireNIAAdmin, requireNIAPermission('canManageSurveyors'), getNIAAdmins);
 
-// Get NIA dashboard data
-router.get('/dashboard', getNIADashboardData);
+// Get NIA dashboard data (requires NIA admin access)
+router.get('/dashboard', requireNIAAdmin, logNIAAdminActivity('ACCESS_DASHBOARD'), getNIADashboardData);
 
-// Update login information
-router.post('/login', updateNIAAdminLogin);
+// Update login information (requires NIA admin access)
+router.post('/login', requireNIAAdmin, updateNIAAdminLogin);
 
-// Check specific permission
-router.get('/permission/:permission', checkNIAAdminPermission);
+// Check specific permission (requires NIA admin access)
+router.get('/permission/:permission', requireNIAAdmin, checkNIAAdminPermission);
 
-// Get NIA admin by ID
-router.get('/:adminId', getNIAAdminById);
+// Get NIA admin by ID (requires NIA admin access)
+router.get('/:adminId', requireNIAAdmin, requireNIAPermission('canManageSurveyors'), getNIAAdminById);
 
-// Update NIA admin
-router.patch('/:adminId', updateNIAAdmin);
+// Update NIA admin (requires NIA admin with management permission)
+router.patch('/:adminId', requireNIAAdmin, requireNIAPermission('canManageSurveyors'), logNIAAdminActivity('UPDATE_NIA_ADMIN'), updateNIAAdmin);
 
-// Delete NIA admin
-router.delete('/:adminId', deleteNIAAdmin);
+// Delete NIA admin (requires NIA admin with management permission)
+router.delete('/:adminId', requireNIAAdmin, requireNIAPermission('canManageSurveyors'), logNIAAdminActivity('DELETE_NIA_ADMIN'), deleteNIAAdmin);
 
 module.exports = router;

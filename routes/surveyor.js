@@ -10,28 +10,29 @@ const {
   updateSurveyorProfile
 } = require('../controllers/surveyor');
 const { protect, restrictTo } = require('../middlewares/authentication');
+const { requireAnySurveyor, logSurveyorActivity } = require('../middlewares/surveyorAuth');
 const upload = require('../middlewares/file-upload');
 
 const router = express.Router();
 
-// All routes require authentication and must be restricted to Surveyor role
+// All routes require authentication and surveyor role (supports both AMMC and NIA)
 router.use(protect);
-router.use(restrictTo('Surveyor'));
+router.use(requireAnySurveyor);
 
-// Dashboard
-router.get('/dashboard', getSurveyorDashboard);
+// Dashboard (supports both AMMC and NIA surveyors)
+router.get('/dashboard', logSurveyorActivity('ACCESS_DASHBOARD'), getSurveyorDashboard);
 
-// Assignments
+// Assignments (supports both AMMC and NIA surveyors)
 router.get('/assignments', getSurveyorAssignments);
 router.get('/assignments/:assignmentId', getAssignmentById);
-router.patch('/assignments/:assignmentId/status', updateAssignmentStatus);
+router.patch('/assignments/:assignmentId/status', logSurveyorActivity('UPDATE_ASSIGNMENT_STATUS'), updateAssignmentStatus);
 
-// Survey submissions
-router.post('/surveys', upload.single('surveyDocument'), submitSurvey);
+// Survey submissions (supports both AMMC and NIA surveyors)
+router.post('/surveys', upload.single('surveyDocument'), logSurveyorActivity('SUBMIT_SURVEY'), submitSurvey);
 router.get('/submissions', getSurveyorSubmissions);
 
-// Profile management
+// Profile management (supports both AMMC and NIA surveyors)
 router.get('/profile', getSurveyorProfile);
-router.patch('/profile', updateSurveyorProfile);
+router.patch('/profile', logSurveyorActivity('UPDATE_PROFILE'), updateSurveyorProfile);
 
 module.exports = router;
