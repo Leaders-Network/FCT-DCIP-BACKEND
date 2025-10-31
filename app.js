@@ -25,6 +25,10 @@ const assignmentRouter = require('./routes/assignment');
 const submissionRouter = require('./routes/submission');
 const dualAssignmentRouter = require('./routes/dualAssignment');
 const niaAdminRouter = require('./routes/niaAdmin');
+const userConflictInquiriesRouter = require('./routes/userConflictInquiries');
+const automaticConflictFlagsRouter = require('./routes/automaticConflictFlags');
+const processingMonitorRouter = require('./routes/processingMonitor');
+const adminDashboardEnhancedRouter = require('./routes/adminDashboardEnhanced');
 const notFoundMiddleware = require('./middlewares/not-found');
 const errorHandlerMiddleware = require('./middlewares/error-handler');
 const helmet = require('helmet');
@@ -64,6 +68,10 @@ app.use('/api/v1/assignment', assignmentRouter);
 app.use('/api/v1/submission', submissionRouter);
 app.use('/api/v1/dual-assignment', dualAssignmentRouter);
 app.use('/api/v1/nia-admin', niaAdminRouter);
+app.use('/api/v1/user-conflict-inquiries', userConflictInquiriesRouter);
+app.use('/api/v1/automatic-conflict-flags', automaticConflictFlagsRouter);
+app.use('/api/v1/processing-monitor', processingMonitorRouter);
+app.use('/api/v1/admin/dashboard-enhanced', adminDashboardEnhancedRouter);
 app.get('/', (req, res) => { res.send('<h3>DEPLOYED !</h3>') })
 
 app.use(notFoundMiddleware);
