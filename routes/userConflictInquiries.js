@@ -2,13 +2,13 @@ const express = require('express');
 const router = express.Router();
 const UserConflictInquiry = require('../models/UserConflictInquiry');
 const MergedReport = require('../models/MergedReport');
-const { authenticateToken } = require('../middleware/auth');
+const { protect } = require('../middlewares/authentication');
 const { sendConflictInquiryNotification, sendConflictInquiryResponse } = require('../utils/emailService');
 
 // @route   POST /api/v1/user-conflict-inquiries
 // @desc    Submit a new conflict inquiry
 // @access  Private (User)
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', protect, async (req, res) => {
     try {
         const {
             policyId,
@@ -81,7 +81,7 @@ router.post('/', authenticateToken, async (req, res) => {
 // @route   GET /api/v1/admin/user-conflict-inquiries
 // @desc    Get all conflict inquiries for admin
 // @access  Private (Admin)
-router.get('/admin', authenticateToken, async (req, res) => {
+router.get('/admin', protect, async (req, res) => {
     try {
         const { status, urgency, conflictType, organization, page = 1, limit = 20 } = req.query;
 
@@ -163,7 +163,7 @@ router.get('/admin', authenticateToken, async (req, res) => {
 // @route   PUT /api/v1/admin/user-conflict-inquiries/:id/assign
 // @desc    Assign inquiry to admin
 // @access  Private (Admin)
-router.put('/admin/:id/assign', authenticateToken, async (req, res) => {
+router.put('/admin/:id/assign', protect, async (req, res) => {
     try {
         const { id } = req.params;
         const { organization } = req.body;
@@ -198,7 +198,7 @@ router.put('/admin/:id/assign', authenticateToken, async (req, res) => {
 // @route   PUT /api/v1/admin/user-conflict-inquiries/:id/respond
 // @desc    Respond to conflict inquiry
 // @access  Private (Admin)
-router.put('/admin/:id/respond', authenticateToken, async (req, res) => {
+router.put('/admin/:id/respond', protect, async (req, res) => {
     try {
         const { id } = req.params;
         const { response, method } = req.body;
@@ -245,7 +245,7 @@ router.put('/admin/:id/respond', authenticateToken, async (req, res) => {
 // @route   PUT /api/v1/admin/user-conflict-inquiries/:id/add-note
 // @desc    Add internal note to inquiry
 // @access  Private (Admin)
-router.put('/admin/:id/add-note', authenticateToken, async (req, res) => {
+router.put('/admin/:id/add-note', protect, async (req, res) => {
     try {
         const { id } = req.params;
         const { note, noteType } = req.body;
@@ -287,7 +287,7 @@ router.put('/admin/:id/add-note', authenticateToken, async (req, res) => {
 // @route   PUT /api/v1/admin/user-conflict-inquiries/:id/escalate
 // @desc    Escalate inquiry to higher level
 // @access  Private (Admin)
-router.put('/admin/:id/escalate', authenticateToken, async (req, res) => {
+router.put('/admin/:id/escalate', protect, async (req, res) => {
     try {
         const { id } = req.params;
         const { escalatedTo, reason } = req.body;
@@ -329,7 +329,7 @@ router.put('/admin/:id/escalate', authenticateToken, async (req, res) => {
 // @route   PUT /api/v1/admin/user-conflict-inquiries/:id/close
 // @desc    Close inquiry
 // @access  Private (Admin)
-router.put('/admin/:id/close', authenticateToken, async (req, res) => {
+router.put('/admin/:id/close', protect, async (req, res) => {
     try {
         const { id } = req.params;
         const { closureReason } = req.body;
@@ -367,7 +367,7 @@ router.put('/admin/:id/close', authenticateToken, async (req, res) => {
 // @route   GET /api/v1/admin/user-conflict-inquiries/stats
 // @desc    Get inquiry statistics for admin dashboard
 // @access  Private (Admin)
-router.get('/admin/stats', authenticateToken, async (req, res) => {
+router.get('/admin/stats', protect, async (req, res) => {
     try {
         const { organization, timeframe = '30d' } = req.query;
 
@@ -484,7 +484,7 @@ router.get('/admin/stats', authenticateToken, async (req, res) => {
 // @route   GET /api/v1/admin/user-conflict-inquiries/:id
 // @desc    Get specific inquiry details
 // @access  Private (Admin)
-router.get('/admin/:id', authenticateToken, async (req, res) => {
+router.get('/admin/:id', protect, async (req, res) => {
     try {
         const { id } = req.params;
 

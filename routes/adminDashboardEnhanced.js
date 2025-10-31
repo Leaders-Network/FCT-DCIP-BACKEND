@@ -7,12 +7,12 @@ const UserConflictInquiry = require('../models/UserConflictInquiry');
 const SurveySubmission = require('../models/SurveySubmission');
 const Assignment = require('../models/Assignment');
 const PolicyRequest = require('../models/PolicyRequest');
-const { authenticateToken, requireRole } = require('../middleware/auth');
+const { protect, restrictTo } = require('../middlewares/authentication');
 
 // @route   GET /api/v1/admin/dashboard-enhanced/overview
 // @desc    Get comprehensive dashboard overview for admin
 // @access  Private (Admin)
-router.get('/overview', authenticateToken, requireRole(['admin', 'nia_admin']), async (req, res) => {
+router.get('/overview', protect, restrictTo('Admin', 'Super-admin'), async (req, res) => {
     try {
         const { organization = 'all', timeframe = '30d' } = req.query;
         const timeFilter = getTimeFilter(timeframe);
@@ -136,7 +136,7 @@ router.get('/overview', authenticateToken, requireRole(['admin', 'nia_admin']), 
 // @route   GET /api/v1/admin/dashboard-enhanced/workload
 // @desc    Get current workload for admin
 // @access  Private (Admin)
-router.get('/workload', authenticateToken, requireRole(['admin', 'nia_admin']), async (req, res) => {
+router.get('/workload', protect, restrictTo('Admin', 'Super-admin'), async (req, res) => {
     try {
         const { organization = 'all' } = req.query;
 
@@ -222,7 +222,7 @@ router.get('/workload', authenticateToken, requireRole(['admin', 'nia_admin']), 
 // @route   GET /api/v1/admin/dashboard-enhanced/alerts
 // @desc    Get system alerts and notifications
 // @access  Private (Admin)
-router.get('/alerts', authenticateToken, requireRole(['admin', 'nia_admin']), async (req, res) => {
+router.get('/alerts', protect, restrictTo('Admin', 'Super-admin'), async (req, res) => {
     try {
         const { organization = 'all' } = req.query;
         const now = new Date();

@@ -3,13 +3,13 @@ const router = express.Router();
 const AutomaticConflictFlag = require('../models/AutomaticConflictFlag');
 const MergedReport = require('../models/MergedReport');
 const DualAssignment = require('../models/DualAssignment');
-const { authenticateToken, requireRole } = require('../middleware/auth');
+const { protect, restrictTo } = require('../middlewares/authentication');
 const { sendEmail, sendAutomaticConflictAlert, sendConflictResolutionNotification } = require('../utils/emailService');
 
 // @route   GET /api/v1/admin/automatic-conflict-flags
 // @desc    Get all automatic conflict flags for admin
 // @access  Private (Admin)
-router.get('/admin', authenticateToken, requireRole(['admin', 'nia_admin']), async (req, res) => {
+router.get('/admin', protect, restrictTo('Admin', 'Super-admin'), async (req, res) => {
     try {
         const {
             status,
@@ -120,7 +120,7 @@ router.get('/admin', authenticateToken, requireRole(['admin', 'nia_admin']), asy
 // @route   GET /api/v1/admin/automatic-conflict-flags/:id
 // @desc    Get specific conflict flag details
 // @access  Private (Admin)
-router.get('/admin/:id', authenticateToken, requireRole(['admin', 'nia_admin']), async (req, res) => {
+router.get('/admin/:id', protect, restrictTo('Admin', 'Super-admin'), async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -158,7 +158,7 @@ router.get('/admin/:id', authenticateToken, requireRole(['admin', 'nia_admin']),
 // @route   PUT /api/v1/admin/automatic-conflict-flags/:id/review
 // @desc    Review and update conflict flag
 // @access  Private (Admin)
-router.put('/admin/:id/review', authenticateToken, requireRole(['admin', 'nia_admin']), async (req, res) => {
+router.put('/admin/:id/review', protect, restrictTo('Admin', 'Super-admin'), async (req, res) => {
     try {
         const { id } = req.params;
         const { reviewNotes, reviewDecision } = req.body;
@@ -205,7 +205,7 @@ router.put('/admin/:id/review', authenticateToken, requireRole(['admin', 'nia_ad
 // @route   PUT /api/v1/admin/automatic-conflict-flags/:id/resolve
 // @desc    Resolve conflict flag
 // @access  Private (Admin)
-router.put('/admin/:id/resolve', authenticateToken, requireRole(['admin', 'nia_admin']), async (req, res) => {
+router.put('/admin/:id/resolve', protect, restrictTo('Admin', 'Super-admin'), async (req, res) => {
     try {
         const { id } = req.params;
         const { resolutionMethod, resolutionNotes } = req.body;
@@ -253,7 +253,7 @@ router.put('/admin/:id/resolve', authenticateToken, requireRole(['admin', 'nia_a
 // @route   PUT /api/v1/admin/automatic-conflict-flags/:id/escalate
 // @desc    Escalate conflict flag
 // @access  Private (Admin)
-router.put('/admin/:id/escalate', authenticateToken, requireRole(['admin', 'nia_admin']), async (req, res) => {
+router.put('/admin/:id/escalate', protect, restrictTo('Admin', 'Super-admin'), async (req, res) => {
     try {
         const { id } = req.params;
         const { escalatedTo, reason } = req.body;
@@ -298,7 +298,7 @@ router.put('/admin/:id/escalate', authenticateToken, requireRole(['admin', 'nia_
 // @route   POST /api/v1/automatic-conflict-flags/detect
 // @desc    Create automatic conflict flag (system use)
 // @access  Private (System/Admin)
-router.post('/detect', authenticateToken, async (req, res) => {
+router.post('/detect', protect, async (req, res) => {
     try {
         const {
             mergedReportId,
@@ -382,7 +382,7 @@ router.post('/detect', authenticateToken, async (req, res) => {
 // @route   GET /api/v1/automatic-conflict-flags/policy/:policyId
 // @desc    Get conflict flags for specific policy
 // @access  Private (User/Admin)
-router.get('/policy/:policyId', authenticateToken, async (req, res) => {
+router.get('/policy/:policyId', protect, async (req, res) => {
     try {
         const { policyId } = req.params;
 
