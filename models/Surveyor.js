@@ -114,6 +114,11 @@ const SurveyorSchema = new mongoose.Schema({
     type: String,
     enum: ['active', 'inactive', 'suspended'],
     default: 'active'
+  },
+  organization: {
+    type: String,
+    enum: ['AMMC', 'NIA'],
+    default: 'AMMC'
   }
 }, {
   timestamps: true
@@ -124,23 +129,24 @@ SurveyorSchema.index({ userId: 1 });
 SurveyorSchema.index({ 'profile.availability': 1 });
 SurveyorSchema.index({ 'profile.location.state': 1 });
 SurveyorSchema.index({ status: 1 });
+SurveyorSchema.index({ organization: 1 });
 
 // Method to update statistics
-SurveyorSchema.methods.updateStatistics = async function() {
+SurveyorSchema.methods.updateStatistics = async function () {
   const Assignment = mongoose.model('Assignment');
   const SurveySubmission = mongoose.model('SurveySubmission');
-  
+
   const totalAssignments = await Assignment.countDocuments({ surveyorId: this.userId });
   const completedSurveys = await SurveySubmission.countDocuments({ surveyorId: this.userId });
-  const pendingAssignments = await Assignment.countDocuments({ 
-    surveyorId: this.userId, 
+  const pendingAssignments = await Assignment.countDocuments({
+    surveyorId: this.userId,
     status: { $in: ['assigned', 'in-progress'] }
   });
-  
+
   this.statistics.totalAssignments = totalAssignments;
   this.statistics.completedSurveys = completedSurveys;
   this.statistics.pendingAssignments = pendingAssignments;
-  
+
   await this.save();
 };
 

@@ -23,6 +23,8 @@ const adminEmployeeRouter = require('./routes/adminEmployee');
 const surveyDocumentsRouter = require('./routes/surveyDocuments');
 const assignmentRouter = require('./routes/assignment');
 const submissionRouter = require('./routes/submission');
+const dualAssignmentRouter = require('./routes/dualAssignment');
+const niaAdminRouter = require('./routes/niaAdmin');
 const notFoundMiddleware = require('./middlewares/not-found');
 const errorHandlerMiddleware = require('./middlewares/error-handler');
 const helmet = require('helmet');
@@ -60,6 +62,8 @@ app.use('/api/v1/admin/employees', adminEmployeeRouter);
 app.use('/api/v1/survey-documents', surveyDocumentsRouter);
 app.use('/api/v1/assignment', assignmentRouter);
 app.use('/api/v1/submission', submissionRouter);
+app.use('/api/v1/dual-assignment', dualAssignmentRouter);
+app.use('/api/v1/nia-admin', niaAdminRouter);
 app.get('/', (req, res) => { res.send('<h3>DEPLOYED !</h3>') })
 
 app.use(notFoundMiddleware);

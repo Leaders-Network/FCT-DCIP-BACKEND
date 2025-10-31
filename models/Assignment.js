@@ -38,6 +38,16 @@ const AssignmentSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  organization: {
+    type: String,
+    enum: ['AMMC', 'NIA'],
+    default: 'AMMC'
+  },
+  dualAssignmentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'DualAssignment',
+    default: null
+  },
   specialRequirements: [{
     type: String,
     enum: [
@@ -253,6 +263,8 @@ AssignmentSchema.index({ assignedAt: -1 });
 AssignmentSchema.index({ deadline: 1 });
 AssignmentSchema.index({ priority: 1, deadline: 1 });
 AssignmentSchema.index({ status: 1 });
+AssignmentSchema.index({ organization: 1 });
+AssignmentSchema.index({ dualAssignmentId: 1 });
 
 // Middleware to calculate total expenses
 AssignmentSchema.pre('save', function (next) {

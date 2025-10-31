@@ -185,7 +185,21 @@ const SurveySubmissionSchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     }
-  }]
+  }],
+  organization: {
+    type: String,
+    enum: ['AMMC', 'NIA'],
+    default: 'AMMC'
+  },
+  isMerged: {
+    type: Boolean,
+    default: false
+  },
+  mergedReportId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'MergedReport',
+    default: null
+  }
 }, {
   timestamps: true
 });
@@ -196,14 +210,17 @@ SurveySubmissionSchema.index({ surveyorId: 1 });
 SurveySubmissionSchema.index({ status: 1 });
 SurveySubmissionSchema.index({ submissionTime: -1 });
 SurveySubmissionSchema.index({ 'qualityCheck.overallScore': -1 });
+SurveySubmissionSchema.index({ organization: 1 });
+SurveySubmissionSchema.index({ isMerged: 1 });
+SurveySubmissionSchema.index({ mergedReportId: 1 });
 
 // Middleware to calculate overall quality score
-SurveySubmissionSchema.pre('save', function(next) {
-  if (this.qualityCheck && 
-      this.qualityCheck.completeness !== undefined && 
-      this.qualityCheck.accuracy !== undefined && 
-      this.qualityCheck.timeliness !== undefined) {
-    
+SurveySubmissionSchema.pre('save', function (next) {
+  if (this.qualityCheck &&
+    this.qualityCheck.completeness !== undefined &&
+    this.qualityCheck.accuracy !== undefined &&
+    this.qualityCheck.timeliness !== undefined) {
+
     this.qualityCheck.overallScore = Math.round(
       (this.qualityCheck.completeness + this.qualityCheck.accuracy + this.qualityCheck.timeliness) / 3
     );
@@ -212,7 +229,7 @@ SurveySubmissionSchema.pre('save', function(next) {
 });
 
 // Method to add contact log entry
-SurveySubmissionSchema.methods.addContactEntry = function(entry) {
+SurveySubmissionSchema.methods.addContactEntry = function (entry) {
   this.contactLog.push({
     date: entry.date || new Date(),
     method: entry.method,
@@ -223,7 +240,7 @@ SurveySubmissionSchema.methods.addContactEntry = function(entry) {
 };
 
 // Method to calculate completion percentage
-SurveySubmissionSchema.methods.getCompletionPercentage = function() {
+SurveySubmissionSchema.methods.getCompletionPercentage = function () {
   const requiredFields = [
     'surveyDetails.propertyCondition',
     'surveyDetails.structuralAssessment',
@@ -232,24 +249,24 @@ SurveySubmissionSchema.methods.getCompletionPercentage = function() {
     'surveyNotes',
     'recommendedAction'
   ];
-  
+
   let completed = 0;
   requiredFields.forEach(field => {
     const value = field.split('.').reduce((obj, key) => obj && obj[key], this);
     if (value) completed++;
   });
-  
+
   // Check for required documents
   const hasMainReport = this.documents && this.documents.some(doc => doc.isMainReport);
   if (hasMainReport || (this.surveyDocument && this.surveyDocument.url)) {
     completed++;
   }
-  
+
   return Math.round((completed / (requiredFields.length + 1)) * 100);
 };
 
 // Method to get main survey report
-SurveySubmissionSchema.methods.getMainReport = function() {
+SurveySubmissionSchema.methods.getMainReport = function () {
   if (this.documents && this.documents.length > 0) {
     return this.documents.find(doc => doc.isMainReport) || this.documents[0];
   }
@@ -257,7 +274,7 @@ SurveySubmissionSchema.methods.getMainReport = function() {
 };
 
 // Virtual for time since submission
-SurveySubmissionSchema.virtual('daysSinceSubmission').get(function() {
+SurveySubmissionSchema.virtual('daysSinceSubmission').get(function () {
   const diff = new Date() - this.submissionTime;
   return Math.floor(diff / (1000 * 60 * 60 * 24));
 });
