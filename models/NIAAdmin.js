@@ -90,8 +90,7 @@ const NIAAdminSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Indexes for efficient queries
-NIAAdminSchema.index({ userId: 1 });
+// Indexes for efficient queries (userId already indexed due to unique: true)
 NIAAdminSchema.index({ organization: 1 });
 NIAAdminSchema.index({ status: 1 });
 NIAAdminSchema.index({ lastLogin: -1 });

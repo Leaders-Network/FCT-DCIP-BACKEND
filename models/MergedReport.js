@@ -164,8 +164,7 @@ const MergedReportSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Indexes for efficient queries
-MergedReportSchema.index({ policyId: 1 });
+// Indexes for efficient queries (policyId already indexed due to unique: true)
 MergedReportSchema.index({ dualAssignmentId: 1 });
 MergedReportSchema.index({ conflictDetected: 1 });
 MergedReportSchema.index({ conflictResolved: 1 });

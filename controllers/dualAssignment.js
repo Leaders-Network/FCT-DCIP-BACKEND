@@ -4,13 +4,27 @@ const PolicyRequest = require('../models/PolicyRequest');
 const Employee = require('../models/Employee');
 const Surveyor = require('../models/Surveyor');
 const { StatusCodes } = require('http-status-codes');
+const {
+    validateSurveyorAssignment,
+    checkAssignmentConflicts,
+    validateDualAssignmentCreation,
+    getAvailableSurveyors
+} = require('../utils/assignmentValidation');
 
 // Create a new dual assignment
 const createDualAssignment = async (req, res) => {
     try {
-        const { policyId, priority = 'medium' } = req.body;
+        const { policyId, priority = 'medium', deadline } = req.body;
 
-        // Check if policy exists
+        // Validate required fields
+        if (!policyId) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                success: false,
+                message: 'Policy ID is required'
+            });
+        }
+
+        // Check if policy exists and is in correct status
         const policy = await PolicyRequest.findById(policyId);
         if (!policy) {
             return res.status(StatusCodes.NOT_FOUND).json({
@@ -19,12 +33,34 @@ const createDualAssignment = async (req, res) => {
             });
         }
 
-        // Check if dual assignment already exists
-        const existingDualAssignment = await DualAssignment.findOne({ policyId });
-        if (existingDualAssignment) {
+        // Validate policy status - should be 'submitted' to create dual assignment
+        if (policy.status !== 'submitted') {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                success: false,
+                message: `Cannot create dual assignment for policy with status: ${policy.status}. Policy must be in 'submitted' status.`
+            });
+        }
+
+        // Validate dual assignment creation
+        const validationResult = await validateDualAssignmentCreation(policyId);
+        if (!validationResult.success) {
             return res.status(StatusCodes.CONFLICT).json({
                 success: false,
-                message: 'Dual assignment already exists for this policy'
+                message: validationResult.message,
+                data: validationResult.existingAssignmentId ?
+                    { existingAssignmentId: validationResult.existingAssignmentId } :
+                    { existingAssignments: validationResult.existingAssignments }
+            });
+        }
+
+        // Calculate deadline (default 7 days, but can be customized)
+        const assignmentDeadline = deadline ? new Date(deadline) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+        // Validate deadline is in the future
+        if (assignmentDeadline <= new Date()) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                success: false,
+                message: 'Deadline must be in the future'
             });
         }
 
@@ -33,7 +69,9 @@ const createDualAssignment = async (req, res) => {
             policyId,
             priority,
             estimatedCompletion: {
-                overallDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days default
+                overallDeadline: assignmentDeadline,
+                ammcDeadline: assignmentDeadline,
+                niaDeadline: assignmentDeadline
             }
         });
 
@@ -42,16 +80,40 @@ const createDualAssignment = async (req, res) => {
             event: 'created',
             timestamp: new Date(),
             performedBy: req.user.userId,
-            organization: 'SYSTEM',
-            details: 'Dual assignment created for policy'
+            organization: req.user.organization || 'SYSTEM',
+            details: `Dual assignment created for policy by ${req.user.organization || 'system'} admin`,
+            metadata: {
+                policyId: policyId,
+                priority: priority,
+                deadline: assignmentDeadline
+            }
         });
 
         await dualAssignment.save();
 
+        // Update policy status to indicate dual assignment created
+        policy.status = 'assigned';
+        policy.statusHistory.push({
+            status: 'assigned',
+            changedBy: req.user.userId,
+            changedAt: new Date(),
+            reason: 'Dual assignment created - ready for AMMC and NIA surveyor assignment'
+        });
+        await policy.save();
+
+        // Populate policy details for response
+        await dualAssignment.populate('policyId', 'propertyDetails contactDetails status priority');
+
         res.status(StatusCodes.CREATED).json({
             success: true,
             message: 'Dual assignment created successfully',
-            data: dualAssignment
+            data: {
+                dualAssignment,
+                nextSteps: [
+                    'Assign AMMC surveyor using POST /:dualAssignmentId/assign-ammc',
+                    'Assign NIA surveyor using POST /:dualAssignmentId/assign-nia'
+                ]
+            }
         });
     } catch (error) {
         console.error('Create dual assignment error:', error);
@@ -78,22 +140,54 @@ const assignAMMCSurveyor = async (req, res) => {
             });
         }
 
+        // Validate required fields
+        if (!surveyorId) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                success: false,
+                message: 'Surveyor ID is required'
+            });
+        }
+
         // Check if AMMC surveyor already assigned
         if (dualAssignment.ammcAssignmentId) {
             return res.status(StatusCodes.CONFLICT).json({
                 success: false,
-                message: 'AMMC surveyor already assigned to this policy'
+                message: 'AMMC surveyor already assigned to this policy',
+                data: { existingAssignmentId: dualAssignment.ammcAssignmentId }
             });
         }
 
-        // Get surveyor details
-        const surveyor = await Surveyor.findOne({ userId: surveyorId, organization: 'AMMC' })
-            .populate('userId', 'firstname lastname email phonenumber');
+        // Get surveyor details and validate
+        const surveyor = await Surveyor.findOne({ userId: surveyorId, organization: 'AMMC', status: 'active' })
+            .populate('userId', 'firstname lastname email phonenumber employeeStatus');
 
         if (!surveyor) {
             return res.status(StatusCodes.NOT_FOUND).json({
                 success: false,
-                message: 'AMMC surveyor not found'
+                message: 'AMMC surveyor not found or inactive'
+            });
+        }
+
+        // Check if surveyor is available
+        if (surveyor.profile.availability !== 'available') {
+            return res.status(StatusCodes.CONFLICT).json({
+                success: false,
+                message: `Surveyor is currently ${surveyor.profile.availability} and cannot be assigned`
+            });
+        }
+
+        // Check for existing active assignments for this surveyor
+        const existingAssignments = await Assignment.countDocuments({
+            surveyorId: surveyorId,
+            organization: 'AMMC',
+            status: { $in: ['assigned', 'accepted', 'in-progress'] }
+        });
+
+        // Prevent overloading surveyor (max 3 active assignments)
+        if (existingAssignments >= 3) {
+            return res.status(StatusCodes.CONFLICT).json({
+                success: false,
+                message: 'Surveyor has reached maximum active assignments (3). Please assign to a different surveyor.'
             });
         }
 
@@ -155,22 +249,54 @@ const assignNIASurveyor = async (req, res) => {
             });
         }
 
+        // Validate required fields
+        if (!surveyorId) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                success: false,
+                message: 'Surveyor ID is required'
+            });
+        }
+
         // Check if NIA surveyor already assigned
         if (dualAssignment.niaAssignmentId) {
             return res.status(StatusCodes.CONFLICT).json({
                 success: false,
-                message: 'NIA surveyor already assigned to this policy'
+                message: 'NIA surveyor already assigned to this policy',
+                data: { existingAssignmentId: dualAssignment.niaAssignmentId }
             });
         }
 
-        // Get surveyor details
-        const surveyor = await Surveyor.findOne({ userId: surveyorId, organization: 'NIA' })
-            .populate('userId', 'firstname lastname email phonenumber');
+        // Get surveyor details and validate
+        const surveyor = await Surveyor.findOne({ userId: surveyorId, organization: 'NIA', status: 'active' })
+            .populate('userId', 'firstname lastname email phonenumber employeeStatus');
 
         if (!surveyor) {
             return res.status(StatusCodes.NOT_FOUND).json({
                 success: false,
-                message: 'NIA surveyor not found'
+                message: 'NIA surveyor not found or inactive'
+            });
+        }
+
+        // Check if surveyor is available
+        if (surveyor.profile.availability !== 'available') {
+            return res.status(StatusCodes.CONFLICT).json({
+                success: false,
+                message: `Surveyor is currently ${surveyor.profile.availability} and cannot be assigned`
+            });
+        }
+
+        // Check for existing active assignments for this surveyor
+        const existingAssignments = await Assignment.countDocuments({
+            surveyorId: surveyorId,
+            organization: 'NIA',
+            status: { $in: ['assigned', 'accepted', 'in-progress'] }
+        });
+
+        // Prevent overloading surveyor (max 3 active assignments)
+        if (existingAssignments >= 3) {
+            return res.status(StatusCodes.CONFLICT).json({
+                success: false,
+                message: 'Surveyor has reached maximum active assignments (3). Please assign to a different surveyor.'
             });
         }
 
