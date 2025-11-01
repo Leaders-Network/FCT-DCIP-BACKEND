@@ -6,7 +6,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 require('express-async-errors');
-const connectDB = require('./database/connect');
+const connectWithRetry = require('./database/connectWithRetry');
 const express = require("express")
 const authRouter = require('./routes/auth');
 const filesRouter = require('./routes/files');
@@ -81,17 +81,25 @@ app.use(errorHandlerMiddleware);
 const PORT = process.env.PORT || 5000
 const start = async () => {
   try {
-    await connectDB(process.env.MONGO_URI);
-    await createStatuses()
-    await createRoles()
-    await createPropertyCategories()
-    await createSurveyorRoles()
-    await createFirstSuperAdmin()
-    app.listen(PORT, () =>
-      console.log(`Server is listening on port ${PORT}...`)
-    );
+    // Connect to MongoDB with retry logic
+    const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/fct-dcip-local';
+    await connectWithRetry(uri);
+
+    // Initialize database data
+    await createStatuses();
+    await createRoles();
+    await createPropertyCategories();
+    await createSurveyorRoles();
+    await createFirstSuperAdmin();
+
+    // Start server
+    app.listen(PORT, () => {
+      console.log(`🚀 Server is listening on port ${PORT}...`);
+      console.log(`📊 Admin Dashboard: http://localhost:${PORT}/api/v1`);
+    });
   } catch (error) {
-    console.log(error);
+    console.error('💥 Failed to start server:', error.message);
+    process.exit(1);
   }
 };
 

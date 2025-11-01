@@ -310,4 +310,4 @@ MergedReportSchema.virtual('paymentStatusDisplay').get(function () {
     return 'Payment Pending - Under Review';
 });
 
-module.exports = mongoose.model('MergedReport', MergedReportSchema);
+module.exports = mongoose.models.MergedReport || mongoose.model('MergedReport', MergedReportSchema);

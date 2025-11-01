@@ -4,8 +4,8 @@ const DualAssignmentSchema = new mongoose.Schema({
     policyId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'PolicyRequest',
-        required: [true, 'Policy ID is required'],
-        unique: true
+        required: [true, 'Policy ID is required']
+        // unique: true removed - handled by schema.index() below
     },
     ammcAssignmentId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -98,7 +98,7 @@ const DualAssignmentSchema = new mongoose.Schema({
 });
 
 // Indexes for efficient queries
-DualAssignmentSchema.index({ policyId: 1 });
+DualAssignmentSchema.index({ policyId: 1 }, { unique: true });
 DualAssignmentSchema.index({ assignmentStatus: 1 });
 DualAssignmentSchema.index({ completionStatus: 1 });
 DualAssignmentSchema.index({ ammcAssignmentId: 1 });
@@ -224,4 +224,4 @@ DualAssignmentSchema.virtual('progressDisplay').get(function () {
     }
 });
 
-module.exports = mongoose.model('DualAssignment', DualAssignmentSchema);
+module.exports = mongoose.models.DualAssignment || mongoose.model('DualAssignment', DualAssignmentSchema);

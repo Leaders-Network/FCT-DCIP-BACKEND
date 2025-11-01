@@ -18,8 +18,8 @@ const UserConflictInquirySchema = new mongoose.Schema({
     },
     referenceId: {
         type: String,
-        unique: true,
         required: [true, 'Reference ID is required']
+        // unique: true removed - handled by schema.index() below
     },
     conflictType: {
         type: String,
@@ -340,4 +340,4 @@ UserConflictInquirySchema.virtual('responseTimeHours').get(function () {
     return diffHours;
 });
 
-module.exports = mongoose.model('UserConflictInquiry', UserConflictInquirySchema);
+module.exports = mongoose.models.UserConflictInquiry || mongoose.model('UserConflictInquiry', UserConflictInquirySchema);
