@@ -44,7 +44,7 @@ const corsOptions = {
     'http://localhost:3001',
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ["Content-Type", "Authorization", 'apiKey', 'x-api-key'],
+  allowedHeaders: ["Content-Type", "Authorization", 'apikey', 'apiKey', 'x-api-key'],
   credentials: true,
 }
 app.use(cors(corsOptions));
