@@ -1,274 +1,246 @@
-require('dotenv').config();
-const nodemailer = require("nodemailer");
+const nodemailer = require('nodemailer');
 
-// Create reusable transporter object using the default SMTP transport
+// Create email transporter
 const createTransporter = () => {
-    if (process.env.NODE_ENV === 'production') {
-        // Production email configuration
-        return nodemailer.createTransporter({
-            host: process.env.SMTP_HOST,
-            port: process.env.SMTP_PORT,
-            secure: process.env.SMTP_SECURE === 'true',
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS
-            }
-        });
-    } else {
-        // Development/test configuration using Ethereal
-        return new Promise((resolve, reject) => {
-            nodemailer.createTestAccount((err, account) => {
-                if (err) {
-                    console.error('Failed to create a testing account. ' + err.message);
-                    reject(err);
-                    return;
-                }
-
-                const transporter = nodemailer.createTransporter({
-                    host: account.smtp.host,
-                    port: account.smtp.port,
-                    secure: account.smtp.secure,
-                    auth: {
-                        user: account.user,
-                        pass: account.pass
-                    }
-                });
-
-                resolve(transporter);
-            });
-        });
-    }
+    return nodemailer.createTransporter({
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: process.env.SMTP_PORT || 587,
+        secure: false,
+        auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS
+        }
+    });
 };
 
-// Generic email sending function
-const sendEmail = async (to, subject, htmlContent, textContent = null) => {
+/**
+ * Send automatic conflict alert to admins
+ */
+const sendAutomaticConflictAlert = async (adminEmail, conflictFlag) => {
     try {
-        let transporter;
-
-        if (process.env.NODE_ENV === 'production') {
-            transporter = createTransporter();
-        } else {
-            transporter = await createTransporter();
-        }
+        const transporter = createTransporter();
 
         const mailOptions = {
-            from: `"${process.env.EMAIL_FROM || 'DCIP System'}" <${process.env.EMAIL || 'noreply@dcip.gov.ng'}>`,
-            to: to,
-            subject: subject,
-            html: htmlContent,
-            text: textContent || htmlContent.replace(/<[^>]*>/g, '') // Strip HTML for text version
+            from: process.env.SMTP_FROM || process.env.SMTP_USER,
+            to: adminEmail,
+            subject: `🚨 Automatic Conflict Detected - ${conflictFlag.conflictType}`,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                        <h2 style="color: #dc3545; margin: 0;">🚨 Automatic Conflict Detected</h2>
+                        <p style="margin: 10px 0 0 0; color: #6c757d;">
+                            A conflict has been automatically detected during report merging
+                        </p>
+                    </div>
+                    
+                    <div style="background: white; padding: 20px; border: 1px solid #dee2e6; border-radius: 8px;">
+                        <h3 style="color: #495057; margin-top: 0;">Conflict Details</h3>
+                        
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Policy ID:</td>
+                                <td style="padding: 8px 0;">${conflictFlag.policyId}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Conflict Type:</td>
+                                <td style="padding: 8px 0;">
+                                    <span style="background: #ffc107; color: #212529; padding: 2px 8px; border-radius: 4px; font-size: 12px;">
+                                        ${conflictFlag.conflictType.toUpperCase()}
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Severity:</td>
+                                <td style="padding: 8px 0;">
+                                    <span style="background: ${getSeverityColor(conflictFlag.conflictSeverity)}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">
+                                        ${conflictFlag.conflictSeverity.toUpperCase()}
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">AMMC Value:</td>
+                                <td style="padding: 8px 0;">${formatValue(conflictFlag.ammcRecommendation)}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">NIA Value:</td>
+                                <td style="padding: 8px 0;">${formatValue(conflictFlag.niaRecommendation)}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Description:</td>
+                                <td style="padding: 8px 0;">${conflictFlag.conflictDescription}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Detected At:</td>
+                                <td style="padding: 8px 0;">${new Date(conflictFlag.detectionMetadata.detectedAt).toLocaleString()}</td>
+                            </tr>
+                        </table>
+                        
+                        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px;">
+                            <h4 style="margin: 0 0 10px 0; color: #495057;">Next Steps</h4>
+                            <ul style="margin: 0; padding-left: 20px; color: #6c757d;">
+                                <li>Review the conflicting values from both surveyors</li>
+                                <li>Contact surveyors for clarification if needed</li>
+                                <li>Make a manual decision on the final recommendation</li>
+                                <li>Update the merged report with the resolved values</li>
+                            </ul>
+                        </div>
+                        
+                        <div style="margin-top: 20px; text-align: center;">
+                            <a href="${process.env.FRONTEND_URL}/admin/conflicts/${conflictFlag._id}" 
+                               style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
+                                Review Conflict
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 20px; text-align: center; color: #6c757d; font-size: 12px;">
+                        <p>This is an automated notification from the FCT-DCIP System</p>
+                        <p>Please do not reply to this email</p>
+                    </div>
+                </div>
+            `
         };
 
-        const info = await transporter.sendMail(mailOptions);
-
-        console.log('Email sent successfully:', info.messageId);
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('Preview URL:', nodemailer.getTestMessageUrl(info));
-        }
-
-        return {
-            success: true,
-            messageId: info.messageId,
-            previewUrl: process.env.NODE_ENV !== 'production' ? nodemailer.getTestMessageUrl(info) : null
-        };
+        await transporter.sendMail(mailOptions);
+        console.log(`✅ Conflict alert sent to ${adminEmail}`);
 
     } catch (error) {
-        console.error('Error sending email:', error);
-        return {
-            success: false,
-            error: error.message
-        };
+        console.error(`❌ Failed to send conflict alert to ${adminEmail}:`, error);
+        throw error;
     }
 };
 
-// Specific email templates for conflict management
-const sendConflictInquiryNotification = async (adminEmail, inquiry) => {
-    const subject = `New User Conflict Inquiry - ${inquiry.referenceId}`;
-    const htmlContent = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2c3e50;">New Conflict Inquiry Submitted</h2>
-            
-            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="color: #e74c3c; margin-top: 0;">Inquiry Details</h3>
-                <p><strong>Reference ID:</strong> ${inquiry.referenceId}</p>
-                <p><strong>Conflict Type:</strong> ${inquiry.conflictType}</p>
-                <p><strong>Urgency:</strong> ${inquiry.urgency}</p>
-                <p><strong>Policy ID:</strong> ${inquiry.policyId}</p>
-                <p><strong>Submitted:</strong> ${new Date(inquiry.createdAt).toLocaleString()}</p>
-            </div>
+/**
+ * Send report merging completion notification
+ */
+const sendReportMergingNotification = async (adminEmail, mergedReport) => {
+    try {
+        const transporter = createTransporter();
 
-            <div style="background-color: #e8f4f8; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="color: #2980b9; margin-top: 0;">User Contact Information</h3>
-                <p><strong>Email:</strong> ${inquiry.userContact.email}</p>
-                <p><strong>Phone:</strong> ${inquiry.userContact.phone || 'Not provided'}</p>
-                <p><strong>Preferred Contact:</strong> ${inquiry.contactPreference}</p>
-                <p><strong>Preferred Time:</strong> ${inquiry.userContact.preferredTime || 'Not specified'}</p>
-            </div>
+        const mailOptions = {
+            from: process.env.SMTP_FROM || process.env.SMTP_USER,
+            to: adminEmail,
+            subject: `📊 Report Merging Completed - ${mergedReport.releaseStatus.toUpperCase()}`,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                        <h2 style="color: #28a745; margin: 0;">📊 Report Merging Completed</h2>
+                        <p style="margin: 10px 0 0 0; color: #6c757d;">
+                            Dual surveyor reports have been automatically merged
+                        </p>
+                    </div>
+                    
+                    <div style="background: white; padding: 20px; border: 1px solid #dee2e6; border-radius: 8px;">
+                        <h3 style="color: #495057; margin-top: 0;">Merge Summary</h3>
+                        
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Policy ID:</td>
+                                <td style="padding: 8px 0;">${mergedReport.policyId}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Release Status:</td>
+                                <td style="padding: 8px 0;">
+                                    <span style="background: ${getReleaseStatusColor(mergedReport.releaseStatus)}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">
+                                        ${mergedReport.releaseStatus.toUpperCase()}
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Final Recommendation:</td>
+                                <td style="padding: 8px 0;">
+                                    <span style="background: ${getRecommendationColor(mergedReport.finalRecommendation)}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">
+                                        ${mergedReport.finalRecommendation.toUpperCase()}
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Confidence Score:</td>
+                                <td style="padding: 8px 0;">${mergedReport.confidenceScore}%</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Conflicts Detected:</td>
+                                <td style="padding: 8px 0;">${mergedReport.conflictDetected ? 'Yes' : 'No'}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Processing Time:</td>
+                                <td style="padding: 8px 0;">${mergedReport.mergingMetadata?.processingTime || 'N/A'}ms</td>
+                            </tr>
+                        </table>
+                        
+                        ${mergedReport.conflictDetected ? `
+                        <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px;">
+                            <h4 style="margin: 0 0 10px 0; color: #856404;">⚠️ Conflicts Detected</h4>
+                            <p style="margin: 0; color: #856404;">
+                                This report contains conflicts that may require manual review.
+                                Please check the conflict flags for detailed information.
+                            </p>
+                        </div>
+                        ` : ''}
+                        
+                        <div style="margin-top: 20px; text-align: center;">
+                            <a href="${process.env.FRONTEND_URL}/admin/merged-reports/${mergedReport._id}" 
+                               style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
+                                View Merged Report
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 20px; text-align: center; color: #6c757d; font-size: 12px;">
+                        <p>This is an automated notification from the FCT-DCIP System</p>
+                        <p>Please do not reply to this email</p>
+                    </div>
+                </div>
+            `
+        };
 
-            <div style="background-color: #fff3cd; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="color: #856404; margin-top: 0;">Description</h3>
-                <p style="white-space: pre-wrap;">${inquiry.description}</p>
-            </div>
+        await transporter.sendMail(mailOptions);
+        console.log(`✅ Report merging notification sent to ${adminEmail}`);
 
-            <div style="text-align: center; margin: 30px 0;">
-                <p>Please log into the admin dashboard to respond to this inquiry.</p>
-                <a href="${process.env.ADMIN_DASHBOARD_URL || 'http://localhost:3000/admin'}" 
-                   style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
-                   View in Dashboard
-                </a>
-            </div>
-
-            <hr style="margin: 30px 0; border: none; border-top: 1px solid #dee2e6;">
-            <p style="color: #6c757d; font-size: 12px; text-align: center;">
-                This is an automated notification from the DCIP Survey System.
-            </p>
-        </div>
-    `;
-
-    return await sendEmail(adminEmail, subject, htmlContent);
+    } catch (error) {
+        console.error(`❌ Failed to send report merging notification to ${adminEmail}:`, error);
+        throw error;
+    }
 };
 
-const sendConflictInquiryResponse = async (userEmail, inquiry, response) => {
-    const subject = `Response to Your Conflict Inquiry - ${inquiry.referenceId}`;
-    const htmlContent = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2c3e50;">Response to Your Survey Inquiry</h2>
-            
-            <p>Dear User,</p>
-            <p>Thank you for your inquiry regarding your survey report. We have reviewed your concerns and are providing the following response:</p>
-
-            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <p><strong>Reference ID:</strong> ${inquiry.referenceId}</p>
-                <p><strong>Original Inquiry:</strong> ${inquiry.conflictType}</p>
-                <p><strong>Response Date:</strong> ${new Date().toLocaleString()}</p>
-            </div>
-
-            <div style="background-color: #d4edda; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #28a745;">
-                <h3 style="color: #155724; margin-top: 0;">Our Response</h3>
-                <p style="white-space: pre-wrap;">${response}</p>
-            </div>
-
-            <p>If you have any additional questions or concerns, please don't hesitate to contact us using the same reference ID.</p>
-
-            <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.USER_DASHBOARD_URL || 'http://localhost:3000/dashboard'}" 
-                   style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
-                   View Your Dashboard
-                </a>
-            </div>
-
-            <hr style="margin: 30px 0; border: none; border-top: 1px solid #dee2e6;">
-            <p style="color: #6c757d; font-size: 12px; text-align: center;">
-                Best regards,<br>
-                Survey Administration Team<br>
-                DCIP Survey System
-            </p>
-        </div>
-    `;
-
-    return await sendEmail(userEmail, subject, htmlContent);
+// Helper functions
+const getSeverityColor = (severity) => {
+    switch (severity) {
+        case 'critical': return '#dc3545';
+        case 'high': return '#fd7e14';
+        case 'medium': return '#ffc107';
+        case 'low': return '#28a745';
+        default: return '#6c757d';
+    }
 };
 
-const sendAutomaticConflictAlert = async (adminEmail, conflictFlag) => {
-    const subject = `Automatic Conflict Detected - ${conflictFlag.conflictType.toUpperCase()}`;
-    const htmlContent = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #dc3545;">⚠️ Automatic Conflict Detected</h2>
-            
-            <p>An automatic conflict has been detected in a merged survey report and requires your attention.</p>
-
-            <div style="background-color: #f8d7da; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #dc3545;">
-                <h3 style="color: #721c24; margin-top: 0;">Conflict Details</h3>
-                <p><strong>Conflict ID:</strong> ${conflictFlag._id}</p>
-                <p><strong>Policy ID:</strong> ${conflictFlag.policyId}</p>
-                <p><strong>Conflict Type:</strong> ${conflictFlag.conflictType}</p>
-                <p><strong>Severity:</strong> ${conflictFlag.conflictSeverity.toUpperCase()}</p>
-                <p><strong>Priority:</strong> ${conflictFlag.priority.toUpperCase()}</p>
-                <p><strong>Detected:</strong> ${new Date(conflictFlag.detectionMetadata.detectedAt).toLocaleString()}</p>
-            </div>
-
-            <div style="background-color: #fff3cd; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="color: #856404; margin-top: 0;">Recommendations Comparison</h3>
-                <p><strong>AMMC Recommendation:</strong> ${conflictFlag.ammcRecommendation}</p>
-                <p><strong>NIA Recommendation:</strong> ${conflictFlag.niaRecommendation}</p>
-                ${conflictFlag.discrepancyPercentage ? `<p><strong>Value Discrepancy:</strong> ${conflictFlag.discrepancyPercentage}%</p>` : ''}
-            </div>
-
-            ${conflictFlag.flaggedSections && conflictFlag.flaggedSections.length > 0 ? `
-            <div style="background-color: #e2e3e5; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="color: #383d41; margin-top: 0;">Flagged Sections</h3>
-                <p><strong>Number of flagged sections:</strong> ${conflictFlag.flaggedSections.length}</p>
-            </div>
-            ` : ''}
-
-            <div style="background-color: #d1ecf1; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="color: #0c5460; margin-top: 0;">Detection Metadata</h3>
-                <p><strong>Confidence Score:</strong> ${conflictFlag.detectionMetadata.confidenceScore}%</p>
-                <p><strong>Algorithm Version:</strong> ${conflictFlag.detectionMetadata.detectionAlgorithm}</p>
-            </div>
-
-            <div style="text-align: center; margin: 30px 0;">
-                <p><strong>Action Required:</strong> Please review this conflict in the admin dashboard and take appropriate action.</p>
-                <a href="${process.env.ADMIN_DASHBOARD_URL || 'http://localhost:3000/admin'}/conflict-flags/${conflictFlag._id}" 
-                   style="background-color: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
-                   Review Conflict
-                </a>
-            </div>
-
-            <hr style="margin: 30px 0; border: none; border-top: 1px solid #dee2e6;">
-            <p style="color: #6c757d; font-size: 12px; text-align: center;">
-                This is an automated alert from the DCIP Survey System's conflict detection engine.
-            </p>
-        </div>
-    `;
-
-    return await sendEmail(adminEmail, subject, htmlContent);
+const getReleaseStatusColor = (status) => {
+    switch (status) {
+        case 'approved': return '#28a745';
+        case 'pending': return '#ffc107';
+        case 'withheld': return '#dc3545';
+        case 'archived': return '#6c757d';
+        default: return '#6c757d';
+    }
 };
 
-const sendConflictResolutionNotification = async (userEmail, conflictFlag) => {
-    const subject = `Survey Report Conflict Resolved`;
-    const htmlContent = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #28a745;">✅ Survey Report Conflict Resolved</h2>
-            
-            <p>Good news! The conflict detected in your survey report has been resolved.</p>
+const getRecommendationColor = (recommendation) => {
+    switch (recommendation) {
+        case 'approve': return '#28a745';
+        case 'conditional': return '#ffc107';
+        case 'reject': return '#dc3545';
+        default: return '#6c757d';
+    }
+};
 
-            <div style="background-color: #d4edda; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #28a745;">
-                <h3 style="color: #155724; margin-top: 0;">Resolution Details</h3>
-                <p><strong>Policy ID:</strong> ${conflictFlag.policyId}</p>
-                <p><strong>Conflict Type:</strong> ${conflictFlag.conflictType}</p>
-                <p><strong>Resolution Method:</strong> ${conflictFlag.resolutionDetails.resolutionMethod}</p>
-                <p><strong>Resolved Date:</strong> ${new Date(conflictFlag.resolutionDetails.resolvedAt).toLocaleString()}</p>
-            </div>
-
-            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="color: #495057; margin-top: 0;">Resolution Notes</h3>
-                <p style="white-space: pre-wrap;">${conflictFlag.resolutionDetails.resolutionNotes}</p>
-            </div>
-
-            <div style="text-align: center; margin: 30px 0;">
-                <p>Your report is now available for review in your dashboard.</p>
-                <a href="${process.env.USER_DASHBOARD_URL || 'http://localhost:3000/dashboard'}" 
-                   style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
-                   View Your Report
-                </a>
-            </div>
-
-            <hr style="margin: 30px 0; border: none; border-top: 1px solid #dee2e6;">
-            <p style="color: #6c757d; font-size: 12px; text-align: center;">
-                Thank you for your patience while we resolved this matter.<br>
-                DCIP Survey System
-            </p>
-        </div>
-    `;
-
-    return await sendEmail(userEmail, subject, htmlContent);
+const formatValue = (value) => {
+    if (typeof value === 'object') {
+        return JSON.stringify(value, null, 2);
+    }
+    return String(value);
 };
 
 module.exports = {
-    sendEmail,
-    sendConflictInquiryNotification,
-    sendConflictInquiryResponse,
     sendAutomaticConflictAlert,
-    sendConflictResolutionNotification
+    sendReportMergingNotification
 };

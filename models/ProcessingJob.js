@@ -1,476 +1,183 @@
 const mongoose = require('mongoose');
 
 const ProcessingJobSchema = new mongoose.Schema({
-    policyId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'PolicyRequest',
-        required: [true, 'Policy ID is required']
-    },
-    dualAssignmentId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'DualAssignment',
-        required: [true, 'Dual Assignment ID is required']
-    },
-    ammcReportId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'SurveySubmission',
-        required: [true, 'AMMC Report ID is required']
-    },
-    niaReportId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'SurveySubmission',
-        required: [true, 'NIA Report ID is required']
-    },
-    mergedReportId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'MergedReport',
-        default: null
-    },
-    jobId: {
+    jobType: {
         type: String,
-        unique: true,
-        required: [true, 'Job ID is required']
+        required: [true, 'Job type is required'],
+        enum: ['report_merging', 'batch_report_merging', 'scheduled_report_merging', 'conflict_resolution'],
+        index: true
     },
-    processingStatus: {
+    entityId: {
+        type: mongoose.Schema.ObjectId,
+        required: [true, 'Entity ID is required'],
+        index: true
+    },
+    entityType: {
         type: String,
+        required: [true, 'Entity type is required'],
+        enum: ['DualAssignment', 'MergedReport', 'ConflictFlag']
+    },
+    status: {
+        type: String,
+        required: [true, 'Status is required'],
         enum: ['pending', 'processing', 'completed', 'failed', 'cancelled'],
-        default: 'pending'
+        default: 'pending',
+        index: true
     },
-    processingStage: {
+    startedAt: {
+        type: Date,
+        default: Date.now,
+        index: true
+    },
+    completedAt: {
+        type: Date
+    },
+    initiatedBy: {
         type: String,
-        enum: [
-            'validation',
-            'data_extraction',
-            'conflict_detection',
-            'report_merging',
-            'document_generation',
-            'notification',
-            'finalization'
-        ],
-        default: 'validation'
+        required: [true, 'Initiated by is required'],
+        default: 'system'
     },
-    processingStartedAt: {
-        type: Date,
-        default: null
+    result: {
+        type: mongoose.Schema.Types.Mixed
     },
-    processingCompletedAt: {
-        type: Date,
-        default: null
+    error: {
+        type: String
     },
-    processingDuration: {
-        type: Number, // in seconds
-        default: null
+    metadata: {
+        type: mongoose.Schema.Types.Mixed
     },
     priority: {
-        type: String,
-        enum: ['low', 'normal', 'high', 'urgent'],
-        default: 'normal'
+        type: Number,
+        default: 1,
+        min: 1,
+        max: 10
     },
     retryCount: {
         type: Number,
-        default: 0,
-        max: 3
+        default: 0
     },
     maxRetries: {
         type: Number,
         default: 3
-    },
-    errorDetails: {
-        errorCode: String,
-        errorMessage: String,
-        errorStack: String,
-        failedStage: String,
-        timestamp: Date,
-        recoverable: {
-            type: Boolean,
-            default: true
-        }
-    },
-    conflictDetection: {
-        conflictsDetected: {
-            type: Boolean,
-            default: false
-        },
-        conflictCount: {
-            type: Number,
-            default: 0
-        },
-        conflictSeverity: {
-            type: String,
-            enum: ['low', 'medium', 'high', 'critical'],
-            default: null
-        },
-        conflictTypes: [{
-            type: String,
-            enum: [
-                'recommendation_mismatch',
-                'value_discrepancy',
-                'risk_assessment_difference',
-                'structural_disagreement',
-                'timeline_conflict',
-                'methodology_difference'
-            ]
-        }],
-        conflictFlags: [{
-            flagType: String,
-            description: String,
-            severity: {
-                type: String,
-                enum: ['low', 'medium', 'high', 'critical']
-            },
-            autoResolvable: {
-                type: Boolean,
-                default: false
-            }
-        }],
-        resolutionRequired: {
-            type: Boolean,
-            default: false
-        }
-    },
-    reportDetails: {
-        ammcReport: {
-            surveyorId: {
-                type: mongoose.Schema.Types.ObjectId,
-                ref: 'Surveyor'
-            },
-            surveyorName: String,
-            surveyorEmail: String,
-            surveyorLicense: String,
-            submittedAt: Date,
-            reportDocument: String,
-            findings: {
-                propertyCondition: String,
-                structuralAssessment: String,
-                riskFactors: String,
-                recommendations: String,
-                estimatedValue: Number
-            },
-            recommendation: {
-                type: String,
-                enum: ['approve', 'reject', 'request_more_info']
-            },
-            surveyNotes: String,
-            qualityScore: {
-                type: Number,
-                min: 0,
-                max: 100
-            }
-        },
-        niaReport: {
-            surveyorId: {
-                type: mongoose.Schema.Types.ObjectId,
-                ref: 'Surveyor'
-            },
-            surveyorName: String,
-            surveyorEmail: String,
-            surveyorLicense: String,
-            submittedAt: Date,
-            reportDocument: String,
-            findings: {
-                propertyCondition: String,
-                structuralAssessment: String,
-                riskFactors: String,
-                recommendations: String,
-                estimatedValue: Number
-            },
-            recommendation: {
-                type: String,
-                enum: ['approve', 'reject', 'request_more_info']
-            },
-            surveyNotes: String,
-            qualityScore: {
-                type: Number,
-                min: 0,
-                max: 100
-            }
-        }
-    },
-    processingMetrics: {
-        validationTime: Number, // in milliseconds
-        extractionTime: Number,
-        conflictDetectionTime: Number,
-        mergingTime: Number,
-        documentGenerationTime: Number,
-        notificationTime: Number,
-        totalProcessingTime: Number,
-        memoryUsage: Number, // in MB
-        cpuUsage: Number // percentage
-    },
-    notifications: {
-        userNotified: {
-            type: Boolean,
-            default: false
-        },
-        userNotificationSentAt: Date,
-        adminNotified: {
-            type: Boolean,
-            default: false
-        },
-        adminNotificationSentAt: Date,
-        conflictNotificationSent: {
-            type: Boolean,
-            default: false
-        },
-        errorNotificationSent: {
-            type: Boolean,
-            default: false
-        }
-    },
-    systemInfo: {
-        processingNode: String,
-        algorithmVersion: {
-            type: String,
-            default: '2.0'
-        },
-        environmentType: {
-            type: String,
-            enum: ['development', 'staging', 'production'],
-            default: 'production'
-        },
-        queuePosition: Number,
-        estimatedCompletionTime: Date
-    },
-    auditTrail: [{
-        action: String,
-        timestamp: {
-            type: Date,
-            default: Date.now
-        },
-        performedBy: {
-            type: String,
-            default: 'SYSTEM'
-        },
-        details: mongoose.Schema.Types.Mixed,
-        duration: Number // in milliseconds
-    }]
+    }
 }, {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
 
-// Indexes for efficient queries
-ProcessingJobSchema.index({ policyId: 1 });
-ProcessingJobSchema.index({ jobId: 1 }, { unique: true });
-ProcessingJobSchema.index({ processingStatus: 1 });
-ProcessingJobSchema.index({ processingStage: 1 });
-ProcessingJobSchema.index({ priority: 1 });
+// Indexes for performance
+ProcessingJobSchema.index({ jobType: 1, status: 1 });
+ProcessingJobSchema.index({ entityId: 1, entityType: 1 });
+ProcessingJobSchema.index({ startedAt: -1 });
 ProcessingJobSchema.index({ createdAt: -1 });
-ProcessingJobSchema.index({ processingStartedAt: -1 });
-ProcessingJobSchema.index({ 'conflictDetection.conflictsDetected': 1 });
-ProcessingJobSchema.index({ 'conflictDetection.conflictSeverity': 1 });
-ProcessingJobSchema.index({ retryCount: 1 });
 
-// Pre-save middleware to generate job ID
+// Virtual for processing duration
+ProcessingJobSchema.virtual('processingDuration').get(function () {
+    if (this.completedAt && this.startedAt) {
+        return this.completedAt.getTime() - this.startedAt.getTime();
+    }
+    return null;
+});
+
+// Virtual for current status duration
+ProcessingJobSchema.virtual('statusDuration').get(function () {
+    const endTime = this.completedAt || new Date();
+    return endTime.getTime() - this.startedAt.getTime();
+});
+
+// Pre-save middleware
 ProcessingJobSchema.pre('save', function (next) {
-    if (this.isNew && !this.jobId) {
-        // Generate job ID: PJ-YYYYMMDD-HHMMSS-XXXX
-        const now = new Date();
-        const dateStr = now.getFullYear().toString() +
-            (now.getMonth() + 1).toString().padStart(2, '0') +
-            now.getDate().toString().padStart(2, '0');
-        const timeStr = now.getHours().toString().padStart(2, '0') +
-            now.getMinutes().toString().padStart(2, '0') +
-            now.getSeconds().toString().padStart(2, '0');
-        const randomNum = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
-        this.jobId = `PJ-${dateStr}-${timeStr}-${randomNum}`;
+    // Set completedAt when status changes to completed or failed
+    if (this.isModified('status') && ['completed', 'failed', 'cancelled'].includes(this.status)) {
+        if (!this.completedAt) {
+            this.completedAt = new Date();
+        }
     }
     next();
 });
 
-// Method to start processing
-ProcessingJobSchema.methods.startProcessing = function () {
-    this.processingStatus = 'processing';
-    this.processingStartedAt = new Date();
-    this.processingStage = 'validation';
-
-    this.addAuditEntry('processing_started', 'Processing job started');
+// Static methods
+ProcessingJobSchema.statics.getActiveJobs = function () {
+    return this.find({ status: { $in: ['pending', 'processing'] } });
 };
 
-// Method to complete processing
-ProcessingJobSchema.methods.completeProcessing = function (mergedReportId) {
-    this.processingStatus = 'completed';
-    this.processingCompletedAt = new Date();
-    this.mergedReportId = mergedReportId;
+ProcessingJobSchema.statics.getJobsByType = function (jobType, limit = 50) {
+    return this.find({ jobType })
+        .sort({ createdAt: -1 })
+        .limit(limit);
+};
 
-    if (this.processingStartedAt) {
-        this.processingDuration = Math.floor((this.processingCompletedAt - this.processingStartedAt) / 1000);
+ProcessingJobSchema.statics.getJobStats = function (timeframe = '24h') {
+    const now = new Date();
+    let timeFilter;
+
+    switch (timeframe) {
+        case '1h':
+            timeFilter = new Date(now.getTime() - 60 * 60 * 1000);
+            break;
+        case '24h':
+            timeFilter = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            break;
+        case '7d':
+            timeFilter = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            break;
+        default:
+            timeFilter = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     }
 
-    this.addAuditEntry('processing_completed', 'Processing job completed successfully');
-};
-
-// Method to fail processing
-ProcessingJobSchema.methods.failProcessing = function (errorCode, errorMessage, errorStack, failedStage) {
-    this.processingStatus = 'failed';
-    this.processingCompletedAt = new Date();
-
-    this.errorDetails = {
-        errorCode: errorCode,
-        errorMessage: errorMessage,
-        errorStack: errorStack,
-        failedStage: failedStage,
-        timestamp: new Date(),
-        recoverable: this.retryCount < this.maxRetries
-    };
-
-    if (this.processingStartedAt) {
-        this.processingDuration = Math.floor((this.processingCompletedAt - this.processingStartedAt) / 1000);
-    }
-
-    this.addAuditEntry('processing_failed', `Processing failed at stage: ${failedStage}`, {
-        errorCode: errorCode,
-        errorMessage: errorMessage
-    });
-};
-
-// Method to retry processing
-ProcessingJobSchema.methods.retryProcessing = function () {
-    if (this.retryCount >= this.maxRetries) {
-        throw new Error('Maximum retry attempts exceeded');
-    }
-
-    this.retryCount += 1;
-    this.processingStatus = 'pending';
-    this.processingStage = 'validation';
-    this.processingStartedAt = null;
-    this.processingCompletedAt = null;
-    this.processingDuration = null;
-    this.errorDetails = {};
-
-    this.addAuditEntry('processing_retry', `Retry attempt ${this.retryCount}`);
-};
-
-// Method to update processing stage
-ProcessingJobSchema.methods.updateStage = function (stage, details = null) {
-    const previousStage = this.processingStage;
-    this.processingStage = stage;
-
-    this.addAuditEntry('stage_updated', `Stage changed from ${previousStage} to ${stage}`, details);
-};
-
-// Method to detect conflicts
-ProcessingJobSchema.methods.detectConflicts = function () {
-    const ammc = this.reportDetails.ammcReport;
-    const nia = this.reportDetails.niaReport;
-
-    if (!ammc || !nia) return false;
-
-    let conflictsDetected = false;
-    let conflictCount = 0;
-    let conflictTypes = [];
-    let conflictFlags = [];
-    let maxSeverity = 'low';
-
-    // Check recommendation conflicts
-    if (ammc.recommendation && nia.recommendation && ammc.recommendation !== nia.recommendation) {
-        conflictsDetected = true;
-        conflictCount++;
-        conflictTypes.push('recommendation_mismatch');
-        conflictFlags.push({
-            flagType: 'recommendation_mismatch',
-            description: `AMMC recommends ${ammc.recommendation}, NIA recommends ${nia.recommendation}`,
-            severity: 'high',
-            autoResolvable: false
-        });
-        maxSeverity = 'high';
-    }
-
-    // Check value discrepancies
-    if (ammc.findings?.estimatedValue && nia.findings?.estimatedValue) {
-        const ammcVal = ammc.findings.estimatedValue;
-        const niaVal = nia.findings.estimatedValue;
-        const discrepancy = Math.abs(ammcVal - niaVal) / Math.max(ammcVal, niaVal) * 100;
-
-        if (discrepancy > 20) {
-            conflictsDetected = true;
-            conflictCount++;
-            conflictTypes.push('value_discrepancy');
-
-            const severity = discrepancy > 50 ? 'critical' : discrepancy > 30 ? 'high' : 'medium';
-            conflictFlags.push({
-                flagType: 'value_discrepancy',
-                description: `Property value discrepancy: ${discrepancy.toFixed(1)}% difference`,
-                severity: severity,
-                autoResolvable: discrepancy < 30
-            });
-
-            if (severity === 'critical') maxSeverity = 'critical';
-            else if (severity === 'high' && maxSeverity !== 'critical') maxSeverity = 'high';
-            else if (severity === 'medium' && maxSeverity === 'low') maxSeverity = 'medium';
+    return this.aggregate([
+        { $match: { createdAt: { $gte: timeFilter } } },
+        {
+            $group: {
+                _id: {
+                    status: '$status',
+                    jobType: '$jobType'
+                },
+                count: { $sum: 1 },
+                avgDuration: {
+                    $avg: {
+                        $cond: [
+                            { $and: ['$startedAt', '$completedAt'] },
+                            { $subtract: ['$completedAt', '$startedAt'] },
+                            null
+                        ]
+                    }
+                }
+            }
         }
-    }
-
-    // Update conflict detection results
-    this.conflictDetection = {
-        conflictsDetected: conflictsDetected,
-        conflictCount: conflictCount,
-        conflictSeverity: conflictsDetected ? maxSeverity : null,
-        conflictTypes: conflictTypes,
-        conflictFlags: conflictFlags,
-        resolutionRequired: conflictsDetected && maxSeverity !== 'low'
-    };
-
-    return conflictsDetected;
+    ]);
 };
 
-// Method to add audit entry
-ProcessingJobSchema.methods.addAuditEntry = function (action, details, metadata = null) {
-    this.auditTrail.push({
-        action: action,
-        timestamp: new Date(),
-        performedBy: 'SYSTEM',
-        details: typeof details === 'string' ? details : JSON.stringify(details),
-        duration: null
-    });
-
-    // Keep only last 100 audit entries
-    if (this.auditTrail.length > 100) {
-        this.auditTrail = this.auditTrail.slice(-100);
-    }
+// Instance methods
+ProcessingJobSchema.methods.markAsCompleted = function (result) {
+    this.status = 'completed';
+    this.completedAt = new Date();
+    this.result = result;
+    return this.save();
 };
 
-// Method to update metrics
-ProcessingJobSchema.methods.updateMetrics = function (metrics) {
-    this.processingMetrics = {
-        ...this.processingMetrics,
-        ...metrics
-    };
+ProcessingJobSchema.methods.markAsFailed = function (error) {
+    this.status = 'failed';
+    this.completedAt = new Date();
+    this.error = error;
+    this.retryCount += 1;
+    return this.save();
 };
 
-// Virtual for processing time display
-ProcessingJobSchema.virtual('processingTimeDisplay').get(function () {
-    if (!this.processingDuration) return 'N/A';
+ProcessingJobSchema.methods.canRetry = function () {
+    return this.retryCount < this.maxRetries && this.status === 'failed';
+};
 
-    const minutes = Math.floor(this.processingDuration / 60);
-    const seconds = this.processingDuration % 60;
-
-    if (minutes > 0) {
-        return `${minutes}m ${seconds}s`;
-    }
-    return `${seconds}s`;
-});
-
-// Virtual for status display
-ProcessingJobSchema.virtual('statusDisplay').get(function () {
-    const statusMap = {
-        'pending': 'Pending',
-        'processing': 'Processing',
-        'completed': 'Completed',
-        'failed': 'Failed',
-        'cancelled': 'Cancelled'
-    };
-    return statusMap[this.processingStatus] || this.processingStatus;
-});
-
-// Virtual for conflict summary
-ProcessingJobSchema.virtual('conflictSummary').get(function () {
-    if (!this.conflictDetection.conflictsDetected) {
-        return 'No conflicts detected';
+ProcessingJobSchema.methods.retry = function () {
+    if (!this.canRetry()) {
+        throw new Error('Job cannot be retried');
     }
 
-    const count = this.conflictDetection.conflictCount;
-    const severity = this.conflictDetection.conflictSeverity;
-    return `${count} conflict${count > 1 ? 's' : ''} detected (${severity} severity)`;
-});
+    this.status = 'pending';
+    this.error = undefined;
+    this.completedAt = undefined;
+    return this.save();
+};
 
 module.exports = mongoose.model('ProcessingJob', ProcessingJobSchema);
