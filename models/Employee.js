@@ -14,7 +14,7 @@ const StatusSchema = new mongoose.Schema({
 const RoleSchema = new mongoose.Schema({
   role: {
     type: String,
-    enum: ['Super-admin', 'Admin', 'Staff', 'Surveyor'],
+    enum: ['Super-admin', 'Admin', 'Staff', 'Surveyor', 'NIA-Admin'],
     default: 'Staff'
   }
 })
@@ -55,19 +55,24 @@ const EmployeeSchema = new mongoose.Schema({
     ref: 'Role',
     required: [true, 'Please provide role']
   },
-  deleted: { 
-    type: Boolean, 
-    default: false 
+  organization: {
+    type: String,
+    enum: ['AMMC', 'NIA'],
+    default: 'AMMC'
   },
-}, {timestamps: true})
+  deleted: {
+    type: Boolean,
+    default: false
+  },
+}, { timestamps: true })
 
 
 EmployeeSchema.pre('save', async function () {
-    const salt = await bcrypt.genSalt(10)
-    if(this.isNew){
-        const objectId = this._id.toString()
-        this.password = await bcrypt.hash(objectId, salt)
-    }
+  const salt = await bcrypt.genSalt(10)
+  if (this.isNew) {
+    const objectId = this._id.toString()
+    this.password = await bcrypt.hash(objectId, salt)
+  }
 })
 
 EmployeeSchema.methods.createToken = async function () {
@@ -106,7 +111,7 @@ EmployeeSchema.methods.createJWT = async function () {
 }
 
 
-const Employee =  mongoose.model('Employee', EmployeeSchema)
+const Employee = mongoose.model('Employee', EmployeeSchema)
 const Status = mongoose.model('Status', StatusSchema)
 const Role = mongoose.model('Role', RoleSchema)
 

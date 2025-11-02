@@ -9,9 +9,11 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "reset-db": "node scripts/resetDatabase.js --force",
     "create-admin": "node scripts/createAdmin.js",
+    "create-nia-admin": "node scripts/createNIAAdmin.js",
     "migrate-fields": "node scripts/migrateFields.js --force",
     "db:reset": "node scripts/resetDatabase.js --force",
     "db:admin": "node scripts/createAdmin.js",
+    "db:nia-admin": "node scripts/createNIAAdmin.js",
     "db:migrate": "node scripts/migrateFields.js --force"
   },
   "keywords": [],
