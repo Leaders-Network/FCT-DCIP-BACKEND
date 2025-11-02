@@ -195,11 +195,19 @@ const deleteNIAAdmin = async (req, res) => {
 // Get NIA admin dashboard data
 const getNIADashboardData = async (req, res) => {
     try {
+        console.log('=== NIA Dashboard Debug ===');
+        console.log('req.user:', req.user);
+        console.log('req.niaAdmin:', req.niaAdmin);
+
         const { userId } = req.user;
+        console.log('Looking for NIAAdmin with userId:', userId);
 
         // Check if user is NIA admin
         const niaAdmin = await NIAAdmin.findOne({ userId, status: 'active' });
+        console.log('Found NIAAdmin:', niaAdmin ? 'Yes' : 'No');
+
         if (!niaAdmin) {
+            console.log('NIAAdmin not found for userId:', userId);
             return res.status(StatusCodes.FORBIDDEN).json({
                 success: false,
                 message: 'Access denied. NIA admin privileges required.'

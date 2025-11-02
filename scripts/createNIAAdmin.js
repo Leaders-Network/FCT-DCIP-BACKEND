@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 
 // Import models
 const { Employee, Status, Role } = require('../models/Employee');
+const NIAAdmin = require('../models/NIAAdmin');
 const connectDB = require('../database/connect');
 
 // NIA Admin account configuration
@@ -92,9 +93,42 @@ async function createNIAAdminAccount(adminConfig, activeStatus, niaAdminRole) {
         // Check if admin already exists
         const existingAdmin = await Employee.findOne({ email: adminConfig.email });
         if (existingAdmin) {
-            log(`⚠️  NIA admin account already exists for ${adminConfig.email}!`, 'yellow');
+            log(`⚠️  NIA admin employee already exists for ${adminConfig.email}!`, 'yellow');
+
+            // Check if NIAAdmin record exists
+            const existingNIAAdmin = await NIAAdmin.findOne({ userId: existingAdmin._id });
+            if (!existingNIAAdmin) {
+                log(`🔧 Creating missing NIAAdmin record...`, 'yellow');
+
+                // Create NIAAdmin record for existing employee
+                const niaAdminData = {
+                    userId: existingAdmin._id,
+                    organization: 'NIA',
+                    permissions: {
+                        canAssignSurveyors: true,
+                        canManageSurveyors: true,
+                        canViewReports: true,
+                        canResolveConflicts: true,
+                        canAccessAnalytics: true
+                    },
+                    profile: {
+                        department: 'National Intelligence Agency',
+                        position: 'Administrator'
+                    },
+                    status: 'active'
+                };
+
+                const niaAdmin = await NIAAdmin.create(niaAdminData);
+                log(`✅ NIAAdmin record created for ${adminConfig.email}!`, 'green');
+                log(`🆔 NIA Admin ID: ${niaAdmin._id}`, 'cyan');
+
+                return { adminEmployee: existingAdmin, niaAdmin };
+            } else {
+                log(`✅ NIAAdmin record already exists for ${adminConfig.email}!`, 'green');
+            }
+
             log(`📧 Email: ${existingAdmin.email}`, 'cyan');
-            return existingAdmin;
+            return { adminEmployee: existingAdmin, niaAdmin: existingNIAAdmin };
         }
 
         // Hash the password
@@ -123,12 +157,33 @@ async function createNIAAdminAccount(adminConfig, activeStatus, niaAdminRole) {
         const adminEmployee = await Employee.findById(result.insertedId)
             .populate(['employeeRole', 'employeeStatus']);
 
+        // Create corresponding NIAAdmin record
+        const niaAdminData = {
+            userId: result.insertedId,
+            organization: 'NIA',
+            permissions: {
+                canAssignSurveyors: true,
+                canManageSurveyors: true,
+                canViewReports: true,
+                canResolveConflicts: true,
+                canAccessAnalytics: true
+            },
+            profile: {
+                department: 'National Intelligence Agency',
+                position: 'Administrator'
+            },
+            status: 'active'
+        };
+
+        const niaAdmin = await NIAAdmin.create(niaAdminData);
+
         log(`✅ NIA admin account created successfully for ${adminConfig.firstname} ${adminConfig.lastname}!`, 'green');
         log(`📧 Email: ${adminConfig.email}`, 'cyan');
         log(`🔑 Password: ${adminConfig.password}`, 'cyan');
         log(`🏢 Organization: ${adminConfig.organization}`, 'cyan');
+        log(`🆔 NIA Admin ID: ${niaAdmin._id}`, 'cyan');
 
-        return adminEmployee;
+        return { adminEmployee, niaAdmin };
 
     } catch (error) {
         log(`❌ Error creating NIA admin account: ${error.message}`, 'red');
