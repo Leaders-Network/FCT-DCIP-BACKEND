@@ -10,7 +10,7 @@ const { protect, restrictTo } = require('../middlewares/authentication');
 // @route   GET /api/v1/admin/processing-monitor/overview
 // @desc    Get processing overview statistics
 // @access  Private (Admin)
-router.get('/overview', protect, restrictTo('Admin', 'Super-admin'), async (req, res) => {
+router.get('/overview', protect, restrictTo('Admin', 'Super-admin', 'NIA-Admin'), async (req, res) => {
     try {
         const { organization, timeframe = '24h' } = req.query;
 
@@ -114,7 +114,7 @@ router.get('/overview', protect, restrictTo('Admin', 'Super-admin'), async (req,
 // @route   GET /api/v1/admin/processing-monitor/active-processing
 // @desc    Get currently active processing jobs
 // @access  Private (Admin)
-router.get('/active-processing', protect, restrictTo('Admin', 'Super-admin'), async (req, res) => {
+router.get('/active-processing', protect, restrictTo('Admin', 'Super-admin', 'NIA-Admin'), async (req, res) => {
     try {
         const { organization } = req.query;
 
@@ -176,7 +176,7 @@ router.get('/active-processing', protect, restrictTo('Admin', 'Super-admin'), as
 // @route   GET /api/v1/admin/processing-monitor/performance-metrics
 // @desc    Get processing performance metrics
 // @access  Private (Admin)
-router.get('/performance-metrics', protect, restrictTo('Admin', 'Super-admin'), async (req, res) => {
+router.get('/performance-metrics', protect, restrictTo('Admin', 'Super-admin', 'NIA-Admin'), async (req, res) => {
     try {
         const { timeframe = '7d', organization } = req.query;
         const timeFilter = getTimeFilter(timeframe);
@@ -298,7 +298,7 @@ router.get('/performance-metrics', protect, restrictTo('Admin', 'Super-admin'), 
 // @route   GET /api/v1/admin/processing-monitor/system-health
 // @desc    Get system health indicators
 // @access  Private (Admin)
-router.get('/system-health', protect, restrictTo('Admin', 'Super-admin'), async (req, res) => {
+router.get('/system-health', protect, restrictTo('Admin', 'Super-admin', 'NIA-Admin'), async (req, res) => {
     try {
         const now = new Date();
         const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
@@ -399,7 +399,7 @@ router.get('/system-health', protect, restrictTo('Admin', 'Super-admin'), async 
 // @route   GET /api/v1/admin/processing-monitor/recent-activity
 // @desc    Get recent processing activity feed
 // @access  Private (Admin)
-router.get('/recent-activity', protect, restrictTo('Admin', 'Super-admin'), async (req, res) => {
+router.get('/recent-activity', protect, restrictTo('Admin', 'Super-admin', 'NIA-Admin'), async (req, res) => {
     try {
         const { limit = 50, organization } = req.query;
         const timeFilter = new Date(Date.now() - 24 * 60 * 60 * 1000); // Last 24 hours
