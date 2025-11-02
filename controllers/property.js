@@ -26,14 +26,14 @@ const adminGetAllProperties = async (req, res) => {
 const getUserProperties = async (req, res) => {
   try {
     const { userId } = req.user;
-    const properties = await Property.find({ 
-      ownedBy: userId, 
-      deleted: { $ne: true } 
+    const properties = await Property.find({
+      ownedBy: userId,
+      deleted: { $ne: true }
     }).populate('category');
-    
+
     res.status(StatusCodes.OK).json({
       success: true,
-      data: { count: properties.length, properties }
+      allProperties: { count: properties.length, properties }
     });
   } catch (error) {
     console.error('Get user properties error:', error);
@@ -50,12 +50,12 @@ const deleteProperty = async (req, res) => {
   try {
     const { propertyId } = req.params;
     const { userId, role } = req.user;
-    
+
     const property = await Property.findById(propertyId);
     if (!property) {
       throw new NotFoundError('Property not found');
     }
-    
+
     // Check permissions - users can only delete their own properties
     if (role === 'User' && property.ownedBy.toString() !== userId) {
       return res.status(StatusCodes.FORBIDDEN).json({
@@ -63,7 +63,7 @@ const deleteProperty = async (req, res) => {
         message: 'You can only delete your own properties'
       });
     }
-    
+
     // Check if property is already deleted
     if (property.deleted) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -71,21 +71,21 @@ const deleteProperty = async (req, res) => {
         message: 'Property is already deleted'
       });
     }
-    
+
     // Check if property is referenced in any active policy requests
     const PolicyRequest = require('../models/PolicyRequest');
     const activePolicyRequests = await PolicyRequest.find({
       propertyId: propertyId,
       status: { $in: ['submitted', 'assigned', 'surveyed', 'approved'] }
     });
-    
+
     if (activePolicyRequests.length > 0) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: 'Cannot delete property with active policy requests. Please complete or cancel related policies first.'
       });
     }
-    
+
     if (role === 'Admin' || role === 'Super-admin') {
       // Soft delete for admin
       property.deleted = true;
@@ -95,7 +95,7 @@ const deleteProperty = async (req, res) => {
       // Hard delete for users (only if no policy references)
       await Property.findByIdAndDelete(propertyId);
     }
-    
+
     res.status(StatusCodes.OK).json({
       success: true,
       message: 'Property deleted successfully'
@@ -114,23 +114,23 @@ const deleteProperty = async (req, res) => {
 const restoreProperty = async (req, res) => {
   try {
     const { propertyId } = req.params;
-    
+
     const property = await Property.findById(propertyId);
     if (!property) {
       throw new NotFoundError('Property not found');
     }
-    
+
     if (!property.deleted) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
         message: 'Property is not deleted'
       });
     }
-    
+
     property.deleted = false;
     property.status = 'Unverified';
     await property.save();
-    
+
     res.status(StatusCodes.OK).json({
       success: true,
       message: 'Property restored successfully',
