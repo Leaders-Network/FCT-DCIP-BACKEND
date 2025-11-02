@@ -32,6 +32,7 @@ const adminDashboardEnhancedRouter = require('./routes/adminDashboardEnhanced');
 const reportMergingRouter = require('./routes/reportMerging');
 const scheduledProcessorRouter = require('./routes/scheduledProcessor');
 const policyStatusRouter = require('./routes/policyStatus');
+const paymentDecisionRouter = require('./routes/paymentDecision');
 const notFoundMiddleware = require('./middlewares/not-found');
 const errorHandlerMiddleware = require('./middlewares/error-handler');
 const helmet = require('helmet');
@@ -79,6 +80,7 @@ app.use('/api/v1/admin/dashboard-enhanced', adminDashboardEnhancedRouter);
 app.use('/api/v1/report-merging', reportMergingRouter);
 app.use('/api/v1/scheduled-processor', scheduledProcessorRouter);
 app.use('/api/v1/policy-status', policyStatusRouter);
+app.use('/api/v1/payment-decision', paymentDecisionRouter);
 app.get('/', (req, res) => { res.send('<h3>DEPLOYED !</h3>') })
 
 app.use(notFoundMiddleware);

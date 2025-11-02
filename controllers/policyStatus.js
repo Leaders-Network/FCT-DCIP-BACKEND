@@ -1,5 +1,5 @@
 const { StatusCodes } = require('http-status-codes');
-const Policy = require('../models/Policy');
+const PolicyRequest = require('../models/PolicyRequest');
 const DualAssignment = require('../models/DualAssignment');
 const MergedReport = require('../models/MergedReport');
 const Assignment = require('../models/Assignment');
@@ -13,7 +13,7 @@ const getEnhancedPolicyStatus = async (req, res) => {
         const { policyId } = req.params;
 
         // Get policy details
-        const policy = await Policy.findById(policyId);
+        const policy = await PolicyRequest.findById(policyId);
         if (!policy) {
             return res.status(StatusCodes.NOT_FOUND).json({
                 success: false,
@@ -83,7 +83,7 @@ const getPolicyStatusHistory = async (req, res) => {
     try {
         const { policyId } = req.params;
 
-        const policy = await Policy.findById(policyId);
+        const policy = await PolicyRequest.findById(policyId);
         if (!policy) {
             return res.status(StatusCodes.NOT_FOUND).json({
                 success: false,
@@ -205,7 +205,7 @@ const getEstimatedTimeline = async (req, res) => {
     try {
         const { policyId } = req.params;
 
-        const policy = await Policy.findById(policyId);
+        const policy = await PolicyRequest.findById(policyId);
         if (!policy) {
             return res.status(StatusCodes.NOT_FOUND).json({
                 success: false,

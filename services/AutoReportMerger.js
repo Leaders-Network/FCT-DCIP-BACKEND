@@ -399,6 +399,20 @@ class AutoReportMerger {
             await this.createConflictFlags(mergedReport, mergeResult.conflicts);
         }
 
+        // Trigger payment decision processing if report is approved for release
+        if (mergedReport.releaseStatus === 'approved') {
+            setImmediate(async () => {
+                try {
+                    const PaymentDecisionEngine = require('./PaymentDecisionEngine');
+                    const paymentEngine = new PaymentDecisionEngine();
+                    await paymentEngine.analyzePaymentDecision(mergedReport._id);
+                    console.log(`💰 Payment decision processed for report: ${mergedReport._id}`);
+                } catch (error) {
+                    console.error(`❌ Payment decision processing failed for report: ${mergedReport._id}`, error);
+                }
+            });
+        }
+
         return mergedReport;
     }
 
