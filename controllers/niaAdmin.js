@@ -608,6 +608,55 @@ const updateSurveyorStatus = async (req, res) => {
     }
 };
 
+// Delete NIA surveyor
+const deleteSurveyor = async (req, res) => {
+    try {
+        const { surveyorId } = req.params;
+
+        // Check if surveyor exists
+        const surveyor = await Surveyor.findById(surveyorId);
+        if (!surveyor) {
+            return res.status(StatusCodes.NOT_FOUND).json({
+                success: false,
+                message: 'Surveyor not found'
+            });
+        }
+
+        // Check if surveyor has active assignments
+        const activeAssignments = await Assignment.countDocuments({
+            surveyorId: surveyor.userId,
+            status: { $in: ['assigned', 'in-progress'] }
+        });
+
+        if (activeAssignments > 0) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                success: false,
+                message: `Cannot delete surveyor with ${activeAssignments} active assignment(s). Please complete or reassign them first.`
+            });
+        }
+
+        // Delete the surveyor profile
+        await Surveyor.findByIdAndDelete(surveyorId);
+
+        // Optionally, you might want to deactivate the employee instead of deleting
+        // await Employee.findByIdAndUpdate(surveyor.userId, { 
+        //     employeeStatus: await Status.findOne({ status: 'Inactive' })
+        // });
+
+        res.status(StatusCodes.OK).json({
+            success: true,
+            message: 'Surveyor deleted successfully'
+        });
+    } catch (error) {
+        console.error('Delete surveyor error:', error);
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: 'Failed to delete surveyor',
+            error: error.message
+        });
+    }
+};
+
 
 
 // Check NIA admin permissions
@@ -656,5 +705,6 @@ module.exports = {
     getSurveyors,
     createSurveyor,
     updateSurveyor,
-    updateSurveyorStatus
+    updateSurveyorStatus,
+    deleteSurveyor
 };

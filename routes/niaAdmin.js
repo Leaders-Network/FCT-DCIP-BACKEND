@@ -12,7 +12,8 @@ const {
     getSurveyors,
     createSurveyor,
     updateSurveyor,
-    updateSurveyorStatus
+    updateSurveyorStatus,
+    deleteSurveyor
 } = require('../controllers/niaAdmin');
 
 const { protect } = require('../middlewares/authentication');
@@ -46,6 +47,9 @@ router.put('/surveyors/:surveyorId', requireNIAAdmin, requireNIAPermission('canM
 
 // Update surveyor status (requires NIA admin access)
 router.patch('/surveyors/:surveyorId/status', requireNIAAdmin, requireNIAPermission('canManageSurveyors'), logNIAAdminActivity('UPDATE_SURVEYOR_STATUS'), updateSurveyorStatus);
+
+// Delete surveyor (requires NIA admin access)
+router.delete('/surveyors/:surveyorId', requireNIAAdmin, requireNIAPermission('canManageSurveyors'), logNIAAdminActivity('DELETE_SURVEYOR'), deleteSurveyor);
 
 // Update login information (requires NIA admin access)
 router.post('/login', requireNIAAdmin, updateNIAAdminLogin);
