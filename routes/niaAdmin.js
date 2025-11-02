@@ -9,7 +9,10 @@ const {
     getNIADashboardData,
     updateNIAAdminLogin,
     checkNIAAdminPermission,
-    getSurveyors
+    getSurveyors,
+    createSurveyor,
+    updateSurveyor,
+    updateSurveyorStatus
 } = require('../controllers/niaAdmin');
 
 const { protect } = require('../middlewares/authentication');
@@ -34,6 +37,15 @@ router.get('/dashboard', requireNIAAdmin, logNIAAdminActivity('ACCESS_DASHBOARD'
 
 // Get surveyors (requires NIA admin access)
 router.get('/surveyors', requireNIAAdmin, requireNIAPermission('canManageSurveyors'), getSurveyors);
+
+// Create surveyor (requires NIA admin access)
+router.post('/surveyors', requireNIAAdmin, requireNIAPermission('canManageSurveyors'), logNIAAdminActivity('CREATE_SURVEYOR'), createSurveyor);
+
+// Update surveyor (requires NIA admin access)
+router.put('/surveyors/:surveyorId', requireNIAAdmin, requireNIAPermission('canManageSurveyors'), logNIAAdminActivity('UPDATE_SURVEYOR'), updateSurveyor);
+
+// Update surveyor status (requires NIA admin access)
+router.patch('/surveyors/:surveyorId/status', requireNIAAdmin, requireNIAPermission('canManageSurveyors'), logNIAAdminActivity('UPDATE_SURVEYOR_STATUS'), updateSurveyorStatus);
 
 // Update login information (requires NIA admin access)
 router.post('/login', requireNIAAdmin, updateNIAAdminLogin);

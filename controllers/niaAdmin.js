@@ -1,5 +1,5 @@
 const NIAAdmin = require('../models/NIAAdmin');
-const Employee = require('../models/Employee');
+const { Employee, Role, Status } = require('../models/Employee');
 const Surveyor = require('../models/Surveyor');
 const DualAssignment = require('../models/DualAssignment');
 const Assignment = require('../models/Assignment');
@@ -346,133 +346,79 @@ const getSurveyors = async (req, res) => {
             search
         } = req.query;
 
-        // Mock data for development when database is not available
-        const mockSurveyors = [
-            {
-                _id: '507f1f77bcf86cd799439011',
-                userId: {
-                    firstname: 'John',
-                    lastname: 'Doe',
-                    email: 'john.doe@nia.gov.ng',
-                    phonenumber: '+234-801-234-5678'
-                },
-                profile: {
-                    specialization: ['residential', 'commercial'],
-                    availability: 'available',
-                    experience: 5,
-                    location: {
-                        state: 'FCT',
-                        city: 'Abuja',
-                        area: ['Wuse', 'Garki']
-                    }
-                },
-                status: 'active',
-                organization: 'NIA',
-                rating: 4.5,
-                assignmentStats: {
-                    total: 25,
-                    completed: 20,
-                    inProgress: 3,
-                    pending: 2
-                },
-                createdAt: new Date('2024-01-15')
-            },
-            {
-                _id: '507f1f77bcf86cd799439012',
-                userId: {
-                    firstname: 'Jane',
-                    lastname: 'Smith',
-                    email: 'jane.smith@nia.gov.ng',
-                    phonenumber: '+234-802-345-6789'
-                },
-                profile: {
-                    specialization: ['industrial', 'agricultural'],
-                    availability: 'busy',
-                    experience: 8,
-                    location: {
-                        state: 'FCT',
-                        city: 'Abuja',
-                        area: ['Maitama', 'Asokoro']
-                    }
-                },
-                status: 'active',
-                organization: 'NIA',
-                rating: 4.8,
-                assignmentStats: {
-                    total: 40,
-                    completed: 35,
-                    inProgress: 4,
-                    pending: 1
-                },
-                createdAt: new Date('2024-01-10')
-            },
-            {
-                _id: '507f1f77bcf86cd799439013',
-                userId: {
-                    firstname: 'Michael',
-                    lastname: 'Johnson',
-                    email: 'michael.johnson@nia.gov.ng',
-                    phonenumber: '+234-803-456-7890'
-                },
-                profile: {
-                    specialization: ['residential'],
-                    availability: 'available',
-                    experience: 3,
-                    location: {
-                        state: 'FCT',
-                        city: 'Abuja',
-                        area: ['Kubwa', 'Nyanya']
-                    }
-                },
-                status: 'active',
-                organization: 'NIA',
-                rating: 4.2,
-                assignmentStats: {
-                    total: 15,
-                    completed: 12,
-                    inProgress: 2,
-                    pending: 1
-                },
-                createdAt: new Date('2024-02-01')
-            }
-        ];
-
-        // Apply filters to mock data
-        let filteredSurveyors = mockSurveyors;
+        // Build filter for NIA organization
+        const filter = { organization: 'NIA' };
 
         if (status && status !== 'all') {
-            filteredSurveyors = filteredSurveyors.filter(s => s.status === status);
+            filter.status = status;
         }
 
         if (availability && availability !== 'all') {
-            filteredSurveyors = filteredSurveyors.filter(s => s.profile.availability === availability);
+            filter['profile.availability'] = availability;
         }
 
         if (specialization && specialization !== 'all') {
-            filteredSurveyors = filteredSurveyors.filter(s =>
-                s.profile.specialization.includes(specialization)
-            );
+            filter['profile.specialization'] = { $in: [specialization] };
         }
 
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+
+        // Get surveyors with populated user data
+        const surveyors = await Surveyor.find(filter)
+            .populate('userId', 'firstname lastname email phonenumber')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        const total = await Surveyor.countDocuments(filter);
+
+        // Get assignment statistics for each surveyor
+        const surveyorsWithStats = await Promise.all(
+            surveyors.map(async (surveyor) => {
+                const assignmentStats = await Assignment.aggregate([
+                    { $match: { surveyorId: surveyor.userId._id } },
+                    {
+                        $group: {
+                            _id: '$status',
+                            count: { $sum: 1 }
+                        }
+                    }
+                ]);
+
+                const stats = assignmentStats.reduce((acc, stat) => {
+                    acc[stat._id] = stat.count;
+                    return acc;
+                }, {});
+
+                return {
+                    ...surveyor.toObject(),
+                    assignmentStats: {
+                        total: Object.values(stats).reduce((sum, count) => sum + count, 0),
+                        completed: stats.completed || 0,
+                        inProgress: stats['in-progress'] || 0,
+                        pending: stats.pending || 0
+                    }
+                };
+            })
+        );
+
+        // Apply search filter to populated data
+        let filteredSurveyors = surveyorsWithStats;
         if (search) {
             const searchLower = search.toLowerCase();
-            filteredSurveyors = filteredSurveyors.filter(s =>
-                s.userId.firstname.toLowerCase().includes(searchLower) ||
-                s.userId.lastname.toLowerCase().includes(searchLower) ||
-                s.userId.email.toLowerCase().includes(searchLower) ||
-                s.userId.phonenumber.includes(search)
+            filteredSurveyors = surveyorsWithStats.filter(s =>
+                s.userId?.firstname?.toLowerCase().includes(searchLower) ||
+                s.userId?.lastname?.toLowerCase().includes(searchLower) ||
+                s.userId?.email?.toLowerCase().includes(searchLower) ||
+                s.userId?.phonenumber?.includes(search) ||
+                s.licenseNumber?.toLowerCase().includes(searchLower)
             );
         }
-
-        // Pagination
-        const total = filteredSurveyors.length;
-        const skip = (parseInt(page) - 1) * parseInt(limit);
-        const paginatedSurveyors = filteredSurveyors.slice(skip, skip + parseInt(limit));
 
         res.status(StatusCodes.OK).json({
             success: true,
             data: {
-                surveyors: paginatedSurveyors,
+                surveyors: filteredSurveyors,
                 pagination: {
                     currentPage: parseInt(page),
                     totalPages: Math.ceil(total / parseInt(limit)),
@@ -490,6 +436,179 @@ const getSurveyors = async (req, res) => {
         });
     }
 };
+
+// Create NIA surveyor
+const createSurveyor = async (req, res) => {
+    try {
+        console.log('Create surveyor request body:', req.body);
+
+        const {
+            firstname,
+            lastname,
+            email,
+            phonenumber,
+            specializations,
+            licenseNumber,
+            address,
+            emergencyContact,
+            experience,
+            location
+        } = req.body;
+
+        // Validate specializations
+        const validSpecializations = ['residential', 'commercial', 'industrial', 'agricultural'];
+        const invalidSpecs = specializations?.filter(spec => !validSpecializations.includes(spec));
+        if (invalidSpecs && invalidSpecs.length > 0) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                success: false,
+                message: `Invalid specializations: ${invalidSpecs.join(', ')}. Valid options are: ${validSpecializations.join(', ')}`
+            });
+        }
+
+        // Validate phone number format
+        const phoneRegex = /^(?:\+234\d{10}|234\d{10}|0\d{10})$/;
+        if (!phoneRegex.test(phonenumber)) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                success: false,
+                message: 'Invalid phone number format. Use: +234xxxxxxxxxx, 234xxxxxxxxxx, or 0xxxxxxxxxx'
+            });
+        }
+
+        // Check if user already exists
+        const existingUser = await Employee.findOne({ email });
+        if (existingUser) {
+            return res.status(StatusCodes.CONFLICT).json({
+                success: false,
+                message: 'User with this email already exists'
+            });
+        }
+
+        // Create employee record first
+        const employee = new Employee({
+            firstname,
+            lastname,
+            email,
+            phonenumber,
+            employeeRole: await Role.findOne({ role: 'Surveyor' }),
+            employeeStatus: await Status.findOne({ status: 'Active' }),
+            organization: 'NIA'
+        });
+
+        await employee.save();
+
+        // Create surveyor profile
+        const surveyor = new Surveyor({
+            userId: employee._id,
+            profile: {
+                specialization: specializations || ['residential'],
+                experience: experience || 0,
+                location: location || {
+                    state: 'FCT',
+                    city: 'Abuja',
+                    area: []
+                },
+                availability: 'available'
+            },
+            emergencyContact: emergencyContact || '',
+            address: address || '',
+            licenseNumber: licenseNumber || '',
+            organization: 'NIA',
+            status: 'active'
+        });
+
+        await surveyor.save();
+
+        // Populate the response
+        await surveyor.populate('userId', 'firstname lastname email phonenumber');
+
+        res.status(StatusCodes.CREATED).json({
+            success: true,
+            message: 'NIA surveyor created successfully',
+            data: surveyor
+        });
+    } catch (error) {
+        console.error('Create surveyor error:', error);
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: 'Failed to create surveyor',
+            error: error.message
+        });
+    }
+};
+
+// Update NIA surveyor
+const updateSurveyor = async (req, res) => {
+    try {
+        const { surveyorId } = req.params;
+        const updateData = req.body;
+
+        const surveyor = await Surveyor.findById(surveyorId);
+        if (!surveyor) {
+            return res.status(StatusCodes.NOT_FOUND).json({
+                success: false,
+                message: 'Surveyor not found'
+            });
+        }
+
+        // Update surveyor fields
+        Object.keys(updateData).forEach(key => {
+            if (key === 'profile') {
+                surveyor.profile = { ...surveyor.profile, ...updateData.profile };
+            } else {
+                surveyor[key] = updateData[key];
+            }
+        });
+
+        await surveyor.save();
+        await surveyor.populate('userId', 'firstname lastname email phonenumber');
+
+        res.status(StatusCodes.OK).json({
+            success: true,
+            message: 'Surveyor updated successfully',
+            data: surveyor
+        });
+    } catch (error) {
+        console.error('Update surveyor error:', error);
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: 'Failed to update surveyor',
+            error: error.message
+        });
+    }
+};
+
+// Update surveyor status
+const updateSurveyorStatus = async (req, res) => {
+    try {
+        const { surveyorId } = req.params;
+        const { status } = req.body;
+
+        const surveyor = await Surveyor.findById(surveyorId);
+        if (!surveyor) {
+            return res.status(StatusCodes.NOT_FOUND).json({
+                success: false,
+                message: 'Surveyor not found'
+            });
+        }
+
+        surveyor.status = status;
+        await surveyor.save();
+
+        res.status(StatusCodes.OK).json({
+            success: true,
+            message: 'Surveyor status updated successfully'
+        });
+    } catch (error) {
+        console.error('Update surveyor status error:', error);
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: 'Failed to update surveyor status',
+            error: error.message
+        });
+    }
+};
+
+
 
 // Check NIA admin permissions
 const checkNIAAdminPermission = async (req, res) => {
@@ -534,5 +653,8 @@ module.exports = {
     getNIADashboardData,
     updateNIAAdminLogin,
     checkNIAAdminPermission,
-    getSurveyors
+    getSurveyors,
+    createSurveyor,
+    updateSurveyor,
+    updateSurveyorStatus
 };
