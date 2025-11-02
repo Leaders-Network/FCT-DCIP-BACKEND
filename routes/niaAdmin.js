@@ -8,7 +8,8 @@ const {
     deleteNIAAdmin,
     getNIADashboardData,
     updateNIAAdminLogin,
-    checkNIAAdminPermission
+    checkNIAAdminPermission,
+    getSurveyors
 } = require('../controllers/niaAdmin');
 
 const { protect } = require('../middlewares/authentication');
@@ -30,6 +31,9 @@ router.get('/', requireNIAAdmin, requireNIAPermission('canManageSurveyors'), get
 
 // Get NIA dashboard data (requires NIA admin access)
 router.get('/dashboard', requireNIAAdmin, logNIAAdminActivity('ACCESS_DASHBOARD'), getNIADashboardData);
+
+// Get surveyors (requires NIA admin access)
+router.get('/surveyors', requireNIAAdmin, requireNIAPermission('canManageSurveyors'), getSurveyors);
 
 // Update login information (requires NIA admin access)
 router.post('/login', requireNIAAdmin, updateNIAAdminLogin);

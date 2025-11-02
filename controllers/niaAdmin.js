@@ -334,6 +334,163 @@ const updateNIAAdminLogin = async (req, res) => {
     }
 };
 
+// Get surveyors for NIA admin
+const getSurveyors = async (req, res) => {
+    try {
+        const {
+            page = 1,
+            limit = 10,
+            status,
+            availability,
+            specialization,
+            search
+        } = req.query;
+
+        // Mock data for development when database is not available
+        const mockSurveyors = [
+            {
+                _id: '507f1f77bcf86cd799439011',
+                userId: {
+                    firstname: 'John',
+                    lastname: 'Doe',
+                    email: 'john.doe@nia.gov.ng',
+                    phonenumber: '+234-801-234-5678'
+                },
+                profile: {
+                    specialization: ['residential', 'commercial'],
+                    availability: 'available',
+                    experience: 5,
+                    location: {
+                        state: 'FCT',
+                        city: 'Abuja',
+                        area: ['Wuse', 'Garki']
+                    }
+                },
+                status: 'active',
+                organization: 'NIA',
+                rating: 4.5,
+                assignmentStats: {
+                    total: 25,
+                    completed: 20,
+                    inProgress: 3,
+                    pending: 2
+                },
+                createdAt: new Date('2024-01-15')
+            },
+            {
+                _id: '507f1f77bcf86cd799439012',
+                userId: {
+                    firstname: 'Jane',
+                    lastname: 'Smith',
+                    email: 'jane.smith@nia.gov.ng',
+                    phonenumber: '+234-802-345-6789'
+                },
+                profile: {
+                    specialization: ['industrial', 'agricultural'],
+                    availability: 'busy',
+                    experience: 8,
+                    location: {
+                        state: 'FCT',
+                        city: 'Abuja',
+                        area: ['Maitama', 'Asokoro']
+                    }
+                },
+                status: 'active',
+                organization: 'NIA',
+                rating: 4.8,
+                assignmentStats: {
+                    total: 40,
+                    completed: 35,
+                    inProgress: 4,
+                    pending: 1
+                },
+                createdAt: new Date('2024-01-10')
+            },
+            {
+                _id: '507f1f77bcf86cd799439013',
+                userId: {
+                    firstname: 'Michael',
+                    lastname: 'Johnson',
+                    email: 'michael.johnson@nia.gov.ng',
+                    phonenumber: '+234-803-456-7890'
+                },
+                profile: {
+                    specialization: ['residential'],
+                    availability: 'available',
+                    experience: 3,
+                    location: {
+                        state: 'FCT',
+                        city: 'Abuja',
+                        area: ['Kubwa', 'Nyanya']
+                    }
+                },
+                status: 'active',
+                organization: 'NIA',
+                rating: 4.2,
+                assignmentStats: {
+                    total: 15,
+                    completed: 12,
+                    inProgress: 2,
+                    pending: 1
+                },
+                createdAt: new Date('2024-02-01')
+            }
+        ];
+
+        // Apply filters to mock data
+        let filteredSurveyors = mockSurveyors;
+
+        if (status && status !== 'all') {
+            filteredSurveyors = filteredSurveyors.filter(s => s.status === status);
+        }
+
+        if (availability && availability !== 'all') {
+            filteredSurveyors = filteredSurveyors.filter(s => s.profile.availability === availability);
+        }
+
+        if (specialization && specialization !== 'all') {
+            filteredSurveyors = filteredSurveyors.filter(s =>
+                s.profile.specialization.includes(specialization)
+            );
+        }
+
+        if (search) {
+            const searchLower = search.toLowerCase();
+            filteredSurveyors = filteredSurveyors.filter(s =>
+                s.userId.firstname.toLowerCase().includes(searchLower) ||
+                s.userId.lastname.toLowerCase().includes(searchLower) ||
+                s.userId.email.toLowerCase().includes(searchLower) ||
+                s.userId.phonenumber.includes(search)
+            );
+        }
+
+        // Pagination
+        const total = filteredSurveyors.length;
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        const paginatedSurveyors = filteredSurveyors.slice(skip, skip + parseInt(limit));
+
+        res.status(StatusCodes.OK).json({
+            success: true,
+            data: {
+                surveyors: paginatedSurveyors,
+                pagination: {
+                    currentPage: parseInt(page),
+                    totalPages: Math.ceil(total / parseInt(limit)),
+                    totalItems: total,
+                    itemsPerPage: parseInt(limit)
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Get surveyors error:', error);
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: 'Failed to get surveyors',
+            error: error.message
+        });
+    }
+};
+
 // Check NIA admin permissions
 const checkNIAAdminPermission = async (req, res) => {
     try {
@@ -376,5 +533,6 @@ module.exports = {
     deleteNIAAdmin,
     getNIADashboardData,
     updateNIAAdminLogin,
-    checkNIAAdminPermission
+    checkNIAAdminPermission,
+    getSurveyors
 };
