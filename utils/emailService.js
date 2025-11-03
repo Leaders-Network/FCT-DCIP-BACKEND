@@ -436,9 +436,336 @@ const sendReportAvailableNotification = async (userEmail, reportData) => {
     }
 };
 
+/**
+ * Send conflict inquiry notification to admins
+ */
+const sendConflictInquiryNotification = async (adminEmail, inquiry) => {
+    try {
+        const transporter = createTransporter();
+
+        const mailOptions = {
+            from: process.env.SMTP_FROM || process.env.SMTP_USER,
+            to: adminEmail,
+            subject: `🔍 New User Conflict Inquiry - ${inquiry.referenceId}`,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                        <h2 style="color: #dc3545; margin: 0;">🔍 New Conflict Inquiry</h2>
+                        <p style="margin: 10px 0 0 0; color: #6c757d;">
+                            A user has submitted a conflict inquiry that requires your attention
+                        </p>
+                    </div>
+                    
+                    <div style="background: white; padding: 20px; border: 1px solid #dee2e6; border-radius: 8px;">
+                        <h3 style="color: #495057; margin-top: 0;">Inquiry Details</h3>
+                        
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Reference ID:</td>
+                                <td style="padding: 8px 0;">${inquiry.referenceId}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Policy ID:</td>
+                                <td style="padding: 8px 0;">${inquiry.policyId}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Conflict Type:</td>
+                                <td style="padding: 8px 0;">
+                                    <span style="background: #ffc107; color: #212529; padding: 2px 8px; border-radius: 4px; font-size: 12px;">
+                                        ${inquiry.conflictType.toUpperCase().replace('_', ' ')}
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Urgency:</td>
+                                <td style="padding: 8px 0;">
+                                    <span style="background: ${getUrgencyColor(inquiry.urgency)}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">
+                                        ${inquiry.urgency.toUpperCase()}
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">User Contact:</td>
+                                <td style="padding: 8px 0;">${inquiry.userContact.email}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Contact Preference:</td>
+                                <td style="padding: 8px 0;">${inquiry.contactPreference}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Submitted:</td>
+                                <td style="padding: 8px 0;">${new Date(inquiry.createdAt).toLocaleString()}</td>
+                            </tr>
+                        </table>
+                        
+                        <div style="margin-top: 20px;">
+                            <h4 style="color: #495057; margin-bottom: 10px;">Description</h4>
+                            <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; border-left: 4px solid #007bff;">
+                                <p style="margin: 0; color: #495057; line-height: 1.5;">
+                                    ${inquiry.description}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px;">
+                            <h4 style="margin: 0 0 10px 0; color: #495057;">Next Steps</h4>
+                            <ul style="margin: 0; padding-left: 20px; color: #6c757d;">
+                                <li>Review the user's concern and related policy details</li>
+                                <li>Investigate the reported conflict or issue</li>
+                                <li>Contact the user using their preferred method</li>
+                                <li>Provide a resolution or explanation</li>
+                                <li>Update the inquiry status in the system</li>
+                            </ul>
+                        </div>
+                        
+                        <div style="margin-top: 20px; text-align: center;">
+                            <a href="${process.env.FRONTEND_URL}/admin/conflict-inquiries/${inquiry._id}" 
+                               style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
+                                Review Inquiry
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 20px; text-align: center; color: #6c757d; font-size: 12px;">
+                        <p>This is an automated notification from the FCT-DCIP System</p>
+                        <p>Please do not reply to this email</p>
+                    </div>
+                </div>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`✅ Conflict inquiry notification sent to ${adminEmail}`);
+
+    } catch (error) {
+        console.error(`❌ Failed to send conflict inquiry notification to ${adminEmail}:`, error);
+        throw error;
+    }
+};
+
+/**
+ * Send conflict inquiry response to user
+ */
+const sendConflictInquiryResponse = async (userEmail, inquiry, response) => {
+    try {
+        const transporter = createTransporter();
+
+        const mailOptions = {
+            from: process.env.SMTP_FROM || process.env.SMTP_USER,
+            to: userEmail,
+            subject: `✅ Response to Your Conflict Inquiry - ${inquiry.referenceId}`,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                        <h2 style="color: #28a745; margin: 0;">✅ Inquiry Response</h2>
+                        <p style="margin: 10px 0 0 0; color: #6c757d;">
+                            We have reviewed your conflict inquiry and provided a response
+                        </p>
+                    </div>
+                    
+                    <div style="background: white; padding: 20px; border: 1px solid #dee2e6; border-radius: 8px;">
+                        <h3 style="color: #495057; margin-top: 0;">Your Inquiry</h3>
+                        
+                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Reference ID:</td>
+                                <td style="padding: 8px 0;">${inquiry.referenceId}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Policy ID:</td>
+                                <td style="padding: 8px 0;">${inquiry.policyId}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Conflict Type:</td>
+                                <td style="padding: 8px 0;">${inquiry.conflictType.replace('_', ' ')}</td>
+                            </tr>
+                        </table>
+                        
+                        <div style="margin-bottom: 20px;">
+                            <h4 style="color: #495057; margin-bottom: 10px;">Your Original Inquiry</h4>
+                            <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; border-left: 4px solid #6c757d;">
+                                <p style="margin: 0; color: #495057; line-height: 1.5;">
+                                    ${inquiry.description}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 20px;">
+                            <h4 style="color: #495057; margin-bottom: 10px;">Our Response</h4>
+                            <div style="background: #d4edda; padding: 15px; border-radius: 4px; border-left: 4px solid #28a745;">
+                                <p style="margin: 0; color: #155724; line-height: 1.5;">
+                                    ${response}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px;">
+                            <h4 style="margin: 0 0 10px 0; color: #495057;">Need Further Assistance?</h4>
+                            <p style="margin: 0; color: #6c757d;">
+                                If you have additional questions or concerns, please don't hesitate to contact us 
+                                or submit a new inquiry through your dashboard.
+                            </p>
+                        </div>
+                        
+                        <div style="margin-top: 20px; text-align: center;">
+                            <a href="${process.env.FRONTEND_URL}/dashboard/policies" 
+                               style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
+                                View Policy Dashboard
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 20px; text-align: center; color: #6c757d; font-size: 12px;">
+                        <p>This is an automated notification from the FCT-DCIP System</p>
+                        <p>Please do not reply to this email</p>
+                    </div>
+                </div>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`✅ Conflict inquiry response sent to ${userEmail}`);
+
+    } catch (error) {
+        console.error(`❌ Failed to send conflict inquiry response to ${userEmail}:`, error);
+        throw error;
+    }
+};
+
+// Helper function for urgency colors
+const getUrgencyColor = (urgency) => {
+    switch (urgency) {
+        case 'high': return '#dc3545';
+        case 'medium': return '#ffc107';
+        case 'low': return '#28a745';
+        default: return '#6c757d';
+    }
+};
+
+/**
+ * Send report processing update to user
+ */
+const sendReportProcessingUpdate = async (userEmail, updateData) => {
+    try {
+        const transporter = createTransporter();
+
+        const getStatusColor = (status) => {
+            switch (status) {
+                case 'processing': return '#17a2b8';
+                case 'completed': return '#28a745';
+                case 'under_review': return '#ffc107';
+                case 'processing_delayed': return '#fd7e14';
+                default: return '#6c757d';
+            }
+        };
+
+        const getStatusIcon = (status) => {
+            switch (status) {
+                case 'processing': return '⚙️';
+                case 'completed': return '✅';
+                case 'under_review': return '🔍';
+                case 'processing_delayed': return '⏰';
+                default: return '📊';
+            }
+        };
+
+        const mailOptions = {
+            from: process.env.SMTP_FROM || process.env.SMTP_USER,
+            to: userEmail,
+            subject: `${getStatusIcon(updateData.status)} Report Processing Update - Policy ${updateData.policyId}`,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                        <h2 style="color: ${getStatusColor(updateData.status)}; margin: 0;">
+                            ${getStatusIcon(updateData.status)} Processing Update
+                        </h2>
+                        <p style="margin: 10px 0 0 0; color: #6c757d;">
+                            Your property assessment report processing status has been updated
+                        </p>
+                    </div>
+                    
+                    <div style="background: white; padding: 20px; border: 1px solid #dee2e6; border-radius: 8px;">
+                        <h3 style="color: #495057; margin-top: 0;">Status Update</h3>
+                        
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Policy ID:</td>
+                                <td style="padding: 8px 0;">${updateData.policyId}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Property:</td>
+                                <td style="padding: 8px 0;">${updateData.propertyAddress}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Status:</td>
+                                <td style="padding: 8px 0;">
+                                    <span style="background: ${getStatusColor(updateData.status)}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">
+                                        ${updateData.status.toUpperCase().replace('_', ' ')}
+                                    </span>
+                                </td>
+                            </tr>
+                            ${updateData.progress ? `
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Progress:</td>
+                                <td style="padding: 8px 0;">
+                                    <div style="background: #e9ecef; border-radius: 10px; height: 20px; position: relative;">
+                                        <div style="background: ${getStatusColor(updateData.status)}; height: 100%; width: ${updateData.progress}%; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: bold;">
+                                            ${updateData.progress}%
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            ` : ''}
+                            ${updateData.estimatedCompletion ? `
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Estimated Completion:</td>
+                                <td style="padding: 8px 0;">${new Date(updateData.estimatedCompletion).toLocaleString()}</td>
+                            </tr>
+                            ` : ''}
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #495057;">Updated:</td>
+                                <td style="padding: 8px 0;">${new Date(updateData.updatedAt).toLocaleString()}</td>
+                            </tr>
+                        </table>
+                        
+                        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px; border-left: 4px solid ${getStatusColor(updateData.status)};">
+                            <h4 style="margin: 0 0 10px 0; color: #495057;">Update Details</h4>
+                            <p style="margin: 0; color: #495057; line-height: 1.5;">
+                                ${updateData.message}
+                            </p>
+                        </div>
+                        
+                        <div style="margin-top: 20px; text-align: center;">
+                            <a href="${updateData.dashboardUrl}" 
+                               style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
+                                View Dashboard
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 20px; text-align: center; color: #6c757d; font-size: 12px;">
+                        <p>This is an automated notification from the FCT-DCIP System</p>
+                        <p>Please do not reply to this email</p>
+                    </div>
+                </div>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`✅ Report processing update sent to ${userEmail}`);
+
+    } catch (error) {
+        console.error(`❌ Failed to send report processing update to ${userEmail}:`, error);
+        throw error;
+    }
+};
+
 module.exports = {
     sendAutomaticConflictAlert,
     sendReportMergingNotification,
     sendPaymentDecisionNotification,
-    sendReportAvailableNotification
+    sendReportAvailableNotification,
+    sendReportProcessingUpdate,
+    sendConflictInquiryNotification,
+    sendConflictInquiryResponse
 };

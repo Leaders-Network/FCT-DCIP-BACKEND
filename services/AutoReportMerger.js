@@ -4,11 +4,13 @@ const SurveySubmission = require('../models/SurveySubmission');
 const AutomaticConflictFlag = require('../models/AutomaticConflictFlag');
 const { sendAutomaticConflictAlert } = require('../utils/emailService');
 const { Employee } = require('../models/Employee');
+const ReportReleaseService = require('./ReportReleaseService');
 
 class AutoReportMerger {
     constructor() {
         this.processingQueue = [];
         this.isProcessing = false;
+        this.reportReleaseService = new ReportReleaseService();
         this.conflictThresholds = {
             propertyValue: 0.15, // 15% difference threshold
             area: 0.10, // 10% difference threshold
@@ -399,19 +401,27 @@ class AutoReportMerger {
             await this.createConflictFlags(mergedReport, mergeResult.conflicts);
         }
 
-        // Trigger payment decision processing if report is approved for release
-        if (mergedReport.releaseStatus === 'approved') {
-            setImmediate(async () => {
-                try {
+        // Trigger automatic report release and payment decision processing
+        setImmediate(async () => {
+            try {
+                // First, attempt automatic report release
+                const releaseResult = await this.reportReleaseService.autoReleaseReport(mergedReport._id);
+
+                if (releaseResult.success) {
+                    console.log(`🚀 Report ${mergedReport._id} automatically released`);
+
+                    // If released, process payment decision
                     const PaymentDecisionEngine = require('./PaymentDecisionEngine');
                     const paymentEngine = new PaymentDecisionEngine();
                     await paymentEngine.analyzePaymentDecision(mergedReport._id);
                     console.log(`💰 Payment decision processed for report: ${mergedReport._id}`);
-                } catch (error) {
-                    console.error(`❌ Payment decision processing failed for report: ${mergedReport._id}`, error);
+                } else {
+                    console.log(`⏸️ Report ${mergedReport._id} requires manual review: ${releaseResult.reason}`);
                 }
-            });
-        }
+            } catch (error) {
+                console.error(`❌ Post-processing failed for report: ${mergedReport._id}`, error);
+            }
+        });
 
         return mergedReport;
     }
