@@ -28,36 +28,42 @@ const DualAssignmentSchema = new mongoose.Schema({
         default: 0
     },
     ammcSurveyorContact: {
-        surveyorId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Employee'
+        type: {
+            surveyorId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Employee'
+            },
+            name: String,
+            email: String,
+            phone: String,
+            licenseNumber: String,
+            address: String,
+            emergencyContact: String,
+            specialization: [String],
+            experience: Number,
+            rating: Number,
+            assignedAt: Date
         },
-        name: String,
-        email: String,
-        phone: String,
-        licenseNumber: String,
-        address: String,
-        emergencyContact: String,
-        specialization: [String],
-        experience: Number,
-        rating: Number,
-        assignedAt: Date
+        default: null
     },
     niaSurveyorContact: {
-        surveyorId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Employee'
+        type: {
+            surveyorId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Employee'
+            },
+            name: String,
+            email: String,
+            phone: String,
+            licenseNumber: String,
+            address: String,
+            emergencyContact: String,
+            specialization: [String],
+            experience: Number,
+            rating: Number,
+            assignedAt: Date
         },
-        name: String,
-        email: String,
-        phone: String,
-        licenseNumber: String,
-        address: String,
-        emergencyContact: String,
-        specialization: [String],
-        experience: Number,
-        rating: Number,
-        assignedAt: Date
+        default: null
     },
     timeline: [{
         event: {

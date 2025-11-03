@@ -64,15 +64,25 @@ const createPolicyRequest = async (req, res) => {
 
         await dualAssignment.save();
 
-        // Update policy status to 'assigned' to indicate dual assignment created
-        policyRequest.status = 'assigned';
+        // Keep policy status as 'submitted' until admins manually assign surveyors
+        // Do not change to 'assigned' automatically
         policyRequest.statusHistory.push({
-          status: 'assigned',
+          status: 'submitted',
           changedBy: userId,
           changedAt: new Date(),
-          reason: 'Dual assignment created - ready for AMMC and NIA surveyor assignment'
+          reason: 'Dual assignment created - awaiting admin assignment of surveyors'
         });
         await policyRequest.save();
+
+        // Notify both AMMC and NIA admins about new policy requiring assignment
+        try {
+          const NotificationService = require('../services/NotificationService');
+          await NotificationService.notifyAdminsOfNewPolicy(policyRequest, dualAssignment);
+          console.log(`Admins notified of new policy ${policyRequest._id}`);
+        } catch (notificationError) {
+          console.error('Failed to notify admins:', notificationError);
+          // Don't fail the process if notification fails
+        }
 
         console.log(`Dual assignment created for policy ${policyRequest._id}`);
       }

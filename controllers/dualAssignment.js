@@ -219,6 +219,28 @@ const assignAMMCSurveyor = async (req, res) => {
             req.user.userId
         );
 
+        // Update policy status to 'assigned' when first surveyor is assigned
+        const policy = await PolicyRequest.findById(dualAssignment.policyId);
+        if (policy && policy.status === 'submitted') {
+            policy.status = 'assigned';
+            policy.statusHistory.push({
+                status: 'assigned',
+                changedBy: req.user.userId,
+                changedAt: new Date(),
+                reason: 'AMMC surveyor assigned - policy now in assignment phase'
+            });
+            await policy.save();
+        }
+
+        // Notify the assigned surveyor
+        try {
+            const NotificationService = require('../services/NotificationService');
+            await NotificationService.notifySurveyorOfAssignment(assignment, surveyorContactInfo, 'AMMC');
+        } catch (notificationError) {
+            console.error('Failed to notify AMMC surveyor:', notificationError);
+            // Don't fail the assignment if notification fails
+        }
+
         res.status(StatusCodes.OK).json({
             success: true,
             message: 'AMMC surveyor assigned successfully',
@@ -333,6 +355,28 @@ const assignNIASurveyor = async (req, res) => {
             req.user.userId
         );
 
+        // Update policy status to 'assigned' when first surveyor is assigned
+        const policy = await PolicyRequest.findById(dualAssignment.policyId);
+        if (policy && policy.status === 'submitted') {
+            policy.status = 'assigned';
+            policy.statusHistory.push({
+                status: 'assigned',
+                changedBy: req.user.userId,
+                changedAt: new Date(),
+                reason: 'NIA surveyor assigned - policy now in assignment phase'
+            });
+            await policy.save();
+        }
+
+        // Notify the assigned surveyor
+        try {
+            const NotificationService = require('../services/NotificationService');
+            await NotificationService.notifySurveyorOfAssignment(assignment, surveyorContactInfo, 'NIA');
+        } catch (notificationError) {
+            console.error('Failed to notify NIA surveyor:', notificationError);
+            // Don't fail the assignment if notification fails
+        }
+
         res.status(StatusCodes.OK).json({
             success: true,
             message: 'NIA surveyor assigned successfully',
@@ -413,6 +457,8 @@ const getDualAssignments = async (req, res) => {
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit));
+
+
 
         const total = await DualAssignment.countDocuments(filter);
 

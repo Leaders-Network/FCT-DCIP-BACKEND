@@ -1,262 +1,145 @@
-const { sendReportAvailableNotification, sendReportProcessingUpdate } = require('../utils/emailService');
-const MergedReport = require('../models/MergedReport');
-const PolicyRequest = require('../models/PolicyRequest');
+const { Employee } = require('../models/Employee');
+const NIAAdmin = require('../models/NIAAdmin');
 
 class NotificationService {
-    constructor() {
-        this.notificationQueue = [];
-        this.isProcessing = false;
-    }
-
     /**
-     * Send real-time notification when report becomes available
-     * @param {string} mergedReportId - The merged report ID
-     * @returns {Promise<Object>} - Notification result
+     * Notify both AMMC and NIA admins when a new policy is created
+     * @param {Object} policyRequest - The created policy request
+     * @param {Object} dualAssignment - The created dual assignment
      */
-    async notifyReportAvailable(mergedReportId) {
+    static async notifyAdminsOfNewPolicy(policyRequest, dualAssignment) {
         try {
-            console.log(`📧 Sending report available notification for: ${mergedReportId}`);
+            console.log(`🔔 Notifying admins of new policy: ${policyRequest._id}`);
 
-            const mergedReport = await MergedReport.findById(mergedReportId)
-                .populate('policyId');
+            // Get all AMMC admins (Admin and Super-admin roles)
+            const ammcAdmins = await Employee.find({
+                employeeRole: { $in: await this.getAdminRoleIds() },
+                organization: { $in: ['AMMC', 'FCT-DCIP'] }, // Include both AMMC and FCT-DCIP
+                deleted: false
+            }).populate('employeeRole employeeStatus');
 
-            if (!mergedReport) {
-                throw new Error('Merged report not found');
-            }
+            // Get all NIA admins
+            const niaAdmins = await NIAAdmin.find({
+                status: 'active'
+            }).populate('userId', 'firstname lastname email');
 
-            const policy = mergedReport.policyId;
-            const userEmail = policy.contactDetails.email;
-
-            // Prepare notification data
             const notificationData = {
-                policyId: policy._id,
-                reportId: mergedReport._id,
-                propertyAddress: policy.propertyDetails?.address || 'N/A',
-                finalRecommendation: mergedReport.finalRecommendation,
-                paymentEnabled: mergedReport.paymentEnabled,
-                conflictDetected: mergedReport.conflictDetected,
-                conflictResolved: mergedReport.conflictResolved,
-                reportUrl: `${process.env.FRONTEND_URL}/user/dashboard/reports/${mergedReport._id}`,
-                dashboardUrl: `${process.env.FRONTEND_URL}/user/dashboard`,
-                releasedAt: mergedReport.releasedAt,
-                processingTime: mergedReport.mergingMetadata?.processingTime
+                type: 'new_policy_assignment_required',
+                policyId: policyRequest._id,
+                propertyAddress: policyRequest.propertyDetails.address,
+                propertyType: policyRequest.propertyDetails.propertyType,
+                buildingValue: policyRequest.propertyDetails.buildingValue,
+                clientName: policyRequest.contactDetails.fullName,
+                clientEmail: policyRequest.contactDetails.email,
+                priority: dualAssignment.priority,
+                deadline: dualAssignment.estimatedCompletion.overallDeadline,
+                createdAt: new Date()
             };
 
-            // Send email notification
-            await sendReportAvailableNotification(userEmail, notificationData);
+            // Log notifications for AMMC admins
+            console.log(`📧 AMMC Admins to notify: ${ammcAdmins.length}`);
+            for (const admin of ammcAdmins) {
+                console.log(`   - ${admin.firstname} ${admin.lastname} (${admin.email})`);
+                // Here you would integrate with your email service or in-app notification system
+                // await EmailService.sendNewPolicyNotification(admin.email, notificationData);
+                // await InAppNotificationService.create(admin._id, notificationData);
+            }
 
-            // Update notification status
-            mergedReport.notifications.releaseNotificationSent = true;
-            mergedReport.notifications.userNotified = true;
-            await mergedReport.save();
+            // Log notifications for NIA admins
+            console.log(`📧 NIA Admins to notify: ${niaAdmins.length}`);
+            for (const niaAdmin of niaAdmins) {
+                console.log(`   - ${niaAdmin.userId.firstname} ${niaAdmin.userId.lastname} (${niaAdmin.userId.email})`);
+                // Here you would integrate with your email service or in-app notification system
+                // await EmailService.sendNewPolicyNotification(niaAdmin.userId.email, notificationData);
+                // await InAppNotificationService.create(niaAdmin.userId._id, notificationData);
+            }
 
-            console.log(`✅ Report available notification sent for: ${mergedReportId}`);
+            // For now, we'll just log the notification
+            console.log('📋 New Policy Notification Details:');
+            console.log(`   Policy ID: ${notificationData.policyId}`);
+            console.log(`   Property: ${notificationData.propertyType} at ${notificationData.propertyAddress}`);
+            console.log(`   Value: ₦${notificationData.buildingValue.toLocaleString()}`);
+            console.log(`   Client: ${notificationData.clientName} (${notificationData.clientEmail})`);
+            console.log(`   Priority: ${notificationData.priority}`);
+            console.log(`   Deadline: ${notificationData.deadline.toLocaleDateString()}`);
+            console.log('✅ Admin notifications logged successfully');
 
             return {
                 success: true,
-                notificationSent: true,
-                userEmail: userEmail,
-                sentAt: new Date()
+                ammcAdminsNotified: ammcAdmins.length,
+                niaAdminsNotified: niaAdmins.length,
+                totalNotified: ammcAdmins.length + niaAdmins.length
             };
 
         } catch (error) {
-            console.error(`❌ Failed to send report available notification for ${mergedReportId}:`, error);
+            console.error('❌ Failed to notify admins:', error);
             throw error;
         }
     }
 
     /**
-     * Send processing status update to user
-     * @param {string} policyId - The policy ID
-     * @param {Object} statusUpdate - Status update information
-     * @returns {Promise<Object>} - Notification result
+     * Get admin role IDs for AMMC admins
      */
-    async notifyProcessingUpdate(policyId, statusUpdate) {
+    static async getAdminRoleIds() {
         try {
-            console.log(`📊 Sending processing update for policy: ${policyId}`);
-
-            const policy = await PolicyRequest.findById(policyId);
-            if (!policy) {
-                throw new Error('Policy not found');
-            }
-
-            const userEmail = policy.contactDetails.email;
-
-            // Prepare update data
-            const updateData = {
-                policyId: policy._id,
-                propertyAddress: policy.propertyDetails?.address || 'N/A',
-                status: statusUpdate.status,
-                message: statusUpdate.message,
-                progress: statusUpdate.progress || null,
-                estimatedCompletion: statusUpdate.estimatedCompletion || null,
-                dashboardUrl: `${process.env.FRONTEND_URL}/user/dashboard`,
-                updatedAt: new Date()
-            };
-
-            // Send processing update email (only for significant updates)
-            if (statusUpdate.sendEmail) {
-                await sendReportProcessingUpdate(userEmail, updateData);
-            }
-
-            console.log(`✅ Processing update sent for policy: ${policyId}`);
-
-            return {
-                success: true,
-                updateSent: true,
-                userEmail: userEmail,
-                status: statusUpdate.status
-            };
-
+            const { Role } = require('../models/Employee');
+            const adminRoles = await Role.find({
+                role: { $in: ['Admin', 'Super-admin'] }
+            });
+            return adminRoles.map(role => role._id);
         } catch (error) {
-            console.error(`❌ Failed to send processing update for policy ${policyId}:`, error);
-            throw error;
+            console.error('Failed to get admin role IDs:', error);
+            return [];
         }
     }
 
     /**
-     * Send batch notifications for multiple reports
-     * @param {Array} reportIds - Array of merged report IDs
-     * @returns {Promise<Object>} - Batch notification result
+     * Notify surveyors when they are assigned to a policy
+     * @param {Object} assignment - The assignment object
+     * @param {Object} surveyorContact - Surveyor contact information
+     * @param {string} organization - AMMC or NIA
      */
-    async sendBatchNotifications(reportIds) {
+    static async notifySurveyorOfAssignment(assignment, surveyorContact, organization) {
         try {
-            console.log(`📧 Sending batch notifications for ${reportIds.length} reports`);
+            console.log(`🔔 Notifying ${organization} surveyor of new assignment: ${assignment._id}`);
 
-            const results = [];
-            const errors = [];
+            const notificationData = {
+                type: 'surveyor_assignment',
+                assignmentId: assignment._id,
+                policyId: assignment.ammcId,
+                organization: organization,
+                surveyorName: surveyorContact.name,
+                surveyorEmail: surveyorContact.email,
+                propertyAddress: assignment.location?.address,
+                deadline: assignment.deadline,
+                priority: assignment.priority,
+                instructions: assignment.instructions,
+                createdAt: new Date()
+            };
 
-            for (const reportId of reportIds) {
-                try {
-                    const result = await this.notifyReportAvailable(reportId);
-                    results.push({ reportId, ...result });
-                } catch (error) {
-                    errors.push({ reportId, error: error.message });
-                }
-            }
+            console.log('📋 Surveyor Assignment Notification:');
+            console.log(`   Assignment ID: ${notificationData.assignmentId}`);
+            console.log(`   Organization: ${notificationData.organization}`);
+            console.log(`   Surveyor: ${notificationData.surveyorName} (${notificationData.surveyorEmail})`);
+            console.log(`   Property: ${notificationData.propertyAddress}`);
+            console.log(`   Deadline: ${notificationData.deadline.toLocaleDateString()}`);
+            console.log(`   Priority: ${notificationData.priority}`);
+            console.log('✅ Surveyor notification logged successfully');
 
-            console.log(`✅ Batch notifications completed: ${results.length} success, ${errors.length} errors`);
+            // Here you would integrate with your email service or in-app notification system
+            // await EmailService.sendAssignmentNotification(surveyorContact.email, notificationData);
+            // await InAppNotificationService.create(surveyorContact.surveyorId, notificationData);
 
             return {
                 success: true,
-                totalProcessed: reportIds.length,
-                successful: results.length,
-                failed: errors.length,
-                results: results,
-                errors: errors
+                surveyorNotified: surveyorContact.name,
+                organization: organization
             };
 
         } catch (error) {
-            console.error('❌ Batch notification processing failed:', error);
+            console.error('❌ Failed to notify surveyor:', error);
             throw error;
         }
-    }
-
-    /**
-     * Get notification history for a user
-     * @param {string} userId - The user ID
-     * @param {Object} options - Query options
-     * @returns {Promise<Object>} - Notification history
-     */
-    async getNotificationHistory(userId, options = {}) {
-        try {
-            const { page = 1, limit = 20, type = 'all' } = options;
-
-            // Find all merged reports for user's policies
-            const reports = await MergedReport.find({})
-                .populate({
-                    path: 'policyId',
-                    match: { userId: userId },
-                    select: 'propertyDetails contactDetails'
-                })
-                .sort({ createdAt: -1 })
-                .limit(limit * 1)
-                .skip((page - 1) * limit);
-
-            // Filter out reports where policyId is null (no match)
-            const userReports = reports.filter(report => report.policyId !== null);
-
-            const notifications = userReports.map(report => ({
-                reportId: report._id,
-                policyId: report.policyId._id,
-                propertyAddress: report.policyId.propertyDetails?.address || 'N/A',
-                type: 'report_available',
-                status: report.releaseStatus,
-                notificationSent: report.notifications.releaseNotificationSent,
-                userNotified: report.notifications.userNotified,
-                sentAt: report.releasedAt,
-                createdAt: report.createdAt
-            }));
-
-            return {
-                success: true,
-                data: {
-                    notifications: notifications,
-                    pagination: {
-                        current: parseInt(page),
-                        total: notifications.length,
-                        hasMore: notifications.length === limit
-                    }
-                }
-            };
-
-        } catch (error) {
-            console.error(`Error getting notification history for user ${userId}:`, error);
-            throw error;
-        }
-    }
-
-    /**
-     * Mark notification as read
-     * @param {string} userId - The user ID
-     * @param {string} reportId - The report ID
-     * @returns {Promise<Object>} - Mark read result
-     */
-    async markNotificationRead(userId, reportId) {
-        try {
-            const mergedReport = await MergedReport.findById(reportId)
-                .populate('policyId');
-
-            if (!mergedReport) {
-                throw new Error('Report not found');
-            }
-
-            // Verify user owns this report
-            if (mergedReport.policyId.userId.toString() !== userId) {
-                throw new Error('Access denied');
-            }
-
-            // Add read timestamp to access history
-            mergedReport.logAccess(userId, 'notification_read', null, null);
-            await mergedReport.save();
-
-            return {
-                success: true,
-                reportId: reportId,
-                markedReadAt: new Date()
-            };
-
-        } catch (error) {
-            console.error(`Error marking notification as read:`, error);
-            throw error;
-        }
-    }
-
-    /**
-     * Schedule delayed notification (for processing updates)
-     * @param {string} policyId - The policy ID
-     * @param {Object} statusUpdate - Status update information
-     * @param {number} delayMinutes - Delay in minutes
-     * @returns {Promise<void>}
-     */
-    scheduleDelayedNotification(policyId, statusUpdate, delayMinutes = 5) {
-        setTimeout(async () => {
-            try {
-                await this.notifyProcessingUpdate(policyId, statusUpdate);
-            } catch (error) {
-                console.error(`Failed to send delayed notification for policy ${policyId}:`, error);
-            }
-        }, delayMinutes * 60 * 1000);
     }
 }
 

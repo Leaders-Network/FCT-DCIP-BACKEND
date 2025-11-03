@@ -122,6 +122,37 @@ router.get('/', requireAnyAdmin, getDualAssignments);
 // Get dual assignment statistics (requires any admin)
 router.get('/stats', requireAnyAdmin, getDualAssignmentStats);
 
+// Debug route to check assignment data (requires any admin)
+router.get('/debug', requireAnyAdmin, async (req, res) => {
+    try {
+        const assignments = await require('../models/DualAssignment').find({}).limit(5);
+
+        const debugData = assignments.map(assignment => ({
+            id: assignment._id,
+            assignmentStatus: assignment.assignmentStatus,
+            ammcSurveyorContact: assignment.ammcSurveyorContact,
+            niaSurveyorContact: assignment.niaSurveyorContact,
+            ammcContactType: typeof assignment.ammcSurveyorContact,
+            niaContactType: typeof assignment.niaSurveyorContact,
+            ammcContactKeys: assignment.ammcSurveyorContact ? Object.keys(assignment.ammcSurveyorContact) : [],
+            niaContactKeys: assignment.niaSurveyorContact ? Object.keys(assignment.niaSurveyorContact) : [],
+            ammcHasName: !!assignment.ammcSurveyorContact?.name,
+            niaHasName: !!assignment.niaSurveyorContact?.name
+        }));
+
+        res.status(200).json({
+            success: true,
+            data: debugData
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Debug failed',
+            error: error.message
+        });
+    }
+});
+
 // Update all assignment contacts (admin only)
 router.post('/update-contacts', requireAnyAdmin, async (req, res) => {
     try {
