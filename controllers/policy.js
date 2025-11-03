@@ -21,12 +21,69 @@ const createPolicyRequest = async (req, res) => {
       policyData.propertyId = propertyId;
     }
 
+    // Set initial status to 'submitted' to trigger dual assignment creation
+    policyData.status = 'submitted';
+
     const policyRequest = new PolicyRequest(policyData);
     await policyRequest.save();
 
+    // Create dual assignment automatically for submitted policies
+    try {
+      const DualAssignment = require('../models/DualAssignment');
+
+      // Check if dual assignment already exists
+      const existingDualAssignment = await DualAssignment.findOne({ policyId: policyRequest._id });
+
+      if (!existingDualAssignment) {
+        // Calculate deadline (7 days from now)
+        const deadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+        const dualAssignment = new DualAssignment({
+          policyId: policyRequest._id,
+          priority: policyData.priority || 'medium',
+          estimatedCompletion: {
+            overallDeadline: deadline,
+            ammcDeadline: deadline,
+            niaDeadline: deadline
+          }
+        });
+
+        // Add creation timeline event
+        dualAssignment.timeline.push({
+          event: 'created',
+          timestamp: new Date(),
+          performedBy: userId,
+          organization: 'SYSTEM',
+          details: 'Dual assignment created automatically upon policy submission',
+          metadata: {
+            policyId: policyRequest._id,
+            priority: policyData.priority || 'medium',
+            deadline: deadline
+          }
+        });
+
+        await dualAssignment.save();
+
+        // Update policy status to 'assigned' to indicate dual assignment created
+        policyRequest.status = 'assigned';
+        policyRequest.statusHistory.push({
+          status: 'assigned',
+          changedBy: userId,
+          changedAt: new Date(),
+          reason: 'Dual assignment created - ready for AMMC and NIA surveyor assignment'
+        });
+        await policyRequest.save();
+
+        console.log(`Dual assignment created for policy ${policyRequest._id}`);
+      }
+    } catch (dualAssignmentError) {
+      console.error('Failed to create dual assignment:', dualAssignmentError);
+      // Don't fail the policy creation if dual assignment fails
+    }
+
     res.status(StatusCodes.CREATED).json({
       success: true,
-      message: 'Policy request created successfully',
+      message: 'Policy request created successfully and dual assignment initiated',
       data: policyRequest
     });
   } catch (error) {
@@ -198,69 +255,140 @@ const updatePolicyRequest = async (req, res) => {
 const assignSurveyor = async (req, res) => {
   try {
     const { ammcId } = req.params;
-    const { surveyorIds, deadline, priority, instructions, specialRequirements } = req.body;
+    const { surveyorIds, deadline, priority, instructions, specialRequirements, organization = 'AMMC' } = req.body;
     const adminId = req.user.userId;
 
     const policyRequest = await PolicyRequest.findById(ammcId);
     if (!policyRequest) {
-      throw new NotFoundError('AMMC request not found');
+      throw new NotFoundError('Policy request not found');
     }
 
-    // Validate surveyors exist and are available
-    const surveyors = await Surveyor.find({
-      userId: { $in: surveyorIds },
-      status: 'active',
-      'profile.availability': 'available'
-    });
+    // Check if this is a dual assignment system policy
+    const DualAssignment = require('../models/DualAssignment');
+    let dualAssignment = await DualAssignment.findOne({ policyId: ammcId });
 
-    if (surveyors.length !== surveyorIds.length) {
-      throw new BadRequestError('Some surveyors are not available or do not exist');
-    }
+    // If no dual assignment exists, create one
+    if (!dualAssignment) {
+      const assignmentDeadline = deadline ? new Date(deadline) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    // Create assignments
-    const assignments = [];
-    for (const surveyorId of surveyorIds) {
-      const assignment = new Assignment({
-        ammcId,
-        surveyorId,
-        assignedBy: adminId,
-        deadline: deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days default
-        priority: priority || policyRequest.priority,
-        instructions: instructions || '',
-        specialRequirements: specialRequirements || [],
-        location: {
-          address: policyRequest.propertyDetails.address,
-          contactPerson: {
-            name: policyRequest.contactDetails.fullName,
-            phone: policyRequest.contactDetails.phoneNumber,
-            email: policyRequest.contactDetails.email,
-            rcNumber: policyRequest.contactDetails.rcNumber
-          }
+      dualAssignment = new DualAssignment({
+        policyId: ammcId,
+        priority: priority || policyRequest.priority || 'medium',
+        estimatedCompletion: {
+          overallDeadline: assignmentDeadline,
+          ammcDeadline: assignmentDeadline,
+          niaDeadline: assignmentDeadline
         }
       });
 
-      await assignment.save();
-      assignments.push(assignment);
+      dualAssignment.timeline.push({
+        event: 'created',
+        timestamp: new Date(),
+        performedBy: adminId,
+        organization: 'AMMC',
+        details: 'Dual assignment created during AMMC surveyor assignment',
+        metadata: {
+          policyId: ammcId,
+          priority: priority || policyRequest.priority || 'medium',
+          deadline: assignmentDeadline
+        }
+      });
+
+      await dualAssignment.save();
     }
 
-    // Update policy request
-    policyRequest.assignedSurveyors = surveyorIds;
+    // Validate surveyors exist and are available for the specified organization
+    const surveyors = await Surveyor.find({
+      userId: { $in: surveyorIds },
+      organization: organization,
+      status: 'active',
+      'profile.availability': 'available'
+    }).populate('userId', 'firstname lastname email phonenumber');
+
+    if (surveyors.length !== surveyorIds.length) {
+      throw new BadRequestError(`Some ${organization} surveyors are not available or do not exist`);
+    }
+
+    // For dual assignment system, only assign one surveyor per organization
+    if (surveyorIds.length > 1) {
+      throw new BadRequestError(`Only one ${organization} surveyor can be assigned per policy in dual assignment system`);
+    }
+
+    const surveyorId = surveyorIds[0];
+    const surveyor = surveyors[0];
+
+    // Check if surveyor already assigned for this organization
+    if (organization === 'AMMC' && dualAssignment.ammcAssignmentId) {
+      throw new BadRequestError('AMMC surveyor already assigned to this policy');
+    }
+    if (organization === 'NIA' && dualAssignment.niaAssignmentId) {
+      throw new BadRequestError('NIA surveyor already assigned to this policy');
+    }
+
+    // Get complete surveyor contact information
+    const AssignmentContactService = require('../services/AssignmentContactService');
+    const surveyorContactInfo = await AssignmentContactService.getSurveyorContactInfo(surveyorId, organization);
+
+    // Create assignment
+    const assignment = new Assignment({
+      ammcId,
+      surveyorId,
+      assignedBy: adminId,
+      deadline: deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      priority: priority || policyRequest.priority || 'medium',
+      instructions: instructions || '',
+      organization: organization,
+      dualAssignmentId: dualAssignment._id,
+      specialRequirements: specialRequirements || [],
+      partnerSurveyorContact: surveyorContactInfo,
+      location: {
+        address: policyRequest.propertyDetails.address,
+        contactPerson: {
+          name: policyRequest.contactDetails.fullName,
+          phone: policyRequest.contactDetails.phoneNumber,
+          email: policyRequest.contactDetails.email,
+          rcNumber: policyRequest.contactDetails.rcNumber
+        }
+      }
+    });
+
+    await assignment.save();
+
+    // Update dual assignment with surveyor contact details
+    const updatedDualAssignment = await AssignmentContactService.updateDualAssignmentContacts(
+      dualAssignment._id,
+      organization,
+      surveyorId,
+      assignment._id,
+      adminId
+    );
+
+    // Update policy request status
+    if (!policyRequest.assignedSurveyors) {
+      policyRequest.assignedSurveyors = [];
+    }
+    if (!policyRequest.assignedSurveyors.includes(surveyorId)) {
+      policyRequest.assignedSurveyors.push(surveyorId);
+    }
+
     policyRequest.status = 'assigned';
     policyRequest.statusHistory.push({
       status: 'assigned',
       changedBy: adminId,
       changedAt: new Date(),
-      reason: `Assigned to ${surveyorIds.length} surveyor(s)`
+      reason: `${organization} surveyor assigned: ${surveyor.userId.firstname} ${surveyor.userId.lastname}`
     });
 
     await policyRequest.save();
 
     res.status(StatusCodes.CREATED).json({
       success: true,
-      message: 'Surveyors assigned successfully',
+      message: `${organization} surveyor assigned successfully`,
       data: {
         policyRequest,
-        assignments
+        assignment,
+        dualAssignment: updatedDualAssignment,
+        bothAssigned: updatedDualAssignment.isBothAssigned()
       }
     });
   } catch (error) {

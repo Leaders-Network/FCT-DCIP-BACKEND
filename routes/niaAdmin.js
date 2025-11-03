@@ -39,6 +39,81 @@ router.get('/dashboard', requireNIAAdmin, logNIAAdminActivity('ACCESS_DASHBOARD'
 // Get surveyors (requires NIA admin access)
 router.get('/surveyors', requireNIAAdmin, requireNIAPermission('canManageSurveyors'), getSurveyors);
 
+// Get available surveyors for assignment (requires NIA admin access)
+router.get('/surveyors/available', requireNIAAdmin, async (req, res) => {
+    try {
+        const { specialization, location } = req.query;
+
+        // Build filter for available NIA surveyors
+        const filter = {
+            organization: 'NIA',
+            status: 'active',
+            'profile.availability': 'available'
+        };
+
+        if (specialization && specialization !== 'all') {
+            filter['profile.specialization'] = { $in: [specialization] };
+        }
+
+        // Get available surveyors with current assignment count
+        const surveyors = await require('../models/Surveyor').find(filter)
+            .populate('userId', 'firstname lastname email phonenumber employeeStatus')
+            .lean();
+
+        // Get current assignment counts for each surveyor
+        const surveyorsWithAssignments = await Promise.all(
+            surveyors.map(async (surveyor) => {
+                const currentAssignments = await require('../models/Assignment').countDocuments({
+                    surveyorId: surveyor.userId._id,
+                    organization: 'NIA',
+                    status: { $in: ['assigned', 'accepted', 'in-progress'] }
+                });
+
+                const completedSurveys = await require('../models/Assignment').countDocuments({
+                    surveyorId: surveyor.userId._id,
+                    organization: 'NIA',
+                    status: 'completed'
+                });
+
+                return {
+                    _id: surveyor.userId._id,
+                    firstname: surveyor.userId.firstname,
+                    lastname: surveyor.userId.lastname,
+                    email: surveyor.userId.email,
+                    phoneNumber: surveyor.userId.phonenumber,
+                    specialization: surveyor.profile.specialization || [],
+                    experience: surveyor.profile.experience || 0,
+                    availability: surveyor.profile.availability,
+                    currentAssignments: currentAssignments,
+                    maxAssignments: 3, // Default max assignments
+                    rating: surveyor.profile.rating || 4.0,
+                    completedSurveys: completedSurveys,
+                    licenseNumber: surveyor.licenseNumber,
+                    address: surveyor.address,
+                    emergencyContact: surveyor.emergencyContact
+                };
+            })
+        );
+
+        // Filter out overloaded surveyors (more than 3 active assignments)
+        const availableSurveyors = surveyorsWithAssignments.filter(s => s.currentAssignments < 3);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                surveyors: availableSurveyors
+            }
+        });
+    } catch (error) {
+        console.error('Get available surveyors error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get available surveyors',
+            error: error.message
+        });
+    }
+});
+
 // Create surveyor (requires NIA admin access)
 router.post('/surveyors', requireNIAAdmin, requireNIAPermission('canManageSurveyors'), logNIAAdminActivity('CREATE_SURVEYOR'), createSurveyor);
 

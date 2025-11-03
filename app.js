@@ -28,7 +28,6 @@ const niaAdminRouter = require('./routes/niaAdmin');
 const userConflictInquiriesRouter = require('./routes/userConflictInquiries');
 const automaticConflictFlagsRouter = require('./routes/automaticConflictFlags');
 const processingMonitorRouter = require('./routes/processingMonitor');
-const adminDashboardEnhancedRouter = require('./routes/adminDashboardEnhanced');
 const reportMergingRouter = require('./routes/reportMerging');
 const scheduledProcessorRouter = require('./routes/scheduledProcessor');
 const policyStatusRouter = require('./routes/policyStatus');
@@ -36,9 +35,7 @@ const paymentDecisionRouter = require('./routes/paymentDecision');
 const reportReleaseRouter = require('./routes/reportRelease');
 const notFoundMiddleware = require('./middlewares/not-found');
 const errorHandlerMiddleware = require('./middlewares/error-handler');
-const helmet = require('helmet');
 const cors = require('cors');
-const rateLimiter = require('express-rate-limit');
 const { createStatuses, createRoles, createPropertyCategories, createSurveyorRoles, createFirstSuperAdmin } = require('./controllers/auth')
 const scheduledProcessor = require('./services/ScheduledReportProcessor');
 
@@ -77,13 +74,12 @@ app.use('/api/v1/nia-admin', niaAdminRouter);
 app.use('/api/v1/user-conflict-inquiries', userConflictInquiriesRouter);
 app.use('/api/v1/automatic-conflict-flags', automaticConflictFlagsRouter);
 app.use('/api/v1/processing-monitor', processingMonitorRouter);
-app.use('/api/v1/admin/dashboard-enhanced', adminDashboardEnhancedRouter);
 app.use('/api/v1/report-merging', reportMergingRouter);
 app.use('/api/v1/scheduled-processor', scheduledProcessorRouter);
 app.use('/api/v1/policy-status', policyStatusRouter);
 app.use('/api/v1/payment-decision', paymentDecisionRouter);
 app.use('/api/v1/report-release', reportReleaseRouter);
-app.get('/', (req, res) => { res.send('<h3>DEPLOYED !</h3>') })
+app.get('/', (req, res) => { res.send('<h3>FCT-DCIP API Server</h3>') })
 
 app.use(notFoundMiddleware);
 app.use(errorHandlerMiddleware);

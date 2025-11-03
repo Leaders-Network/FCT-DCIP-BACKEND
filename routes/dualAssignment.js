@@ -25,6 +25,97 @@ router.use(protect);
 // Create dual assignment (requires any admin)
 router.post('/', requireAnyAdmin, logNIAAdminActivity('CREATE_DUAL_ASSIGNMENT'), createDualAssignment);
 
+// Create dual assignment for existing policy (requires any admin)
+router.post('/policy/:policyId/create', requireAnyAdmin, async (req, res) => {
+    try {
+        const { policyId } = req.params;
+        const { priority = 'medium', deadline } = req.body;
+
+        // Check if policy exists
+        const PolicyRequest = require('../models/PolicyRequest');
+        const policy = await PolicyRequest.findById(policyId);
+        if (!policy) {
+            return res.status(404).json({
+                success: false,
+                message: 'Policy request not found'
+            });
+        }
+
+        // Check if dual assignment already exists
+        const DualAssignment = require('../models/DualAssignment');
+        const existingDualAssignment = await DualAssignment.findOne({ policyId });
+        if (existingDualAssignment) {
+            return res.status(409).json({
+                success: false,
+                message: 'Dual assignment already exists for this policy',
+                data: { existingAssignmentId: existingDualAssignment._id }
+            });
+        }
+
+        // Calculate deadline
+        const assignmentDeadline = deadline ? new Date(deadline) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+        // Create dual assignment
+        const dualAssignment = new DualAssignment({
+            policyId,
+            priority,
+            estimatedCompletion: {
+                overallDeadline: assignmentDeadline,
+                ammcDeadline: assignmentDeadline,
+                niaDeadline: assignmentDeadline
+            }
+        });
+
+        // Add creation timeline event
+        dualAssignment.timeline.push({
+            event: 'created',
+            timestamp: new Date(),
+            performedBy: req.user.userId,
+            organization: req.user.organization || 'SYSTEM',
+            details: `Dual assignment created manually for existing policy`,
+            metadata: {
+                policyId: policyId,
+                priority: priority,
+                deadline: assignmentDeadline
+            }
+        });
+
+        await dualAssignment.save();
+
+        // Update policy status
+        policy.status = 'assigned';
+        policy.statusHistory.push({
+            status: 'assigned',
+            changedBy: req.user.userId,
+            changedAt: new Date(),
+            reason: 'Dual assignment created - ready for AMMC and NIA surveyor assignment'
+        });
+        await policy.save();
+
+        // Populate policy details for response
+        await dualAssignment.populate('policyId', 'propertyDetails contactDetails status priority');
+
+        res.status(201).json({
+            success: true,
+            message: 'Dual assignment created successfully for existing policy',
+            data: {
+                dualAssignment,
+                nextSteps: [
+                    'Assign AMMC surveyor using POST /:dualAssignmentId/assign-ammc',
+                    'Assign NIA surveyor using POST /:dualAssignmentId/assign-nia'
+                ]
+            }
+        });
+    } catch (error) {
+        console.error('Create dual assignment for policy error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to create dual assignment for policy',
+            error: error.message
+        });
+    }
+});
+
 // Get all dual assignments with filters (requires any admin)
 router.get('/', requireAnyAdmin, getDualAssignments);
 
