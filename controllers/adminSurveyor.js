@@ -6,7 +6,7 @@ const { BadRequestError, NotFoundError } = require('../errors');
 // Create a new surveyor (admin only)
 const createSurveyor = async (req, res) => {
   try {
-    const { firstname, lastname, email, phonenumber, specializations, licenseNumber, address, emergencyContact, notes, role, status, rating } = req.body;
+    const { firstname, lastname, email, phonenumber, specializations, licenseNumber, address, emergencyContact, notes, role, status, rating, organization } = req.body;
 
     // Create a new object without the 'role' property from req.body
     const employeeDataFromReqBody = { ...req.body };
@@ -74,6 +74,7 @@ const createSurveyor = async (req, res) => {
       role: role || 'Surveyor',
       rating: rating || 0,
       status: status || 'active',
+      organization: organization || 'AMMC', // Default to AMMC if not specified
       settings: {
         notifications: {
           email: true,
