@@ -3,7 +3,7 @@ const router = express.Router();
 const { StatusCodes } = require('http-status-codes');
 const ReportReleaseService = require('../services/ReportReleaseService');
 const MergedReport = require('../models/MergedReport');
-const { authenticateUser, authorizePermissions } = require('../middlewares/authentication');
+const { protect, restrictTo } = require('../middlewares/authentication');
 
 const reportReleaseService = new ReportReleaseService();
 
@@ -11,7 +11,7 @@ const reportReleaseService = new ReportReleaseService();
  * GET /api/v1/report-release/status/:policyId
  * Get report processing status for a specific policy
  */
-router.get('/status/:policyId', authenticateUser, async (req, res) => {
+router.get('/status/:policyId', protect, async (req, res) => {
     try {
         const { policyId } = req.params;
 
@@ -35,7 +35,7 @@ router.get('/status/:policyId', authenticateUser, async (req, res) => {
  * GET /api/v1/report-release/report/:reportId
  * Get merged report details for user
  */
-router.get('/report/:reportId', authenticateUser, async (req, res) => {
+router.get('/report/:reportId', protect, async (req, res) => {
     try {
         const { reportId } = req.params;
 
@@ -107,7 +107,7 @@ router.get('/report/:reportId', authenticateUser, async (req, res) => {
  * POST /api/v1/report-release/download/:reportId
  * Log report download and return download URL
  */
-router.post('/download/:reportId', authenticateUser, async (req, res) => {
+router.post('/download/:reportId', protect, async (req, res) => {
     try {
         const { reportId } = req.params;
 
@@ -175,8 +175,8 @@ router.post('/download/:reportId', authenticateUser, async (req, res) => {
  * Manually release a withheld report (admin only)
  */
 router.post('/manual-release/:reportId',
-    authenticateUser,
-    authorizePermissions('Admin', 'Super-admin'),
+    protect,
+    restrictTo('Admin', 'Super-admin'),
     async (req, res) => {
         try {
             const { reportId } = req.params;
@@ -216,8 +216,8 @@ router.post('/manual-release/:reportId',
  * Get all reports pending release (admin only)
  */
 router.get('/admin/pending',
-    authenticateUser,
-    authorizePermissions('Admin', 'Super-admin'),
+    protect,
+    restrictTo('Admin', 'Super-admin'),
     async (req, res) => {
         try {
             const { page = 1, limit = 20, status = 'all' } = req.query;
@@ -274,7 +274,7 @@ router.get('/admin/pending',
  * GET /api/v1/report-release/user/reports
  * Get all reports for the authenticated user
  */
-router.get('/user/reports', authenticateUser, async (req, res) => {
+router.get('/user/reports', protect, async (req, res) => {
     try {
         const { page = 1, limit = 10 } = req.query;
 
