@@ -518,6 +518,51 @@ const createSurveyor = async (req, res) => {
 
         await surveyor.save();
 
+        // Send credentials email to surveyor
+        const sendEmail = require('../utils/sendEmail');
+        const objectId = employee._id.toString();
+        const credentialsHtml = `<div>
+            <h2>Welcome to NIA DCIP Portal!</h2>
+            <p>Your account has been created as a NIA surveyor.</p>
+            <p><b>Email:</b> ${email}</p>
+            <p><b>Default Password:</b> ${objectId}</p>
+            <p>Please log in at <a href="http://localhost:3000/surveyor">http://localhost:3000/surveyor</a> and change your password after first login.</p>
+            <p><b>Organization:</b> Nigerian Insurers Association (NIA)</p>
+        </div>`;
+
+        try {
+            await sendEmail(email, 'NIA Surveyor Credentials', credentialsHtml);
+
+            // Console log the email details for debugging
+            console.log('📧 ===== NIA SURVEYOR EMAIL SENT =====');
+            console.log('📧 To:', email);
+            console.log('📧 Name:', `${firstname} ${lastname}`);
+            console.log('📧 Default Password:', objectId);
+            console.log('📧 Organization: NIA');
+            console.log('📧 Login URL: http://localhost:3000/surveyor');
+            console.log('📧 =====================================');
+
+            // Send notification email to NIA admin
+            const adminEmail = req.user?.email || process.env.ADMIN_EMAIL;
+            if (adminEmail) {
+                const adminHtml = `<div>
+                    <h2>New NIA Surveyor Created</h2>
+                    <p>A new NIA surveyor account has been created.</p>
+                    <p><b>Surveyor Name:</b> ${firstname} ${lastname}</p>
+                    <p><b>Surveyor Email:</b> ${email}</p>
+                    <p><b>Default Password:</b> ${objectId}</p>
+                    <p><b>Organization:</b> NIA</p>
+                    <p><b>Specializations:</b> ${specializations?.join(', ') || 'residential'}</p>
+                </div>`;
+                await sendEmail(adminEmail, 'New NIA Surveyor Created', adminHtml);
+
+                console.log('📧 Admin notification sent to:', adminEmail);
+            }
+        } catch (emailError) {
+            console.error('📧 Failed to send email:', emailError);
+            // Don't fail the surveyor creation if email fails
+        }
+
         // Populate the response
         await surveyor.populate('userId', 'firstname lastname email phonenumber');
 
