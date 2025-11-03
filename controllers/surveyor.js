@@ -3,12 +3,15 @@ const Surveyor = require('../models/Surveyor');
 const Assignment = require('../models/Assignment');
 const SurveySubmission = require('../models/SurveySubmission');
 const PolicyRequest = require('../models/PolicyRequest');
+const DualAssignment = require('../models/DualAssignment');
 const { BadRequestError, NotFoundError, UnauthenticatedError } = require('../errors');
 
 // Get surveyor dashboard data
 const getSurveyorDashboard = async (req, res) => {
   try {
+    console.log('Dashboard - req.user:', req.user);
     const surveyorUserId = req.user.userId;
+    console.log('Dashboard - surveyorUserId:', surveyorUserId);
 
     // Get or create surveyor profile
     let surveyor = await Surveyor.findOne({ userId: surveyorUserId });
@@ -80,10 +83,12 @@ const getSurveyorDashboard = async (req, res) => {
     });
   } catch (error) {
     console.error('Get surveyor dashboard error:', error);
+    console.error('Error stack:', error.stack);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: 'Failed to get dashboard data',
-      error: error.message
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
@@ -169,7 +174,6 @@ const getAssignmentById = async (req, res) => {
     // If this is a dual assignment, get the dual assignment info with full contact details
     let dualAssignmentInfo = null;
     if (assignment.dualAssignmentId) {
-      const DualAssignment = require('../models/DualAssignment');
       const dualAssignment = await DualAssignment.findById(assignment.dualAssignmentId)
         .populate('policyId', 'propertyDetails contactDetails');
 

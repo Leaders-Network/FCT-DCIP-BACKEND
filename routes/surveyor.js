@@ -11,9 +11,15 @@ const {
 } = require('../controllers/surveyor');
 const { protect, restrictTo } = require('../middlewares/authentication');
 const { requireAnySurveyor, logSurveyorActivity } = require('../middlewares/surveyorAuth');
+const { ensurePartnerContactInfo, populateDualAssignmentInfo } = require('../middlewares/assignmentContactMiddleware');
 const upload = require('../middlewares/file-upload');
 
 const router = express.Router();
+
+// Test endpoint to check if routing works
+router.get('/test', (req, res) => {
+  res.json({ success: true, message: 'Surveyor routes are working' });
+});
 
 // All routes require authentication and surveyor role (supports both AMMC and NIA)
 router.use(protect);

@@ -48,6 +48,23 @@ const AssignmentSchema = new mongoose.Schema({
     ref: 'DualAssignment',
     default: null
   },
+  partnerSurveyorContact: {
+    surveyorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Employee'
+    },
+    name: String,
+    email: String,
+    phone: String,
+    licenseNumber: String,
+    address: String,
+    emergencyContact: String,
+    specialization: [String],
+    experience: Number,
+    rating: Number,
+    organization: String,
+    assignedAt: Date
+  },
   specialRequirements: [{
     type: String,
     enum: [

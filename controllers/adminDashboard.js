@@ -3,17 +3,17 @@ const PolicyRequest = require('../models/PolicyRequest');
 const Assignment = require('../models/Assignment');
 const SurveySubmission = require('../models/SurveySubmission');
 const Surveyor = require('../models/Surveyor');
-const Employee = require('../models/Employee');
+const { Employee } = require('../models/Employee');
 
 // Get comprehensive dashboard data for admin
 const getDashboardData = async (req, res) => {
   try {
     const { period = '30d' } = req.query;
-    
+
     // Calculate date ranges
     const now = new Date();
     let startDate, previousPeriodStart;
-    
+
     switch (period) {
       case '7d':
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -31,7 +31,7 @@ const getDashboardData = async (req, res) => {
         startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         previousPeriodStart = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
     }
-    
+
     // Policy Request Metrics
     const [
       totalPolicies,
@@ -41,14 +41,14 @@ const getDashboardData = async (req, res) => {
       rejectedPolicies
     ] = await Promise.all([
       PolicyRequest.countDocuments({ createdAt: { $gte: startDate } }),
-      PolicyRequest.countDocuments({ 
-        createdAt: { $gte: previousPeriodStart, $lt: startDate } 
+      PolicyRequest.countDocuments({
+        createdAt: { $gte: previousPeriodStart, $lt: startDate }
       }),
       PolicyRequest.countDocuments({ status: 'pending' }),
       PolicyRequest.countDocuments({ status: 'approved' }),
       PolicyRequest.countDocuments({ status: 'rejected' })
     ]);
-    
+
     // Assignment Metrics
     const [
       totalAssignments,
@@ -57,10 +57,10 @@ const getDashboardData = async (req, res) => {
       overdueAssignments
     ] = await Promise.all([
       Assignment.countDocuments({ assignedAt: { $gte: startDate } }),
-      Assignment.countDocuments({ 
-        status: { $in: ['assigned', 'in_progress'] } 
+      Assignment.countDocuments({
+        status: { $in: ['assigned', 'in_progress'] }
       }),
-      Assignment.countDocuments({ 
+      Assignment.countDocuments({
         status: 'completed',
         assignedAt: { $gte: startDate }
       }),
@@ -69,7 +69,7 @@ const getDashboardData = async (req, res) => {
         deadline: { $lt: now }
       })
     ]);
-    
+
     // Surveyor Metrics
     const [
       totalSurveyors,
@@ -77,23 +77,23 @@ const getDashboardData = async (req, res) => {
       availableSurveyors
     ] = await Promise.all([
       Surveyor.countDocuments({ status: 'active' }),
-      Surveyor.countDocuments({ 
+      Surveyor.countDocuments({
         status: 'active',
         'profile.availability': { $in: ['available', 'busy'] }
       }),
-      Surveyor.countDocuments({ 
+      Surveyor.countDocuments({
         status: 'active',
         'profile.availability': 'available'
       })
     ]);
-    
+
     // Recent Activity - Policy Requests
     const recentPolicies = await PolicyRequest.find()
       .populate('assignedSurveyors', 'firstname lastname')
       .sort({ createdAt: -1 })
       .limit(10)
       .select('policyNumber contactDetails status priority createdAt assignedSurveyors');
-    
+
     // Recent Activity - Assignments
     const recentAssignments = await Assignment.find()
       .populate('ammcId', 'policyNumber contactDetails')
@@ -101,7 +101,7 @@ const getDashboardData = async (req, res) => {
       .sort({ assignedAt: -1 })
       .limit(10)
       .select('ammcId surveyorId status priority assignedAt deadline');
-    
+
     // Recent Activity - Survey Submissions
     const recentSubmissions = await SurveySubmission.find()
       .populate('ammcId', 'policyNumber contactDetails')
@@ -109,7 +109,7 @@ const getDashboardData = async (req, res) => {
       .sort({ submissionTime: -1 })
       .limit(5)
       .select('ammcId surveyorId status submissionTime reviewedAt');
-    
+
     // Performance Trends - Daily data for the period
     const dailyTrends = await PolicyRequest.aggregate([
       {
@@ -132,7 +132,7 @@ const getDashboardData = async (req, res) => {
         $sort: { '_id.date': 1 }
       }
     ]);
-    
+
     // Top Performing Surveyors
     const topSurveyors = await Assignment.aggregate([
       {
@@ -179,7 +179,7 @@ const getDashboardData = async (req, res) => {
         $limit: 5
       }
     ]);
-    
+
     // Status Distribution
     const statusDistribution = await PolicyRequest.aggregate([
       {
@@ -190,13 +190,13 @@ const getDashboardData = async (req, res) => {
         }
       }
     ]);
-    
+
     // Calculate total for percentage
     const totalPoliciesAll = await PolicyRequest.countDocuments();
     statusDistribution.forEach(item => {
       item.percentage = totalPoliciesAll > 0 ? (item.count / totalPoliciesAll) * 100 : 0;
     });
-    
+
     // Priority Distribution
     const priorityDistribution = await PolicyRequest.aggregate([
       {
@@ -206,23 +206,23 @@ const getDashboardData = async (req, res) => {
         }
       }
     ]);
-    
+
     // Calculate growth percentages
-    const policyGrowth = previousPolicies > 0 
-      ? ((totalPolicies - previousPolicies) / previousPolicies) * 100 
+    const policyGrowth = previousPolicies > 0
+      ? ((totalPolicies - previousPolicies) / previousPolicies) * 100
       : 0;
-    
-    const completionRate = totalAssignments > 0 
-      ? (completedAssignments / totalAssignments) * 100 
+
+    const completionRate = totalAssignments > 0
+      ? (completedAssignments / totalAssignments) * 100
       : 0;
-    
+
     // System Health Indicators
     const systemHealth = {
       overdueRate: activeAssignments > 0 ? (overdueAssignments / activeAssignments) * 100 : 0,
       surveyorUtilization: totalSurveyors > 0 ? ((totalSurveyors - availableSurveyors) / totalSurveyors) * 100 : 0,
       avgProcessingTime: await calculateAvgProcessingTime(startDate)
     };
-    
+
     res.status(StatusCodes.OK).json({
       success: true,
       data: {
@@ -295,7 +295,7 @@ const calculateAvgProcessingTime = async (startDate) => {
         }
       }
     ]);
-    
+
     return result[0]?.avgTime || 0;
   } catch (error) {
     console.error('Calculate avg processing time error:', error);
@@ -309,7 +309,7 @@ const getQuickStats = async (req, res) => {
     const today = new Date();
     const startOfDay = new Date(today.setHours(0, 0, 0, 0));
     const startOfWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
+
     const [
       todayPolicies,
       weekPolicies,
@@ -326,7 +326,7 @@ const getQuickStats = async (req, res) => {
       }),
       SurveySubmission.countDocuments({ status: 'pending' })
     ]);
-    
+
     res.status(StatusCodes.OK).json({
       success: true,
       data: {
@@ -352,16 +352,16 @@ const getAdminAlerts = async (req, res) => {
   try {
     const now = new Date();
     const alerts = [];
-    
+
     // Overdue assignments
     const overdueAssignments = await Assignment.find({
       status: { $in: ['assigned', 'in_progress'] },
       deadline: { $lt: now }
     })
-    .populate('ammcId', 'policyNumber')
-    .populate('surveyorId', 'userid firstname lastname')
-    .limit(10);
-    
+      .populate('ammcId', 'policyNumber')
+      .populate('surveyorId', 'userid firstname lastname')
+      .limit(10);
+
     overdueAssignments.forEach(assignment => {
       alerts.push({
         type: 'overdue_assignment',
@@ -377,15 +377,15 @@ const getAdminAlerts = async (req, res) => {
         timestamp: assignment.deadline
       });
     });
-    
+
     // Pending reviews
     const pendingReviews = await SurveySubmission.find({
       status: 'pending'
     })
-    .populate('ammcId', 'policyNumber')
-    .populate('surveyorId', 'userid firstname lastname')
-    .limit(5);
-    
+      .populate('ammcId', 'policyNumber')
+      .populate('surveyorId', 'userid firstname lastname')
+      .limit(5);
+
     pendingReviews.forEach(submission => {
       alerts.push({
         type: 'pending_review',
@@ -401,13 +401,13 @@ const getAdminAlerts = async (req, res) => {
         timestamp: submission.submissionTime
       });
     });
-    
+
     // High priority unassigned policies
     const unassignedPolicies = await PolicyRequest.find({
       status: 'pending',
       priority: { $in: ['high', 'urgent'] }
     }).limit(5);
-    
+
     unassignedPolicies.forEach(policy => {
       alerts.push({
         type: 'unassigned_policy',
@@ -423,7 +423,7 @@ const getAdminAlerts = async (req, res) => {
         timestamp: policy.createdAt
       });
     });
-    
+
     // Sort alerts by severity and timestamp
     alerts.sort((a, b) => {
       const severityOrder = { high: 3, medium: 2, low: 1 };
@@ -432,7 +432,7 @@ const getAdminAlerts = async (req, res) => {
       }
       return new Date(b.timestamp) - new Date(a.timestamp);
     });
-    
+
     res.status(StatusCodes.OK).json({
       success: true,
       data: {

@@ -1,5 +1,5 @@
 const nodemailer = require('nodemailer');
-const Employee = require('../models/Employee');
+const { Employee } = require('../models/Employee');
 const DualAssignment = require('../models/DualAssignment');
 
 class DualSurveyorNotificationService {

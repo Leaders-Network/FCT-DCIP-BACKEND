@@ -274,16 +274,49 @@ const reassignAssignment = async (req, res) => {
 
     const oldSurveyor = assignment.surveyorId;
 
+    // Get new surveyor organization
+    const newSurveyorOrganization = newSurveyor.organization || 'AMMC';
+
+    // Get complete surveyor contact information using the AssignmentContactService
+    const AssignmentContactService = require('../services/AssignmentContactService');
+    let newSurveyorContactInfo = null;
+
+    try {
+      newSurveyorContactInfo = await AssignmentContactService.getSurveyorContactInfo(
+        newSurveyor.userId._id,
+        newSurveyorOrganization
+      );
+    } catch (contactError) {
+      console.error('Failed to get new surveyor contact info:', contactError);
+      // Create basic contact info as fallback
+      newSurveyorContactInfo = {
+        surveyorId: newSurveyor.userId._id,
+        name: `${newSurveyor.userId.firstname} ${newSurveyor.userId.lastname}`,
+        email: newSurveyor.userId.email,
+        phone: newSurveyor.userId.phonenumber,
+        licenseNumber: newSurveyor.licenseNumber || 'Not provided',
+        address: newSurveyor.address || 'Not provided',
+        emergencyContact: newSurveyor.emergencyContact || 'Not provided',
+        specialization: newSurveyor.profile?.specialization || [],
+        experience: newSurveyor.profile?.experience || 0,
+        rating: newSurveyor.rating || 0,
+        organization: newSurveyorOrganization,
+        assignedAt: new Date()
+      };
+    }
+
     // Update assignment
     assignment.surveyorId = newSurveyor.userId._id; // use the Employee ID
     assignment.status = 'assigned'; // Reset status
+    assignment.organization = newSurveyorOrganization;
+    assignment.partnerSurveyorContact = newSurveyorContactInfo; // Update contact details
     if (deadline) assignment.deadline = deadline;
     if (priority) assignment.priority = priority;
 
     // Add timeline entry
     const details = oldSurveyor
-      ? `Reassigned from ${oldSurveyor.firstname} ${oldSurveyor.lastname} to ${newSurveyor.userId.firstname} ${newSurveyor.userId.lastname}`
-      : `Assigned to ${newSurveyor.userId.firstname} ${newSurveyor.userId.lastname}`;
+      ? `Reassigned from ${oldSurveyor.firstname} ${oldSurveyor.lastname} to ${newSurveyor.userId.firstname} ${newSurveyor.userId.lastname} (${newSurveyorOrganization})`
+      : `Assigned to ${newSurveyor.userId.firstname} ${newSurveyor.userId.lastname} (${newSurveyorOrganization})`;
 
     assignment.timeline.push({
       action: 'assignment_reassigned',
@@ -582,20 +615,56 @@ const createAssignment = async (req, res) => {
     const validSurveyor = await Surveyor.findOne({
       _id: surveyorId,
       status: 'active'
-    });
+    }).populate('userId', 'firstname lastname email phonenumber employeeStatus');
 
     if (!validSurveyor) {
       throw new BadRequestError('Surveyor not found or inactive');
     }
 
+    if (!validSurveyor.userId) {
+      throw new BadRequestError('The selected surveyor does not have a valid employee record.');
+    }
+
+    // Get surveyor organization (default to AMMC if not specified)
+    const surveyorOrganization = validSurveyor.organization || 'AMMC';
+
+    // Get complete surveyor contact information using the AssignmentContactService
+    const AssignmentContactService = require('../services/AssignmentContactService');
+    let surveyorContactInfo = null;
+
+    try {
+      surveyorContactInfo = await AssignmentContactService.getSurveyorContactInfo(
+        validSurveyor.userId._id,
+        surveyorOrganization
+      );
+    } catch (contactError) {
+      console.error('Failed to get surveyor contact info:', contactError);
+      // Create basic contact info as fallback
+      surveyorContactInfo = {
+        surveyorId: validSurveyor.userId._id,
+        name: `${validSurveyor.userId.firstname} ${validSurveyor.userId.lastname}`,
+        email: validSurveyor.userId.email,
+        phone: validSurveyor.userId.phonenumber,
+        licenseNumber: validSurveyor.licenseNumber || 'Not provided',
+        address: validSurveyor.address || 'Not provided',
+        emergencyContact: validSurveyor.emergencyContact || 'Not provided',
+        specialization: validSurveyor.profile?.specialization || [],
+        experience: validSurveyor.profile?.experience || 0,
+        rating: validSurveyor.rating || 0,
+        organization: surveyorOrganization,
+        assignedAt: new Date()
+      };
+    }
+
     const newAssignment = await Assignment.create({
       ammcId,
-      surveyorId: validSurveyor.userId, // Use the Employee ID here
+      surveyorId: validSurveyor.userId._id, // Use the Employee ID here
       assignedBy: req.user.userId, // Admin who assigned it
       assignedAt: new Date(),
       deadline: new Date(deadline),
       priority,
       instructions,
+      organization: surveyorOrganization,
       location: {
         address: policy.propertyDetails.address,
         contactPerson: {
@@ -604,12 +673,15 @@ const createAssignment = async (req, res) => {
           email: policy.contactDetails.email,
         },
       },
+      // Add surveyor contact information to the assignment
+      partnerSurveyorContact: surveyorContactInfo,
       status: 'assigned',
       timeline: [{
         action: 'assignment_created',
         timestamp: new Date(),
         performedBy: req.user.userId,
-        details: `Assignment created for policy ${policy.policyNumber || ammcId}`
+        details: `Assignment created for policy ${policy.policyNumber || ammcId}`,
+        notes: `Assigned to ${surveyorContactInfo.name} (${surveyorOrganization})`
       }]
     });
 
@@ -620,14 +692,24 @@ const createAssignment = async (req, res) => {
       status: 'assigned',
       changedBy: req.user.userId,
       changedAt: new Date(),
-      reason: 'Surveyor assigned'
+      reason: `Surveyor assigned: ${surveyorContactInfo.name} (${surveyorOrganization})`
     });
     await policy.save();
 
+    // Populate the response with full assignment details
+    const populatedAssignment = await Assignment.findById(newAssignment._id)
+      .populate('ammcId', 'policyNumber contactDetails propertyDetails')
+      .populate('surveyorId', 'firstname lastname email phonenumber')
+      .populate('assignedBy', 'firstname lastname');
+
     res.status(StatusCodes.CREATED).json({
       success: true,
-      message: 'Assignment created successfully',
-      data: newAssignment
+      message: 'Assignment created successfully with surveyor contact details',
+      data: {
+        assignment: populatedAssignment,
+        surveyorContact: surveyorContactInfo,
+        organization: surveyorOrganization
+      }
     });
 
   } catch (error) {

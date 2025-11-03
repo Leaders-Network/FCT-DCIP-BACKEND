@@ -1,7 +1,7 @@
 const DualAssignment = require('../models/DualAssignment');
 const Assignment = require('../models/Assignment');
 const PolicyRequest = require('../models/PolicyRequest');
-const Employee = require('../models/Employee');
+const { Employee } = require('../models/Employee');
 const Surveyor = require('../models/Surveyor');
 const { StatusCodes } = require('http-status-codes');
 const {
@@ -191,7 +191,11 @@ const assignAMMCSurveyor = async (req, res) => {
             });
         }
 
-        // Create AMMC assignment
+        // Get complete surveyor contact information
+        const AssignmentContactService = require('../services/AssignmentContactService');
+        const surveyorContactInfo = await AssignmentContactService.getSurveyorContactInfo(surveyorId, 'AMMC');
+
+        // Create AMMC assignment with surveyor contact details
         const assignment = new Assignment({
             ammcId: dualAssignment.policyId,
             surveyorId: surveyorId,
@@ -200,34 +204,29 @@ const assignAMMCSurveyor = async (req, res) => {
             priority: priority || dualAssignment.priority,
             instructions: instructions || '',
             organization: 'AMMC',
-            dualAssignmentId: dualAssignmentId
+            dualAssignmentId: dualAssignmentId,
+            partnerSurveyorContact: surveyorContactInfo
         });
 
         await assignment.save();
 
-        // Update dual assignment with AMMC surveyor contact details
-        const surveyorContact = {
-            surveyorId: surveyorId,
-            name: `${surveyor.userId.firstname} ${surveyor.userId.lastname}`,
-            email: surveyor.userId.email,
-            phone: surveyor.userId.phonenumber,
-            licenseNumber: surveyor.licenseNumber || 'Not provided',
-            address: surveyor.address || 'Not provided',
-            emergencyContact: surveyor.emergencyContact || 'Not provided',
-            specialization: surveyor.profile.specialization || [],
-            experience: surveyor.profile.experience || 0,
-            rating: surveyor.rating || 0
-        };
-
-        dualAssignment.assignAMMCSurveyor(assignment._id, surveyorContact, req.user.userId);
-        await dualAssignment.save();
+        // Update dual assignment with AMMC surveyor contact details using the service
+        const updatedDualAssignment = await AssignmentContactService.updateDualAssignmentContacts(
+            dualAssignmentId,
+            'AMMC',
+            surveyorId,
+            assignment._id,
+            req.user.userId
+        );
 
         res.status(StatusCodes.OK).json({
             success: true,
             message: 'AMMC surveyor assigned successfully',
             data: {
-                dualAssignment,
-                assignment
+                dualAssignment: updatedDualAssignment,
+                assignment,
+                contactsUpdated: true,
+                bothAssigned: updatedDualAssignment.isBothAssigned()
             }
         });
     } catch (error) {
@@ -306,7 +305,11 @@ const assignNIASurveyor = async (req, res) => {
             });
         }
 
-        // Create NIA assignment
+        // Get complete surveyor contact information
+        const AssignmentContactService = require('../services/AssignmentContactService');
+        const surveyorContactInfo = await AssignmentContactService.getSurveyorContactInfo(surveyorId, 'NIA');
+
+        // Create NIA assignment with surveyor contact details
         const assignment = new Assignment({
             ammcId: dualAssignment.policyId,
             surveyorId: surveyorId,
@@ -315,34 +318,29 @@ const assignNIASurveyor = async (req, res) => {
             priority: priority || dualAssignment.priority,
             instructions: instructions || '',
             organization: 'NIA',
-            dualAssignmentId: dualAssignmentId
+            dualAssignmentId: dualAssignmentId,
+            partnerSurveyorContact: surveyorContactInfo
         });
 
         await assignment.save();
 
-        // Update dual assignment with NIA surveyor contact details
-        const surveyorContact = {
-            surveyorId: surveyorId,
-            name: `${surveyor.userId.firstname} ${surveyor.userId.lastname}`,
-            email: surveyor.userId.email,
-            phone: surveyor.userId.phonenumber,
-            licenseNumber: surveyor.licenseNumber || 'Not provided',
-            address: surveyor.address || 'Not provided',
-            emergencyContact: surveyor.emergencyContact || 'Not provided',
-            specialization: surveyor.profile.specialization || [],
-            experience: surveyor.profile.experience || 0,
-            rating: surveyor.rating || 0
-        };
-
-        dualAssignment.assignNIASurveyor(assignment._id, surveyorContact, req.user.userId);
-        await dualAssignment.save();
+        // Update dual assignment with NIA surveyor contact details using the service
+        const updatedDualAssignment = await AssignmentContactService.updateDualAssignmentContacts(
+            dualAssignmentId,
+            'NIA',
+            surveyorId,
+            assignment._id,
+            req.user.userId
+        );
 
         res.status(StatusCodes.OK).json({
             success: true,
             message: 'NIA surveyor assigned successfully',
             data: {
-                dualAssignment,
-                assignment
+                dualAssignment: updatedDualAssignment,
+                assignment,
+                contactsUpdated: true,
+                bothAssigned: updatedDualAssignment.isBothAssigned()
             }
         });
     } catch (error) {
