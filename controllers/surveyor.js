@@ -166,9 +166,43 @@ const getAssignmentById = async (req, res) => {
       throw new NotFoundError('Assignment not found');
     }
 
+    // If this is a dual assignment, get the dual assignment info with full contact details
+    let dualAssignmentInfo = null;
+    if (assignment.dualAssignmentId) {
+      const DualAssignment = require('../models/DualAssignment');
+      const dualAssignment = await DualAssignment.findById(assignment.dualAssignmentId)
+        .populate('policyId', 'propertyDetails contactDetails');
+
+      if (dualAssignment) {
+        // Get the other surveyor's contact information
+        const currentSurveyorOrganization = assignment.organization || req.user.organization || 'AMMC';
+        const otherSurveyorContact = currentSurveyorOrganization === 'AMMC'
+          ? dualAssignment.niaSurveyorContact
+          : dualAssignment.ammcSurveyorContact;
+
+        dualAssignmentInfo = {
+          _id: dualAssignment._id,
+          assignmentStatus: dualAssignment.assignmentStatus,
+          completionStatus: dualAssignment.completionStatus,
+          otherSurveyor: otherSurveyorContact ? {
+            ...otherSurveyorContact,
+            organization: currentSurveyorOrganization === 'AMMC' ? 'NIA' : 'AMMC'
+          } : null,
+          timeline: dualAssignment.timeline,
+          priority: dualAssignment.priority
+        };
+      }
+    }
+
+    // Add dual assignment info to the response
+    const responseData = {
+      ...assignment.toObject(),
+      dualAssignmentInfo
+    };
+
     res.status(StatusCodes.OK).json({
       success: true,
-      data: assignment
+      data: responseData
     });
   } catch (error) {
     console.error('Get assignment by ID error:', error);
@@ -265,11 +299,14 @@ const submitSurvey = async (req, res) => {
       _id: assignmentId,
       surveyorId: surveyorUserId,
       status: { $nin: ['rejected', 'cancelled'] }
-    });
+    }).populate('surveyorId', 'firstname lastname email phonenumber');
 
     if (!assignment) {
       throw new NotFoundError('Assignment not found or not in progress');
     }
+
+    // Get surveyor organization from assignment or user context
+    const surveyorOrganization = assignment.organization || req.user.organization || 'AMMC';
 
     let surveyDocumentUrl = '';
     if (req.file) {
@@ -281,7 +318,7 @@ const submitSurvey = async (req, res) => {
       fs.unlinkSync(req.file.path);
     }
 
-    // Create survey submission
+    // Create survey submission with organization identification
     const submission = new SurveySubmission({
       ammcId,
       surveyorId: surveyorUserId,
@@ -291,6 +328,7 @@ const submitSurvey = async (req, res) => {
       surveyNotes,
       contactLog: contactLog || [],
       recommendedAction,
+      organization: surveyorOrganization,
       status: 'submitted'
     });
 
@@ -314,17 +352,98 @@ const submitSurvey = async (req, res) => {
 
     await assignment.save();
 
-    // Update policy request status
-    await PolicyRequest.findByIdAndUpdate(ammcId, {
-      status: 'surveyed',
+    // Handle dual-surveyor workflow
+    let dualAssignmentUpdate = null;
+    let otherSurveyorNotification = null;
+
+    if (assignment.dualAssignmentId) {
+      const DualAssignment = require('../models/DualAssignment');
+      const dualAssignment = await DualAssignment.findById(assignment.dualAssignmentId);
+
+      if (dualAssignment) {
+        // Update dual assignment progress
+        dualAssignment.reportSubmitted(surveyorOrganization, submission._id, surveyorUserId);
+        await dualAssignment.save();
+
+        dualAssignmentUpdate = {
+          completionStatus: dualAssignment.completionStatus,
+          assignmentStatus: dualAssignment.assignmentStatus,
+          isDualSurveyor: true
+        };
+
+        // Get other surveyor's contact information for notification
+        const otherOrganization = surveyorOrganization === 'AMMC' ? 'NIA' : 'AMMC';
+        const otherSurveyorContact = surveyorOrganization === 'AMMC'
+          ? dualAssignment.niaSurveyorContact
+          : dualAssignment.ammcSurveyorContact;
+
+        // Send notification to other surveyor
+        const DualSurveyorNotificationService = require('../services/DualSurveyorNotificationService');
+        try {
+          const notificationResult = await DualSurveyorNotificationService.notifyOtherSurveyor(
+            dualAssignment._id,
+            surveyorOrganization,
+            {
+              submissionId: submission._id,
+              recommendedAction,
+              submittedAt: new Date()
+            }
+          );
+
+          otherSurveyorNotification = notificationResult;
+        } catch (notificationError) {
+          console.error('Failed to send notification to other surveyor:', notificationError);
+          // Don't fail the submission if notification fails
+          otherSurveyorNotification = {
+            success: false,
+            error: notificationError.message
+          };
+        }
+
+        // Check if both reports are submitted and trigger automatic merging
+        if (dualAssignment.isBothReportsSubmitted()) {
+          // Trigger automatic report merging process
+          const AutoReportMerger = require('../services/AutoReportMerger');
+          try {
+            await AutoReportMerger.triggerMerging(dualAssignment.policyId, {
+              ammcReportId: surveyorOrganization === 'AMMC' ? submission._id : null,
+              niaReportId: surveyorOrganization === 'NIA' ? submission._id : null,
+              dualAssignmentId: dualAssignment._id
+            });
+          } catch (mergingError) {
+            console.error('Failed to trigger automatic report merging:', mergingError);
+            // Don't fail the submission if merging fails
+          }
+        }
+      }
+    }
+
+    // Update policy request status with dual-surveyor context
+    const policyUpdateData = {
       surveyDocument: surveyDocumentUrl,
       surveyNotes
-    });
+    };
+
+    // Set status based on dual-surveyor context
+    if (dualAssignmentUpdate && dualAssignmentUpdate.completionStatus === 100) {
+      policyUpdateData.status = 'surveyed'; // Both reports submitted
+    } else if (dualAssignmentUpdate && dualAssignmentUpdate.completionStatus === 50) {
+      policyUpdateData.status = 'partially_surveyed'; // One report submitted
+    } else {
+      policyUpdateData.status = 'surveyed'; // Single surveyor or fallback
+    }
+
+    await PolicyRequest.findByIdAndUpdate(ammcId, policyUpdateData);
 
     res.status(StatusCodes.CREATED).json({
       success: true,
       message: 'Survey submitted successfully',
-      data: submission
+      data: {
+        submission,
+        dualAssignmentInfo: dualAssignmentUpdate,
+        otherSurveyorNotified: !!otherSurveyorNotification,
+        organization: surveyorOrganization
+      }
     });
   } catch (error) {
     console.error('Submit survey error:', error);

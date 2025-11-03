@@ -35,6 +35,12 @@ const DualAssignmentSchema = new mongoose.Schema({
         name: String,
         email: String,
         phone: String,
+        licenseNumber: String,
+        address: String,
+        emergencyContact: String,
+        specialization: [String],
+        experience: Number,
+        rating: Number,
         assignedAt: Date
     },
     niaSurveyorContact: {
@@ -45,6 +51,12 @@ const DualAssignmentSchema = new mongoose.Schema({
         name: String,
         email: String,
         phone: String,
+        licenseNumber: String,
+        address: String,
+        emergencyContact: String,
+        specialization: [String],
+        experience: Number,
+        rating: Number,
         assignedAt: Date
     },
     timeline: [{

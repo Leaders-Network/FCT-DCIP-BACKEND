@@ -205,12 +205,18 @@ const assignAMMCSurveyor = async (req, res) => {
 
         await assignment.save();
 
-        // Update dual assignment with AMMC surveyor
+        // Update dual assignment with AMMC surveyor contact details
         const surveyorContact = {
             surveyorId: surveyorId,
             name: `${surveyor.userId.firstname} ${surveyor.userId.lastname}`,
             email: surveyor.userId.email,
-            phone: surveyor.userId.phonenumber
+            phone: surveyor.userId.phonenumber,
+            licenseNumber: surveyor.licenseNumber || 'Not provided',
+            address: surveyor.address || 'Not provided',
+            emergencyContact: surveyor.emergencyContact || 'Not provided',
+            specialization: surveyor.profile.specialization || [],
+            experience: surveyor.profile.experience || 0,
+            rating: surveyor.rating || 0
         };
 
         dualAssignment.assignAMMCSurveyor(assignment._id, surveyorContact, req.user.userId);
@@ -314,12 +320,18 @@ const assignNIASurveyor = async (req, res) => {
 
         await assignment.save();
 
-        // Update dual assignment with NIA surveyor
+        // Update dual assignment with NIA surveyor contact details
         const surveyorContact = {
             surveyorId: surveyorId,
             name: `${surveyor.userId.firstname} ${surveyor.userId.lastname}`,
             email: surveyor.userId.email,
-            phone: surveyor.userId.phonenumber
+            phone: surveyor.userId.phonenumber,
+            licenseNumber: surveyor.licenseNumber || 'Not provided',
+            address: surveyor.address || 'Not provided',
+            emergencyContact: surveyor.emergencyContact || 'Not provided',
+            specialization: surveyor.profile.specialization || [],
+            experience: surveyor.profile.experience || 0,
+            rating: surveyor.rating || 0
         };
 
         dualAssignment.assignNIASurveyor(assignment._id, surveyorContact, req.user.userId);
