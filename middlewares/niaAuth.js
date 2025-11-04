@@ -99,33 +99,47 @@ const requireNIAPermission = (permission) => {
 // Middleware to allow both AMMC and NIA admins
 const requireAnyAdmin = async (req, res, next) => {
     try {
+        console.log('=== requireAnyAdmin Debug ===');
+
         // First, ensure user is authenticated
         const authHeader = req.headers.authorization;
+        console.log('Auth header present:', !!authHeader);
+
         if (!authHeader || !authHeader.startsWith('Bearer')) {
+            console.log('Invalid auth header format');
             throw new UnauthenticatedError('Authentication invalid');
         }
 
         const token = authHeader.split(' ')[1];
+        console.log('Token present:', !!token);
+
         const payload = jwt.verify(token, process.env.JWT_SECRET);
+        console.log('Token payload:', payload);
 
         // Get user from Employee model
         const user = await Employee.findById(payload.userId)
             .populate(['employeeRole', 'employeeStatus']);
 
+        console.log('User found:', user ? `${user.firstname} ${user.lastname} (${user.email})` : 'No');
+
         if (!user) {
+            console.log('User not found in database');
             throw new UnauthenticatedError('Authentication invalid: User not found');
         }
 
         // Check if user is AMMC admin (existing logic)
         const isAMMCAdmin = ['Admin', 'Super-admin'].includes(user.employeeRole?.role);
+        console.log('Is AMMC Admin:', isAMMCAdmin, 'Role:', user.employeeRole?.role);
 
         // Check if user is NIA admin
         const niaAdmin = await NIAAdmin.findOne({
             userId: payload.userId,
             status: 'active'
         });
+        console.log('NIA Admin found:', !!niaAdmin);
 
         if (!isAMMCAdmin && !niaAdmin) {
+            console.log('Access denied - not AMMC admin or NIA admin');
             throw new UnauthorizedError('Admin access required (AMMC or NIA)');
         }
 
@@ -143,8 +157,10 @@ const requireAnyAdmin = async (req, res, next) => {
             req.niaAdmin = niaAdmin;
         }
 
+        console.log('Access granted for:', req.user.organization, 'admin');
         next();
     } catch (error) {
+        console.error('requireAnyAdmin error:', error.message);
         if (error.name === 'JsonWebTokenError') {
             throw new UnauthenticatedError('Authentication invalid');
         }
