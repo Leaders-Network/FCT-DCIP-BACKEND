@@ -31,8 +31,8 @@ class AutoReportMerger {
             // Get the dual assignment with populated data
             const dualAssignment = await DualAssignment.findById(dualAssignmentId)
                 .populate('policyId')
-                .populate('ammcSurveyorId')
-                .populate('niaSurveyorId');
+                .populate('ammcAssignmentId')
+                .populate('niaAssignmentId');
 
             if (!dualAssignment) {
                 throw new Error('Dual assignment not found');
@@ -43,10 +43,18 @@ class AutoReportMerger {
                 throw new Error('Both surveys must be completed before merging');
             }
 
+            // Get surveyor IDs from the assignments
+            const ammcSurveyorId = dualAssignment.ammcAssignmentId?.surveyorId;
+            const niaSurveyorId = dualAssignment.niaAssignmentId?.surveyorId;
+
+            if (!ammcSurveyorId || !niaSurveyorId) {
+                throw new Error('Surveyor IDs not found in assignments');
+            }
+
             // Get survey submissions for both surveyors
             const [ammcSubmission, niaSubmission] = await Promise.all([
-                this.getSurveySubmission(dualAssignment.ammcSurveyorId._id, dualAssignment.policyId._id),
-                this.getSurveySubmission(dualAssignment.niaSurveyorId._id, dualAssignment.policyId._id)
+                this.getSurveySubmission(ammcSurveyorId, dualAssignment.policyId._id),
+                this.getSurveySubmission(niaSurveyorId, dualAssignment.policyId._id)
             ]);
 
             if (!ammcSubmission || !niaSubmission) {
@@ -532,6 +540,35 @@ class AutoReportMerger {
             }
         } catch (error) {
             console.error('Error processing pending assignments:', error);
+        }
+    }
+
+    /**
+     * Static method to trigger merging process
+     * Called from surveyor controller when both reports are submitted
+     */
+    static async triggerMerging(policyId, options = {}) {
+        try {
+            console.log(`🚀 Triggering automatic report merging for policy: ${policyId}`);
+
+            const { dualAssignmentId, ammcReportId, niaReportId } = options;
+
+            if (!dualAssignmentId) {
+                throw new Error('Dual assignment ID is required for merging');
+            }
+
+            // Create an instance of the merger
+            const merger = new AutoReportMerger();
+
+            // Process the dual assignment
+            const result = await merger.processDualAssignment(dualAssignmentId);
+
+            console.log(`✅ Automatic merging completed for policy: ${policyId}`);
+
+            return result;
+        } catch (error) {
+            console.error(`❌ Failed to trigger automatic merging for policy: ${policyId}`, error);
+            throw error;
         }
     }
 }

@@ -223,7 +223,17 @@ const getAssignmentById = async (req, res) => {
           assignmentStatus: dualAssignment.assignmentStatus,
           completionStatus: dualAssignment.completionStatus,
           otherSurveyor: otherSurveyorContact ? {
-            ...otherSurveyorContact,
+            surveyorId: otherSurveyorContact.surveyorId,
+            name: otherSurveyorContact.name,
+            email: otherSurveyorContact.email,
+            phone: otherSurveyorContact.phone,
+            licenseNumber: otherSurveyorContact.licenseNumber,
+            address: otherSurveyorContact.address,
+            emergencyContact: otherSurveyorContact.emergencyContact,
+            specialization: otherSurveyorContact.specialization,
+            experience: otherSurveyorContact.experience,
+            rating: otherSurveyorContact.rating,
+            assignedAt: otherSurveyorContact.assignedAt,
             organization: currentSurveyorOrganization === 'AMMC' ? 'NIA' : 'AMMC'
           } : null,
           timeline: dualAssignment.timeline,
