@@ -7,7 +7,8 @@ const {
   submitSurvey,
   getSurveyorSubmissions,
   getSurveyorProfile,
-  updateSurveyorProfile
+  updateSurveyorProfile,
+  getSurveyorDualAssignments
 } = require('../controllers/surveyor');
 const { protect, restrictTo } = require('../middlewares/authentication');
 const { requireAnySurveyor, logSurveyorActivity } = require('../middlewares/surveyorAuth');
@@ -32,6 +33,9 @@ router.get('/dashboard', logSurveyorActivity('ACCESS_DASHBOARD'), getSurveyorDas
 router.get('/assignments', getSurveyorAssignments);
 router.get('/assignments/:assignmentId', getAssignmentById);
 router.patch('/assignments/:assignmentId/status', logSurveyorActivity('UPDATE_ASSIGNMENT_STATUS'), updateAssignmentStatus);
+
+// Dual assignments (supports both AMMC and NIA surveyors)
+router.get('/dual-assignments', getSurveyorDualAssignments);
 
 // Survey submissions (supports both AMMC and NIA surveyors)
 router.post('/surveys', upload.single('surveyDocument'), logSurveyorActivity('SUBMIT_SURVEY'), submitSurvey);

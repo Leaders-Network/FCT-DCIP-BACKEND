@@ -433,6 +433,9 @@ const getDualAssignmentByPolicy = async (req, res) => {
 // Get all dual assignments with filters
 const getDualAssignments = async (req, res) => {
     try {
+        console.log('📋 Get Dual Assignments - Request from:', req.user?.organization, 'admin');
+        console.log('📋 Query params:', req.query);
+
         const {
             page = 1,
             limit = 10,
@@ -448,6 +451,8 @@ const getDualAssignments = async (req, res) => {
         if (completionStatus) filter.completionStatus = parseInt(completionStatus);
         if (priority) filter.priority = priority;
 
+        console.log('📋 Applied filters:', filter);
+
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
         const dualAssignments = await DualAssignment.find(filter)
@@ -458,7 +463,20 @@ const getDualAssignments = async (req, res) => {
             .skip(skip)
             .limit(parseInt(limit));
 
+        console.log('📋 Found dual assignments:', dualAssignments.length);
 
+        // Debug: Log assignment details
+        dualAssignments.forEach((assignment, index) => {
+            console.log(`📋 Assignment ${index + 1}:`, {
+                id: assignment._id.toString().slice(-6),
+                status: assignment.assignmentStatus,
+                completion: assignment.completionStatus,
+                hasAMMC: !!assignment.ammcSurveyorContact,
+                hasNIA: !!assignment.niaSurveyorContact,
+                ammcName: assignment.ammcSurveyorContact?.name,
+                niaName: assignment.niaSurveyorContact?.name
+            });
+        });
 
         const total = await DualAssignment.countDocuments(filter);
 
@@ -472,14 +490,24 @@ const getDualAssignments = async (req, res) => {
                     totalItems: total,
                     itemsPerPage: parseInt(limit)
                 }
+            },
+            debug: {
+                requestedBy: req.user?.organization,
+                filtersApplied: filter,
+                totalFound: dualAssignments.length
             }
         });
     } catch (error) {
-        console.error('Get dual assignments error:', error);
+        console.error('❌ Get dual assignments error:', error);
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: 'Failed to get dual assignments',
-            error: error.message
+            error: error.message,
+            debug: {
+                requestedBy: req.user?.organization,
+                errorType: error.name,
+                errorMessage: error.message
+            }
         });
     }
 };

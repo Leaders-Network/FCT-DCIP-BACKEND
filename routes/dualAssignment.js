@@ -122,6 +122,35 @@ router.get('/', requireAnyAdmin, getDualAssignments);
 // Get dual assignment statistics (requires any admin)
 router.get('/stats', requireAnyAdmin, getDualAssignmentStats);
 
+// Test authentication endpoint
+router.get('/auth-test', requireAnyAdmin, async (req, res) => {
+    try {
+        res.status(200).json({
+            success: true,
+            message: 'Authentication successful',
+            data: {
+                user: {
+                    userId: req.user.userId,
+                    organization: req.user.organization,
+                    role: req.user.role,
+                    fullname: req.user.fullname
+                },
+                niaAdmin: req.niaAdmin ? {
+                    id: req.niaAdmin._id,
+                    status: req.niaAdmin.status
+                } : null,
+                timestamp: new Date().toISOString()
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Authentication test failed',
+            error: error.message
+        });
+    }
+});
+
 // Debug route to check assignment data (requires any admin)
 router.get('/debug', requireAnyAdmin, async (req, res) => {
     try {

@@ -545,7 +545,39 @@ const loginEmployee = async (req, res, next) => {
         const employeeDisplay = employee.toObject()
         delete employeeDisplay.password
         delete employeeDisplay.__v
-        res.status(StatusCodes.OK).json({ success: true, employee: employeeDisplay, token })
+
+        // Check if employee is a surveyor and include organization info
+        const Surveyor = require('../models/Surveyor');
+        const NIAAdmin = require('../models/NIAAdmin');
+
+        let surveyorInfo = null;
+        let organization = null;
+
+        // Check if employee is a surveyor
+        const surveyor = await Surveyor.findOne({ userId: employee._id });
+        if (surveyor) {
+            surveyorInfo = {
+                _id: surveyor._id,
+                organization: surveyor.organization,
+                profile: surveyor.profile,
+                status: surveyor.status
+            };
+            organization = surveyor.organization;
+        }
+
+        // Check if employee is a NIA admin
+        const niaAdmin = await NIAAdmin.findOne({ userId: employee._id });
+        if (niaAdmin) {
+            organization = 'NIA';
+        }
+
+        res.status(StatusCodes.OK).json({
+            success: true,
+            employee: employeeDisplay,
+            token,
+            surveyorInfo,
+            organization
+        })
     }
     catch (error) {
         next(error)

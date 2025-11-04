@@ -30,6 +30,37 @@ const getSurveyorDashboard = async (req, res) => {
       .sort({ assignedAt: -1, deadline: 1 })
       .limit(10);
 
+    // Get dual assignments count and recent ones
+    const dualAssignmentIds = assignments
+      .filter(a => a.dualAssignmentId)
+      .map(a => a.dualAssignmentId);
+
+    let dualAssignments = [];
+    let dualAssignmentStats = {
+      total: 0,
+      conflicts: 0
+    };
+
+    if (dualAssignmentIds.length > 0) {
+      dualAssignments = await DualAssignment.find({
+        _id: { $in: dualAssignmentIds }
+      })
+        .populate('policyId', 'propertyDetails contactDetails')
+        .sort({ createdAt: -1 })
+        .limit(5);
+
+      // Count conflicts
+      const conflictsCount = await DualAssignment.countDocuments({
+        _id: { $in: dualAssignmentIds },
+        'timeline.event': 'conflict_detected'
+      });
+
+      dualAssignmentStats = {
+        total: dualAssignments.length,
+        conflicts: conflictsCount
+      };
+    }
+
     // Get recent submissions
     const recentSubmissions = await SurveySubmission.find({
       surveyorId: surveyorUserId
@@ -71,10 +102,13 @@ const getSurveyorDashboard = async (req, res) => {
         pending: pendingAssignments,
         inProgress: inProgressAssignments,
         completed: completedSurveys,
-        overdue: overdueAssignments
+        overdue: overdueAssignments,
+        dualAssignments: dualAssignmentStats.total,
+        conflictsDetected: dualAssignmentStats.conflicts
       },
       recentAssignments: assignments,
-      recentSubmissions
+      recentSubmissions,
+      recentDualAssignments: dualAssignments
     };
 
     res.status(StatusCodes.OK).json({
@@ -570,6 +604,147 @@ const updateSurveyorProfile = async (req, res) => {
   }
 };
 
+// Get surveyor's dual assignments
+const getSurveyorDualAssignments = async (req, res) => {
+  try {
+    const surveyorUserId = req.user.userId;
+    const { status, page = 1, limit = 10 } = req.query;
+
+    console.log('📋 Get Surveyor Dual Assignments - Surveyor:', surveyorUserId);
+    console.log('📋 User organization from req.user:', req.user.organization);
+
+    // Get surveyor info to determine organization
+    const surveyor = await Surveyor.findOne({ userId: surveyorUserId });
+    const surveyorOrganization = surveyor?.organization || req.user.organization || 'AMMC';
+
+    console.log('📋 Determined surveyor organization:', surveyorOrganization);
+
+    // Find assignments for this surveyor that have dual assignment IDs
+    const surveyorAssignments = await Assignment.find({
+      surveyorId: surveyorUserId,
+      dualAssignmentId: { $exists: true, $ne: null }
+    }).select('dualAssignmentId organization');
+
+    console.log('📋 Found surveyor assignments with dual assignment IDs:', surveyorAssignments.length);
+
+    // Log assignment details for debugging
+    surveyorAssignments.forEach((assignment, index) => {
+      console.log(`📋 Assignment ${index + 1}: ID=${assignment._id}, DualID=${assignment.dualAssignmentId}, Org=${assignment.organization}`);
+    });
+
+    if (surveyorAssignments.length === 0) {
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        data: {
+          dualAssignments: [],
+          pagination: {
+            currentPage: parseInt(page),
+            totalPages: 0,
+            totalItems: 0,
+            itemsPerPage: parseInt(limit)
+          }
+        }
+      });
+    }
+
+    // Get the dual assignment IDs
+    const dualAssignmentIds = surveyorAssignments.map(a => a.dualAssignmentId);
+
+    // Build filter for dual assignments
+    const filter = {
+      _id: { $in: dualAssignmentIds }
+    };
+
+    // Apply status filter if provided
+    if (status && status !== 'all') {
+      if (status === 'active') {
+        filter.completionStatus = { $lt: 100 };
+      } else if (status === 'completed') {
+        filter.completionStatus = 100;
+      } else if (status === 'conflicts') {
+        // Look for conflicts in timeline
+        filter['timeline.event'] = 'conflict_detected';
+      }
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Fetch dual assignments with populated data
+    const dualAssignments = await DualAssignment.find(filter)
+      .populate('policyId', 'propertyDetails contactDetails status priority')
+      .populate('ammcAssignmentId', 'status deadline priority surveyorId')
+      .populate('niaAssignmentId', 'status deadline priority surveyorId')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    console.log('📋 Found dual assignments:', dualAssignments.length);
+
+    // Enhance dual assignments with surveyor context
+    const enhancedDualAssignments = dualAssignments.map(dualAssignment => {
+      // Determine current surveyor's organization
+      const surveyorAssignment = surveyorAssignments.find(
+        a => a.dualAssignmentId.toString() === dualAssignment._id.toString()
+      );
+      const currentSurveyorOrg = surveyorAssignment?.organization || surveyorOrganization;
+
+      // Get partner surveyor info
+      const partnerSurveyorContact = currentSurveyorOrg === 'AMMC'
+        ? dualAssignment.niaSurveyorContact
+        : dualAssignment.ammcSurveyorContact;
+
+      // Check for conflicts
+      const conflictDetected = dualAssignment.timeline.some(
+        event => event.event === 'conflict_detected'
+      );
+
+      return {
+        ...dualAssignment.toObject(),
+        currentSurveyorOrganization: currentSurveyorOrg,
+        partnerSurveyor: partnerSurveyorContact,
+        conflictDetected,
+        // Add convenience fields for frontend
+        policyDetails: {
+          propertyType: dualAssignment.policyId?.propertyDetails?.propertyType || 'Unknown',
+          address: dualAssignment.policyId?.propertyDetails?.address || 'Address not available',
+          buildingValue: dualAssignment.policyId?.propertyDetails?.buildingValue || 0
+        },
+        currentSurveyorInfo: {
+          assignmentId: currentSurveyorOrg === 'AMMC' ? dualAssignment.ammcAssignmentId : dualAssignment.niaAssignmentId,
+          contact: currentSurveyorOrg === 'AMMC' ? dualAssignment.ammcSurveyorContact : dualAssignment.niaSurveyorContact
+        },
+        partnerSurveyorInfo: {
+          assignmentId: currentSurveyorOrg === 'AMMC' ? dualAssignment.niaAssignmentId : dualAssignment.ammcAssignmentId,
+          contact: partnerSurveyorContact,
+          organization: currentSurveyorOrg === 'AMMC' ? 'NIA' : 'AMMC'
+        }
+      };
+    });
+
+    const total = await DualAssignment.countDocuments(filter);
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: {
+        dualAssignments: enhancedDualAssignments,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(total / parseInt(limit)),
+          totalItems: total,
+          itemsPerPage: parseInt(limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('❌ Get surveyor dual assignments error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to get dual assignments',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getSurveyorDashboard,
   getSurveyorAssignments,
@@ -578,5 +753,6 @@ module.exports = {
   submitSurvey,
   getSurveyorSubmissions,
   getSurveyorProfile,
-  updateSurveyorProfile
+  updateSurveyorProfile,
+  getSurveyorDualAssignments
 };

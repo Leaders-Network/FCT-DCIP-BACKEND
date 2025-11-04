@@ -186,14 +186,31 @@ const requireOrganization = (organization) => {
 // Middleware for dual-assignment operations (requires admin from either org)
 const requireDualAssignmentAccess = async (req, res, next) => {
     try {
-        // Use the requireAnyAdmin middleware first
-        await requireAnyAdmin(req, res, () => { });
+        console.log('🔐 Dual Assignment Access Check - Starting...');
 
-        // Additional checks for dual assignment operations can be added here
-        // For example, checking if the admin has permission to work with specific policies
+        // Use the requireAnyAdmin middleware first
+        await new Promise((resolve, reject) => {
+            requireAnyAdmin(req, res, (error) => {
+                if (error) {
+                    console.log('❌ Dual Assignment Access - requireAnyAdmin failed:', error.message);
+                    reject(error);
+                } else {
+                    console.log('✅ Dual Assignment Access - requireAnyAdmin passed');
+                    resolve();
+                }
+            });
+        });
+
+        // Log successful access
+        console.log('✅ Dual Assignment Access Granted:', {
+            organization: req.user?.organization,
+            userId: req.user?.userId,
+            role: req.user?.role
+        });
 
         next();
     } catch (error) {
+        console.error('❌ Dual Assignment Access Error:', error.message);
         throw error;
     }
 };
