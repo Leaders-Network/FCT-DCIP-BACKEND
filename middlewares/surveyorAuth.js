@@ -144,7 +144,7 @@ const requireSurveyorOrAdmin = async (req, res, next) => {
         }
 
         // Check if user is admin
-        const isAdmin = ['Admin', 'Super-admin'].includes(user.employeeRole?.role);
+        const isAdmin = ['Admin', 'Super-admin', 'NIA-Admin'].includes(user.employeeRole?.role);
 
         // Check if user is surveyor
         let surveyor = await Surveyor.findOne({

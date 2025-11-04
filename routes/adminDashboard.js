@@ -10,7 +10,7 @@ const router = express.Router();
 
 // All routes require authentication and admin role
 router.use(protect);
-router.use(restrictTo('Admin', 'Super-admin'));
+router.use(restrictTo('Admin', 'Super-admin', 'NIA-Admin'));
 
 router.get('/', getDashboardData); // Get comprehensive dashboard data
 router.get('/stats', getQuickStats); // Get quick stats for widgets

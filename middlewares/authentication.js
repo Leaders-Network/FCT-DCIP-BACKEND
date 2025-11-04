@@ -12,7 +12,7 @@ const protect = async (req, res, next) => {
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET)
-    
+
     let userObject;
     let modelName;
 
@@ -28,16 +28,16 @@ const protect = async (req, res, next) => {
     if (!userObject) {
       throw new UnauthenticatedError('Authentication invalid: User not found');
     }
-    
-    if(modelName === 'Employee'){ 
+
+    if (modelName === 'Employee') {
       await userObject.populate(['employeeRole', 'employeeStatus']);
       const role = userObject.employeeRole?.role || undefined;
       const status = userObject.employeeStatus?.status || undefined;
-      req.user = { userId: userObject._id, fullname: userObject.firstname + ' ' + userObject.lastname, status, role, model: "Employee" } 
+      req.user = { userId: userObject._id, fullname: userObject.firstname + ' ' + userObject.lastname, status, role, model: "Employee" }
     }
-    else{ 
-      req.user = { userId: payload.userId, fullname: payload.fullname, role: payload.role, model: "User" } 
-    }    
+    else {
+      req.user = { userId: payload.userId, fullname: payload.fullname, role: payload.role, model: "User" }
+    }
     next()
   } catch (error) {
     throw new UnauthenticatedError('Authentication invalid')
@@ -64,7 +64,7 @@ const restrictToModel = (...models) => {
 
 // Allow both Users and Admins to access user-related endpoints
 const allowUserOrAdmin = (req, res, next) => {
-  if (req.user.model === 'User' || (req.user.model === 'Employee' && ['Admin', 'Super-admin'].includes(req.user.role))) {
+  if (req.user.model === 'User' || (req.user.model === 'Employee' && ['Admin', 'Super-admin', 'NIA-Admin'].includes(req.user.role))) {
     return next();
   }
   throw new UnauthenticatedError('You do not have permission to perform this action');

@@ -366,6 +366,20 @@ const submitSurvey = async (req, res) => {
       fs.unlinkSync(req.file.path);
     }
 
+    // Validate required survey details
+    if (!surveyDetails.propertyCondition || !surveyDetails.propertyCondition.trim()) {
+      throw new BadRequestError('Property condition assessment is required');
+    }
+    if (!surveyDetails.structuralAssessment || !surveyDetails.structuralAssessment.trim()) {
+      throw new BadRequestError('Structural assessment is required');
+    }
+    if (!surveyDetails.riskFactors || !surveyDetails.riskFactors.trim()) {
+      throw new BadRequestError('Risk factors assessment is required');
+    }
+    if (!surveyDetails.recommendations || !surveyDetails.recommendations.trim()) {
+      throw new BadRequestError('Recommendations are required');
+    }
+
     // Create survey submission with organization identification
     const submission = new SurveySubmission({
       ammcId,
@@ -404,66 +418,89 @@ const submitSurvey = async (req, res) => {
     let dualAssignmentUpdate = null;
     let otherSurveyorNotification = null;
 
-    if (assignment.dualAssignmentId) {
-      const DualAssignment = require('../models/DualAssignment');
-      const dualAssignment = await DualAssignment.findById(assignment.dualAssignmentId);
+    try {
+      if (assignment.dualAssignmentId) {
+        console.log('Processing dual assignment:', assignment.dualAssignmentId);
+        const DualAssignment = require('../models/DualAssignment');
+        const dualAssignment = await DualAssignment.findById(assignment.dualAssignmentId);
 
-      if (dualAssignment) {
-        // Update dual assignment progress
-        dualAssignment.reportSubmitted(surveyorOrganization, submission._id, surveyorUserId);
-        await dualAssignment.save();
+        if (dualAssignment) {
+          console.log('Found dual assignment, updating progress...');
+          // Update dual assignment progress
+          dualAssignment.reportSubmitted(surveyorOrganization, submission._id, surveyorUserId);
+          await dualAssignment.save();
 
-        dualAssignmentUpdate = {
-          completionStatus: dualAssignment.completionStatus,
-          assignmentStatus: dualAssignment.assignmentStatus,
-          isDualSurveyor: true
-        };
-
-        // Get other surveyor's contact information for notification
-        const otherOrganization = surveyorOrganization === 'AMMC' ? 'NIA' : 'AMMC';
-        const otherSurveyorContact = surveyorOrganization === 'AMMC'
-          ? dualAssignment.niaSurveyorContact
-          : dualAssignment.ammcSurveyorContact;
-
-        // Send notification to other surveyor
-        const DualSurveyorNotificationService = require('../services/DualSurveyorNotificationService');
-        try {
-          const notificationResult = await DualSurveyorNotificationService.notifyOtherSurveyor(
-            dualAssignment._id,
-            surveyorOrganization,
-            {
-              submissionId: submission._id,
-              recommendedAction,
-              submittedAt: new Date()
-            }
-          );
-
-          otherSurveyorNotification = notificationResult;
-        } catch (notificationError) {
-          console.error('Failed to send notification to other surveyor:', notificationError);
-          // Don't fail the submission if notification fails
-          otherSurveyorNotification = {
-            success: false,
-            error: notificationError.message
+          dualAssignmentUpdate = {
+            completionStatus: dualAssignment.completionStatus,
+            assignmentStatus: dualAssignment.assignmentStatus,
+            isDualSurveyor: true
           };
-        }
 
-        // Check if both reports are submitted and trigger automatic merging
-        if (dualAssignment.isBothReportsSubmitted()) {
-          // Trigger automatic report merging process
-          const AutoReportMerger = require('../services/AutoReportMerger');
-          try {
-            await AutoReportMerger.triggerMerging(dualAssignment.policyId, {
-              ammcReportId: surveyorOrganization === 'AMMC' ? submission._id : null,
-              niaReportId: surveyorOrganization === 'NIA' ? submission._id : null,
-              dualAssignmentId: dualAssignment._id
-            });
-          } catch (mergingError) {
-            console.error('Failed to trigger automatic report merging:', mergingError);
-            // Don't fail the submission if merging fails
+          console.log('Dual assignment updated:', dualAssignmentUpdate);
+
+          // Get other surveyor's contact information for notification
+          const otherOrganization = surveyorOrganization === 'AMMC' ? 'NIA' : 'AMMC';
+          const otherSurveyorContact = surveyorOrganization === 'AMMC'
+            ? dualAssignment.niaSurveyorContact
+            : dualAssignment.ammcSurveyorContact;
+
+          // Send notification to other surveyor
+          if (otherSurveyorContact) {
+            const DualSurveyorNotificationService = require('../services/DualSurveyorNotificationService');
+            try {
+              const notificationService = new DualSurveyorNotificationService();
+              const notificationResult = await notificationService.notifyOtherSurveyor(
+                dualAssignment._id,
+                surveyorOrganization,
+                {
+                  submissionId: submission._id,
+                  recommendedAction,
+                  submittedAt: new Date()
+                }
+              );
+
+              otherSurveyorNotification = notificationResult;
+              console.log('Other surveyor notified successfully');
+            } catch (notificationError) {
+              console.error('Failed to send notification to other surveyor:', notificationError);
+              // Don't fail the submission if notification fails
+              otherSurveyorNotification = {
+                success: false,
+                error: notificationError.message
+              };
+            }
           }
+
+          // Check if both reports are submitted and trigger automatic merging
+          if (dualAssignment.isBothReportsSubmitted()) {
+            console.log('Both reports submitted, triggering automatic merging...');
+            // Trigger automatic report merging process
+            const AutoReportMerger = require('../services/AutoReportMerger');
+            try {
+              await AutoReportMerger.triggerMerging(dualAssignment.policyId, {
+                ammcReportId: surveyorOrganization === 'AMMC' ? submission._id : null,
+                niaReportId: surveyorOrganization === 'NIA' ? submission._id : null,
+                dualAssignmentId: dualAssignment._id
+              });
+              console.log('Automatic merging triggered successfully');
+            } catch (mergingError) {
+              console.error('Failed to trigger automatic report merging:', mergingError);
+              // Don't fail the submission if merging fails
+            }
+          }
+        } else {
+          console.log('Dual assignment not found:', assignment.dualAssignmentId);
         }
       }
+    } catch (dualAssignmentError) {
+      console.error('Error processing dual assignment workflow:', dualAssignmentError);
+      // Don't fail the submission if dual assignment processing fails
+      dualAssignmentUpdate = {
+        completionStatus: 0,
+        assignmentStatus: 'error',
+        isDualSurveyor: true,
+        error: dualAssignmentError.message
+      };
     }
 
     // Update policy request status with dual-surveyor context

@@ -9,11 +9,11 @@ const adminOnly = async (req, res, next) => {
     if (!req.user || req.user.model !== 'Employee') {
       throw new UnauthenticatedError('Access denied: Not an employee');
     }
-    
-    if (req.user.role && (req.user.role === 'Admin' || req.user.role === 'Super-admin')) {
+
+    if (req.user.role && ['Admin', 'Super-admin', 'NIA-Admin'].includes(req.user.role)) {
       return next();
     }
-    
+
     throw new UnauthenticatedError('Access denied: Admins only');
   } catch (err) {
     return res.status(401).json({ success: false, message: err.message });

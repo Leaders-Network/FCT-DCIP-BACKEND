@@ -11,8 +11,8 @@ class NotificationService {
         try {
             console.log(`🔔 Notifying admins of new policy: ${policyRequest._id}`);
 
-            // Get all AMMC admins (Admin and Super-admin roles)
-            const ammcAdmins = await Employee.find({
+            // Get all admins (Admin, Super-admin, and NIA-Admin roles)
+            const admins = await Employee.find({
                 employeeRole: { $in: await this.getAdminRoleIds() },
                 organization: { $in: ['AMMC', 'FCT-DCIP'] }, // Include both AMMC and FCT-DCIP
                 deleted: false
@@ -78,13 +78,13 @@ class NotificationService {
     }
 
     /**
-     * Get admin role IDs for AMMC admins
+     * Get admin role IDs for all admin types
      */
     static async getAdminRoleIds() {
         try {
             const { Role } = require('../models/Employee');
             const adminRoles = await Role.find({
-                role: { $in: ['Admin', 'Super-admin'] }
+                role: { $in: ['Admin', 'Super-admin', 'NIA-Admin'] }
             });
             return adminRoles.map(role => role._id);
         } catch (error) {
