@@ -3,15 +3,19 @@ const mongoose = require('mongoose');
 mongoose.set('strictQuery', false);
 
 async function connectWithRetry(uri, opts = {}) {
-    const maxRetries = 3;
+    const maxRetries = 5;
     let retryCount = 0;
 
     while (retryCount < maxRetries) {
         try {
             await mongoose.connect(uri, {
-                // Modern Mongoose doesn't need these options, but keeping for compatibility
-                // useUnifiedTopology: true,
-                // useNewUrlParser: true,
+                maxPoolSize: 10,
+                serverSelectionTimeoutMS: 5000,
+                socketTimeoutMS: 45000,
+                bufferMaxEntries: 0,
+                bufferCommands: false,
+                heartbeatFrequencyMS: 10000,
+                maxIdleTimeMS: 30000,
                 ...opts
             });
 
@@ -24,10 +28,21 @@ async function connectWithRetry(uri, opts = {}) {
 
             mongoose.connection.on('disconnected', () => {
                 console.warn('⚠️ MongoDB disconnected');
+                // Attempt to reconnect after a short delay
+                setTimeout(() => {
+                    console.log('🔄 Attempting to reconnect to MongoDB...');
+                    connectWithRetry(uri, opts).catch(err => {
+                        console.error('❌ Reconnection failed:', err.message);
+                    });
+                }, 5000);
             });
 
             mongoose.connection.on('reconnected', () => {
                 console.log('🔄 MongoDB reconnected');
+            });
+
+            mongoose.connection.on('close', () => {
+                console.warn('🔌 MongoDB connection closed');
             });
 
             return mongoose.connection;

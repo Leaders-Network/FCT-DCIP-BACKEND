@@ -125,6 +125,14 @@ class ReportReleaseService {
             };
         }
 
+        // Check confidence score threshold
+        if (mergedReport.mergingMetadata?.qualityScore < 70) {
+            return {
+                eligible: false,
+                reason: 'Report quality score below threshold - requires manual review'
+            };
+        }
+
         return {
             eligible: true,
             reason: 'Report eligible for automatic release'
@@ -245,13 +253,13 @@ class ReportReleaseService {
             const notificationData = {
                 policyId: policy._id,
                 reportId: mergedReport._id,
-                propertyAddress: policy.propertyDetails?.address || 'N/A',
+                propertyAddress: policy.propertyDetails?.address || policy.address || 'N/A',
                 finalRecommendation: mergedReport.finalRecommendation,
                 paymentEnabled: mergedReport.paymentEnabled,
                 conflictDetected: mergedReport.conflictDetected,
                 conflictResolved: mergedReport.conflictResolved,
-                reportUrl: `${process.env.FRONTEND_URL}/user/dashboard/reports/${mergedReport._id}`,
-                dashboardUrl: `${process.env.FRONTEND_URL}/user/dashboard`,
+                reportUrl: `${process.env.FRONTEND_URL}/dashboard/policies`,
+                dashboardUrl: `${process.env.FRONTEND_URL}/dashboard`,
                 releasedAt: mergedReport.releasedAt
             };
 

@@ -254,4 +254,68 @@ router.post('/:dualAssignmentId/assign-nia', requireDualAssignmentAccess, logNIA
 // Update report submission status (accessible to surveyors)
 router.patch('/:dualAssignmentId/report-submitted', updateReportSubmission);
 
+// Import DualSurveyTrigger service
+const DualSurveyTrigger = require('../services/DualSurveyTrigger');
+
+// Dual survey trigger endpoints
+router.post('/:assignmentId/trigger-merge', requireAnyAdmin, async (req, res) => {
+    try {
+        const { assignmentId } = req.params;
+        const result = await DualSurveyTrigger.manualTrigger(assignmentId);
+
+        res.status(200).json({
+            success: true,
+            message: 'Merging triggered successfully',
+            data: result
+        });
+    } catch (error) {
+        console.error('Manual trigger error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to trigger merging',
+            error: error.message
+        });
+    }
+});
+
+// Get dual survey completion status
+router.get('/policy/:policyId/completion-status', requireAnyAdmin, async (req, res) => {
+    try {
+        const { policyId } = req.params;
+        const status = await DualSurveyTrigger.getCompletionStatus(policyId);
+
+        res.status(200).json({
+            success: true,
+            data: status
+        });
+    } catch (error) {
+        console.error('Get completion status error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get completion status',
+            error: error.message
+        });
+    }
+});
+
+// Retry failed merging processes
+router.post('/retry-failed-merging', requireSuperAdminAccess, async (req, res) => {
+    try {
+        const result = await DualSurveyTrigger.retryFailedMerging();
+
+        res.status(200).json({
+            success: true,
+            message: 'Failed merging retry completed',
+            data: result
+        });
+    } catch (error) {
+        console.error('Retry failed merging error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to retry merging processes',
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;

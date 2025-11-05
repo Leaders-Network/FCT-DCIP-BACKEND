@@ -33,6 +33,8 @@ const reportMergingRouter = require('./routes/reportMerging');
 const scheduledProcessorRouter = require('./routes/scheduledProcessor');
 const policyStatusRouter = require('./routes/policyStatus');
 const paymentDecisionRouter = require('./routes/paymentDecision');
+const userReportsRouter = require('./routes/userReports');
+const testMergedReportsRouter = require('./routes/testMergedReports');
 const notFoundMiddleware = require('./middlewares/not-found');
 const errorHandlerMiddleware = require('./middlewares/error-handler');
 const cors = require('cors');
@@ -79,6 +81,8 @@ app.use('/api/v1/report-merging', reportMergingRouter);
 app.use('/api/v1/scheduled-processor', scheduledProcessorRouter);
 app.use('/api/v1/policy-status', policyStatusRouter);
 app.use('/api/v1/payment-decision', paymentDecisionRouter);
+app.use('/api/v1/user-reports', userReportsRouter);
+app.use('/api/v1/test-merged-reports', testMergedReportsRouter);
 
 // Authentication testing routes
 const authTestRouter = require('./routes/authTest');

@@ -153,6 +153,15 @@ router.get('/report/:reportId', allowUserOrAdmin, async (req, res) => {
             });
         }
 
+        // Log access
+        mergedReport.logAccess(
+            req.user.userId,
+            'view',
+            req.ip,
+            req.get('User-Agent')
+        );
+        await mergedReport.save();
+
         res.status(StatusCodes.OK).json({
             success: true,
             data: {
@@ -160,10 +169,17 @@ router.get('/report/:reportId', allowUserOrAdmin, async (req, res) => {
                 policyId: mergedReport.policyId._id,
                 propertyDetails: mergedReport.policyId.propertyDetails,
                 status: mergedReport.releaseStatus,
+                finalRecommendation: mergedReport.finalRecommendation,
+                paymentEnabled: mergedReport.paymentEnabled,
+                conflictDetected: mergedReport.conflictDetected,
+                conflictResolved: mergedReport.conflictResolved,
+                conflictDetails: mergedReport.conflictDetails,
+                reportSections: mergedReport.reportSections,
+                mergingMetadata: mergedReport.mergingMetadata,
                 createdAt: mergedReport.createdAt,
+                releasedAt: mergedReport.releasedAt,
                 downloadCount: mergedReport.downloadCount || 0,
-                canDownload: mergedReport.releaseStatus === 'released',
-                reportData: mergedReport.releaseStatus === 'released' ? mergedReport.mergedData : null
+                canDownload: mergedReport.releaseStatus === 'released'
             }
         });
     } catch (error) {
@@ -207,21 +223,32 @@ router.post('/download/:reportId', allowUserOrAdmin, async (req, res) => {
             });
         }
 
-        // Increment download count
+        // Log access and increment download count
+        mergedReport.logAccess(
+            req.user.userId,
+            'download',
+            req.ip,
+            req.get('User-Agent')
+        );
         mergedReport.downloadCount = (mergedReport.downloadCount || 0) + 1;
         mergedReport.lastDownloadedAt = new Date();
         await mergedReport.save();
 
-        // For now, return the report data as JSON
-        // In production, you might want to generate a PDF or other format
+        // Return the complete report data
         res.status(StatusCodes.OK).json({
             success: true,
             message: 'Report downloaded successfully',
             data: {
                 reportId: mergedReport._id,
+                policyId: mergedReport.policyId._id,
                 downloadCount: mergedReport.downloadCount,
-                reportData: mergedReport.mergedData,
-                propertyDetails: mergedReport.policyId.propertyDetails
+                propertyDetails: mergedReport.policyId.propertyDetails,
+                finalRecommendation: mergedReport.finalRecommendation,
+                paymentEnabled: mergedReport.paymentEnabled,
+                conflictDetected: mergedReport.conflictDetected,
+                reportSections: mergedReport.reportSections,
+                mergingMetadata: mergedReport.mergingMetadata,
+                releasedAt: mergedReport.releasedAt
             }
         });
     } catch (error) {

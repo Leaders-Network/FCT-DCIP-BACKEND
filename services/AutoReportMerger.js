@@ -5,6 +5,7 @@ const AutomaticConflictFlag = require('../models/AutomaticConflictFlag');
 const { sendAutomaticConflictAlert } = require('../utils/emailService');
 const { Employee } = require('../models/Employee');
 const ReportReleaseService = require('./ReportReleaseService');
+const UserNotificationService = require('./UserNotificationService');
 
 class AutoReportMerger {
     constructor() {
@@ -373,33 +374,91 @@ class AutoReportMerger {
      * Create the merged report in database
      */
     async createMergedReport({ dualAssignment, ammcSubmission, niaSubmission, mergeResult, processingTime }) {
+        // Extract report sections from submissions
+        const reportSections = {
+            ammc: {
+                propertyCondition: ammcSubmission.surveyData.propertyDetails?.condition || 'Not specified',
+                structuralAssessment: ammcSubmission.surveyData.structuralAssessment || 'Assessment completed',
+                riskFactors: ammcSubmission.surveyData.riskFactors || 'Standard risk factors assessed',
+                recommendations: ammcSubmission.recommendedAction || 'No specific recommendation',
+                estimatedValue: ammcSubmission.surveyData.valuation?.estimatedValue || 0,
+                surveyorName: ammcSubmission.surveyorName || 'AMMC Surveyor',
+                surveyorLicense: ammcSubmission.surveyorLicense || 'Licensed',
+                submissionDate: ammcSubmission.submittedAt || new Date(),
+                photos: ammcSubmission.surveyData.photos || []
+            },
+            nia: {
+                propertyCondition: niaSubmission.surveyData.propertyDetails?.condition || 'Not specified',
+                structuralAssessment: niaSubmission.surveyData.structuralAssessment || 'Assessment completed',
+                riskFactors: niaSubmission.surveyData.riskFactors || 'Standard risk factors assessed',
+                recommendations: niaSubmission.recommendedAction || 'No specific recommendation',
+                estimatedValue: niaSubmission.surveyData.valuation?.estimatedValue || 0,
+                surveyorName: niaSubmission.surveyorName || 'NIA Surveyor',
+                surveyorLicense: niaSubmission.surveyorLicense || 'Licensed',
+                submissionDate: niaSubmission.submittedAt || new Date(),
+                photos: niaSubmission.surveyData.photos || []
+            }
+        };
+
+        // Determine conflict details if conflicts exist
+        let conflictDetails = {};
+        if (mergeResult.conflicts.length > 0) {
+            const criticalConflict = mergeResult.conflicts.find(c => c.severity === 'critical');
+            const highConflict = mergeResult.conflicts.find(c => c.severity === 'high');
+            const primaryConflict = criticalConflict || highConflict || mergeResult.conflicts[0];
+
+            conflictDetails = {
+                conflictType: this.mapConflictType(primaryConflict.field),
+                ammcRecommendation: primaryConflict.ammcValue,
+                niaRecommendation: primaryConflict.niaValue,
+                ammcValue: primaryConflict.field === 'estimatedValue' ? primaryConflict.ammcValue : reportSections.ammc.estimatedValue,
+                niaValue: primaryConflict.field === 'estimatedValue' ? primaryConflict.niaValue : reportSections.nia.estimatedValue,
+                discrepancyPercentage: primaryConflict.difference ? parseFloat(primaryConflict.difference.replace('%', '')) : 0,
+                conflictSeverity: primaryConflict.severity
+            };
+        }
+
         const mergedReport = new MergedReport({
             policyId: dualAssignment.policyId._id,
             dualAssignmentId: dualAssignment._id,
-            ammcSubmissionId: ammcSubmission._id,
-            niaSubmissionId: niaSubmission._id,
+            ammcReportId: ammcSubmission._id,
+            niaReportId: niaSubmission._id,
 
-            // Merged data
-            mergedSurveyData: mergeResult.mergedData,
+            // Report sections
+            reportSections,
+
+            // Conflict information
+            conflictDetected: mergeResult.conflicts.length > 0,
+            conflictResolved: false,
+            conflictDetails: mergeResult.conflicts.length > 0 ? conflictDetails : undefined,
+
+            // Final recommendation
             finalRecommendation: mergeResult.finalRecommendation,
 
-            // Quality metrics
-            confidenceScore: mergeResult.confidenceScore,
+            // Release status
             releaseStatus: mergeResult.releaseStatus,
-            conflictDetected: mergeResult.conflicts.length > 0,
 
             // Processing metadata
             mergingMetadata: {
+                mergedBy: 'SYSTEM',
+                mergedAt: new Date(),
+                mergingAlgorithmVersion: '1.0.0',
                 processingTime,
-                algorithmVersion: '1.0.0',
-                conflictThresholds: this.conflictThresholds,
-                processingDate: new Date(),
-                qualityMetrics: mergeResult.qualityMetrics
+                qualityScore: mergeResult.confidenceScore
             },
 
             // Payment status
             paymentEnabled: mergeResult.releaseStatus === 'approved' &&
-                mergeResult.finalRecommendation === 'approve'
+                mergeResult.finalRecommendation === 'approve' &&
+                mergeResult.conflicts.length === 0,
+
+            // Notification status
+            notifications: {
+                userNotified: false,
+                adminNotified: false,
+                conflictNotificationSent: false,
+                releaseNotificationSent: false
+            }
         });
 
         await mergedReport.save();
@@ -417,6 +476,9 @@ class AutoReportMerger {
 
                 if (releaseResult.success) {
                     console.log(`🚀 Report ${mergedReport._id} automatically released`);
+
+                    // Notify user that report is ready
+                    await UserNotificationService.notifyReportReady(mergedReport._id);
 
                     // If released, process payment decision
                     const PaymentDecisionEngine = require('./PaymentDecisionEngine');
@@ -516,6 +578,20 @@ class AutoReportMerger {
 
     getNestedValue(obj, path) {
         return path.split('.').reduce((current, key) => current?.[key], obj);
+    }
+
+    /**
+     * Map conflict field names to model enum values
+     */
+    mapConflictType(conflictField) {
+        const mapping = {
+            'recommendation': 'recommendation_mismatch',
+            'estimatedValue': 'value_discrepancy',
+            'propertyType': 'structural_disagreement',
+            'totalArea': 'structural_disagreement',
+            'coordinates': 'other'
+        };
+        return mapping[conflictField] || 'other';
     }
 
     /**

@@ -263,6 +263,23 @@ const submitSurvey = async (req, res) => {
       .populate('ammcId', 'policyNumber contactDetails')
       .populate('assignmentId', 'deadline priority');
 
+    // Trigger dual survey completion check and potential merging
+    try {
+      const DualSurveyTrigger = require('../services/DualSurveyTrigger');
+      const triggerResult = await DualSurveyTrigger.checkAndTriggerMerging(
+        submission.ammcId,
+        submission.organization
+      );
+
+      console.log(`🔄 Dual survey trigger result:`, triggerResult);
+
+      // Add trigger result to response for debugging
+      submittedSubmission._doc.dualSurveyTrigger = triggerResult;
+    } catch (triggerError) {
+      console.error('❌ Dual survey trigger failed:', triggerError);
+      // Don't fail the submission if trigger fails
+    }
+
     res.status(StatusCodes.OK).json({
       success: true,
       message: 'Survey submitted successfully',
