@@ -11,7 +11,8 @@ const {
     getDualAssignmentStats
 } = require('../controllers/dualAssignment');
 
-const { protect } = require('../middlewares/authentication');
+const { protect, requireSuperAdminAccess } = require('../middlewares/authentication');
+const { requireCrossOrgAdminAccess } = require('../middlewares/roleBasedAccess');
 const {
     requireAnyAdmin,
     requireOrganization,

@@ -267,13 +267,68 @@ const assignNIASurveyor = async (req, res) => {
         const { dualAssignmentId } = req.params;
         const { surveyorId, deadline, instructions, priority } = req.body;
 
-        // Find dual assignment
-        const dualAssignment = await DualAssignment.findById(dualAssignmentId);
+        console.log('🎯 NIA Assignment Request:', {
+            dualAssignmentId,
+            surveyorId,
+            requestTime: new Date().toISOString(),
+            userAgent: req.headers['user-agent']?.substring(0, 50)
+        });
+
+        // Find dual assignment with atomic check and update
+        const dualAssignment = await DualAssignment.findOneAndUpdate(
+            {
+                _id: dualAssignmentId,
+                niaAssignmentId: null // Only update if NIA surveyor not already assigned
+            },
+            {
+                $set: {
+                    _tempNiaLock: new Date() // Temporary lock to prevent race conditions
+                }
+            },
+            {
+                new: false, // Return original document
+                runValidators: true
+            }
+        );
+
         if (!dualAssignment) {
-            return res.status(StatusCodes.NOT_FOUND).json({
-                success: false,
-                message: 'Dual assignment not found'
-            });
+            // Check if it's because assignment doesn't exist or NIA already assigned
+            const existingAssignment = await DualAssignment.findById(dualAssignmentId);
+            if (!existingAssignment) {
+                return res.status(StatusCodes.NOT_FOUND).json({
+                    success: false,
+                    message: 'Dual assignment not found'
+                });
+            } else if (existingAssignment.niaAssignmentId) {
+                console.log('⚠️ NIA surveyor already assigned:', {
+                    dualAssignmentId: dualAssignmentId,
+                    existingNiaAssignmentId: existingAssignment.niaAssignmentId,
+                    requestedSurveyorId: surveyorId,
+                    timestamp: new Date().toISOString()
+                });
+
+                // Check if the existing assignment is the same surveyor
+                const existingNiaAssignment = await Assignment.findById(existingAssignment.niaAssignmentId);
+                if (existingNiaAssignment && existingNiaAssignment.surveyorId.toString() === surveyorId) {
+                    console.log('✅ Same surveyor already assigned, returning success');
+                    return res.status(StatusCodes.OK).json({
+                        success: true,
+                        message: 'NIA surveyor already assigned (same surveyor)',
+                        data: {
+                            dualAssignment: existingAssignment,
+                            assignment: existingNiaAssignment,
+                            contactsUpdated: false,
+                            bothAssigned: existingAssignment.isBothAssigned()
+                        }
+                    });
+                }
+
+                return res.status(StatusCodes.CONFLICT).json({
+                    success: false,
+                    message: 'NIA surveyor already assigned to this policy',
+                    data: { existingAssignmentId: existingAssignment.niaAssignmentId }
+                });
+            }
         }
 
         // Validate required fields
@@ -281,15 +336,6 @@ const assignNIASurveyor = async (req, res) => {
             return res.status(StatusCodes.BAD_REQUEST).json({
                 success: false,
                 message: 'Surveyor ID is required'
-            });
-        }
-
-        // Check if NIA surveyor already assigned
-        if (dualAssignment.niaAssignmentId) {
-            return res.status(StatusCodes.CONFLICT).json({
-                success: false,
-                message: 'NIA surveyor already assigned to this policy',
-                data: { existingAssignmentId: dualAssignment.niaAssignmentId }
             });
         }
 

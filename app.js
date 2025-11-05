@@ -79,6 +79,11 @@ app.use('/api/v1/report-merging', reportMergingRouter);
 app.use('/api/v1/scheduled-processor', scheduledProcessorRouter);
 app.use('/api/v1/policy-status', policyStatusRouter);
 app.use('/api/v1/payment-decision', paymentDecisionRouter);
+
+// Authentication testing routes
+const authTestRouter = require('./routes/authTest');
+app.use('/api/v1/auth-test', authTestRouter);
+
 app.get('/', (req, res) => { res.send('<h3>FCT-DCIP API Server</h3>') })
 
 app.use(notFoundMiddleware);
