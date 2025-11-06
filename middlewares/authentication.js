@@ -57,13 +57,14 @@ const protect = async (req, res, next) => {
 
       // Check if user is Surveyor (can be both admin and surveyor)
       const surveyor = await Surveyor.findOne({ userId: payload.userId, status: 'active' });
-      if (surveyor && tokenType !== 'super-admin' && tokenType !== 'nia-admin') {
-        organization = surveyor.organization;
-        tokenType = 'surveyor';
+      if (surveyor) {
         req.surveyor = surveyor;
-      } else if (surveyor) {
-        // User has surveyor role but is also admin, keep admin privileges
-        req.surveyor = surveyor;
+
+        // If user is not already super-admin or nia-admin, set as surveyor
+        if (tokenType !== 'super-admin' && tokenType !== 'nia-admin') {
+          organization = surveyor.organization;
+          tokenType = 'surveyor';
+        }
       }
 
       // Set admin token type for regular admins
@@ -148,11 +149,121 @@ const requireNIADashboardAccess = (req, res, next) => {
   throw new UnauthenticatedError('Access denied. NIA admin dashboard access required.');
 };
 
-const requireSurveyorDashboardAccess = (req, res, next) => {
-  if (req.user.tokenType === 'super-admin' || req.user.tokenType === 'surveyor') {
-    return next();
+// Multi-dashboard access - allows access to multiple dashboard types
+const requireDashboardAccess = (...dashboardTypes) => {
+  return (req, res, next) => {
+    const userType = req.user.tokenType;
+
+    // Super admin can access all dashboards
+    if (userType === 'super-admin') {
+      return next();
+    }
+
+    // Check if user's token type matches any of the allowed dashboard types
+    const allowedTypes = {
+      'user': 'user',
+      'admin': 'admin',
+      'nia-admin': 'nia-admin',
+      'surveyor': 'surveyor'
+    };
+
+    const hasAccess = dashboardTypes.some(dashboardType => {
+      return allowedTypes[dashboardType] === userType;
+    });
+
+    if (hasAccess) {
+      return next();
+    }
+
+    throw new UnauthenticatedError(`Access denied. Required dashboard access: ${dashboardTypes.join(' or ')}`);
+  };
+};
+
+const requireSurveyorDashboardAccess = async (req, res, next) => {
+  try {
+    // Super admin can access everything
+    if (req.user.tokenType === 'super-admin') {
+      return next();
+    }
+
+    // If user is already identified as surveyor, allow access
+    if (req.user.tokenType === 'surveyor') {
+      return next();
+    }
+
+    // If user is an employee but not yet identified as surveyor, check if they can be one
+    if (req.user.model === 'Employee') {
+      // Check if surveyor record exists
+      let surveyor = await Surveyor.findOne({ userId: req.user.userId, status: 'active' });
+
+      // If no surveyor record exists, create one automatically for employees
+      if (!surveyor) {
+        console.log('Creating surveyor record for employee:', req.user.userId);
+        try {
+          const Employee = require('../models/Employee');
+          const user = await Employee.findById(req.user.userId);
+
+          surveyor = new Surveyor({
+            userId: req.user.userId,
+            organization: 'AMMC', // Default to AMMC, can be changed later
+            profile: {
+              specialization: ['residential'],
+              experience: 1,
+              licenseNumber: `LIC-${Date.now()}`,
+              certifications: []
+            },
+            contactDetails: {
+              email: user.email,
+              phone: user.phonenumber || '',
+              address: ''
+            },
+            availability: {
+              status: 'available',
+              workingHours: {
+                start: '08:00',
+                end: '17:00'
+              },
+              workingDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+            },
+            statistics: {
+              totalAssignments: 0,
+              pendingAssignments: 0,
+              completedSurveys: 0,
+              averageRating: 0
+            },
+            status: 'active'
+          });
+
+          await surveyor.save();
+
+          // Update user context
+          req.surveyor = surveyor;
+          req.user.tokenType = 'surveyor';
+          req.user.organization = surveyor.organization;
+
+          console.log('Created surveyor record successfully');
+          return next();
+        } catch (createError) {
+          console.error('Failed to create surveyor record:', createError);
+          throw new UnauthenticatedError('Access denied. Unable to create surveyor profile.');
+        }
+      } else {
+        // Surveyor record exists, update user context
+        req.surveyor = surveyor;
+        req.user.tokenType = 'surveyor';
+        req.user.organization = surveyor.organization;
+        return next();
+      }
+    }
+
+    throw new UnauthenticatedError('Access denied. Surveyor dashboard access required.');
+  } catch (error) {
+    if (error instanceof UnauthenticatedError) {
+      throw error;
+    }
+    console.error('Surveyor dashboard access error:', error);
+    throw new UnauthenticatedError('Access denied. Surveyor dashboard access required.');
   }
-  throw new UnauthenticatedError('Access denied. Surveyor dashboard access required.');
 };
 
 // Super admin has access to everything
@@ -197,5 +308,6 @@ module.exports = {
   requireNIADashboardAccess,
   requireSurveyorDashboardAccess,
   requireSuperAdminAccess,
-  requireOrganization
+  requireOrganization,
+  requireDashboardAccess
 }

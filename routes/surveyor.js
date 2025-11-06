@@ -10,8 +10,8 @@ const {
   updateSurveyorProfile,
   getSurveyorDualAssignments
 } = require('../controllers/surveyor');
-const { protect, restrictTo } = require('../middlewares/authentication');
-const { requireAnySurveyor, logSurveyorActivity } = require('../middlewares/surveyorAuth');
+const { protect, restrictTo, requireSurveyorDashboardAccess } = require('../middlewares/authentication');
+const { logSurveyorActivity } = require('../middlewares/surveyorAuth');
 const { ensurePartnerContactInfo, populateDualAssignmentInfo } = require('../middlewares/assignmentContactMiddleware');
 const upload = require('../middlewares/file-upload');
 
@@ -22,9 +22,9 @@ router.get('/test', (req, res) => {
   res.json({ success: true, message: 'Surveyor routes are working' });
 });
 
-// All routes require authentication and surveyor role (supports both AMMC and NIA)
+// All routes require authentication and surveyor dashboard access
 router.use(protect);
-router.use(requireAnySurveyor);
+router.use(requireSurveyorDashboardAccess);
 
 // Dashboard (supports both AMMC and NIA surveyors)
 router.get('/dashboard', logSurveyorActivity('ACCESS_DASHBOARD'), getSurveyorDashboard);
