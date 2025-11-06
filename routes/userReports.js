@@ -37,24 +37,24 @@ router.get('/', protect, async (req, res) => {
         }
 
         // Get merged reports for user's policies
-        const totalReports = await MergedReport.countDocuments({
-            policyId: { $in: policyIds }
-        });
-
-        const reports = await MergedReport.find({
+        const mergedReports = await MergedReport.find({
             policyId: { $in: policyIds }
         })
             .populate({
                 path: 'policyId',
                 select: 'propertyDetails.address propertyDetails.propertyType'
             })
-            .select('policyId releaseStatus finalRecommendation paymentEnabled conflictDetected createdAt accessHistory')
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limit);
+            .select('policyId releaseStatus finalRecommendation paymentEnabled conflictDetected createdAt accessHistory');
 
-        // Format reports for frontend
-        const formattedReports = reports.map(report => ({
+        // Get completed individual reports
+        const completedReports = await PolicyRequest.find({
+            _id: { $in: policyIds },
+            status: 'completed'
+        })
+        .select('propertyDetails.address propertyDetails.propertyType status createdAt');
+
+        // Format and combine reports
+        const formattedMergedReports = mergedReports.map(report => ({
             reportId: report._id,
             policyId: report.policyId._id,
             propertyAddress: report.policyId.propertyDetails?.address || 'Address not available',
@@ -65,15 +65,38 @@ router.get('/', protect, async (req, res) => {
             conflictDetected: report.conflictDetected,
             createdAt: report.createdAt,
             downloadCount: report.accessHistory?.filter(access => access.accessType === 'download').length || 0,
-            canDownload: report.releaseStatus === 'released' && report.finalRecommendation
+            canDownload: report.releaseStatus === 'released' && report.finalRecommendation,
+            isMerged: true
         }));
 
+        const formattedCompletedReports = completedReports.map(report => ({
+            reportId: report._id,
+            policyId: report._id,
+            propertyAddress: report.propertyDetails?.address || 'Address not available',
+            propertyType: report.propertyDetails?.propertyType || 'Type not specified',
+            status: report.status,
+            finalRecommendation: null,
+            paymentEnabled: false,
+            conflictDetected: false,
+            createdAt: report.createdAt,
+            downloadCount: 0,
+            canDownload: true, // Or based on some other logic
+            isMerged: false
+        }));
+
+        const allReports = [...formattedMergedReports, ...formattedCompletedReports];
+
+        // Sort all reports by creation date
+        allReports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        const totalReports = allReports.length;
+        const paginatedReports = allReports.slice(skip, skip + limit);
         const totalPages = Math.ceil(totalReports / limit);
 
         res.status(200).json({
             success: true,
             data: {
-                reports: formattedReports,
+                reports: paginatedReports,
                 pagination: {
                     currentPage: page,
                     totalPages,

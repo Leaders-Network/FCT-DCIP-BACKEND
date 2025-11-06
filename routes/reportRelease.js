@@ -8,6 +8,82 @@ const { StatusCodes } = require('http-status-codes');
 // Apply authentication to all routes
 router.use(protect);
 
+// Get policy details for user (user-accessible)
+router.get('/policy/:policyId', allowUserOrAdmin, async (req, res) => {
+    try {
+        const { policyId } = req.params;
+        const { userId } = req.user;
+
+        // Check if user owns this policy (unless admin)
+        const policy = await PolicyRequest.findById(policyId);
+        if (!policy) {
+            return res.status(StatusCodes.NOT_FOUND).json({
+                success: false,
+                message: 'Policy not found'
+            });
+        }
+
+        // Check ownership for non-admin users
+        if (req.user.model === 'User' && policy.userId !== userId) {
+            return res.status(StatusCodes.FORBIDDEN).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        res.status(StatusCodes.OK).json({
+            success: true,
+            data: policy
+        });
+    } catch (error) {
+        console.error('Get policy error:', error);
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: 'Failed to get policy details',
+            error: error.message
+        });
+    }
+});
+
+// Get user's report summary/statistics
+router.get('/user/reports/summary', allowUserOrAdmin, async (req, res) => {
+    try {
+        const { userId } = req.user;
+
+        // Find policies belonging to the user
+        const policies = await PolicyRequest.find({ userId }).select('_id');
+        const policyIds = policies.map(p => p._id);
+
+        // Count reports by status
+        const [totalReports, releasedReports, pendingReports, withheldReports, completedReports] = await Promise.all([
+            MergedReport.countDocuments({ policyId: { $in: policyIds } }),
+            MergedReport.countDocuments({ policyId: { $in: policyIds }, releaseStatus: 'released' }),
+            MergedReport.countDocuments({ policyId: { $in: policyIds }, releaseStatus: 'pending' }),
+            MergedReport.countDocuments({ policyId: { $in: policyIds }, releaseStatus: 'withheld' }),
+            // Completed reports are those that have merged reports (regardless of release status)
+            MergedReport.countDocuments({ policyId: { $in: policyIds } })
+        ]);
+
+        res.status(StatusCodes.OK).json({
+            success: true,
+            data: {
+                totalReports,
+                releasedReports,
+                pendingReports,
+                withheldReports,
+                completedReports // All merged reports are considered completed
+            }
+        });
+    } catch (error) {
+        console.error('Get report summary error:', error);
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: 'Failed to get report summary',
+            error: error.message
+        });
+    }
+});
+
 // Get user's reports
 router.get('/user/reports', allowUserOrAdmin, async (req, res) => {
     try {
@@ -40,7 +116,11 @@ router.get('/user/reports', allowUserOrAdmin, async (req, res) => {
             status: report.releaseStatus,
             createdAt: report.createdAt,
             downloadCount: report.downloadCount || 0,
-            canDownload: report.releaseStatus === 'released'
+            canDownload: report.releaseStatus === 'released',
+            isMerged: true,
+            finalRecommendation: report.finalRecommendation,
+            conflictDetected: report.conflictDetected || false,
+            conflictResolved: report.conflictResolved || false
         }));
 
         const total = await MergedReport.countDocuments({
@@ -135,36 +215,38 @@ router.get('/report/:reportId', allowUserOrAdmin, async (req, res) => {
         const { reportId } = req.params;
         const { userId } = req.user;
 
-        const mergedReport = await MergedReport.findById(reportId)
+        let reportData = null;
+        let isMerged = false;
+
+        // Try to find a merged report first
+        let mergedReport = await MergedReport.findById(reportId)
             .populate('policyId', 'propertyDetails contactDetails userId');
 
-        if (!mergedReport) {
-            return res.status(StatusCodes.NOT_FOUND).json({
-                success: false,
-                message: 'Report not found'
-            });
-        }
+        if (mergedReport) {
+            // Check ownership for non-admin users
+            if (req.user.model === 'User' && mergedReport.policyId.userId !== userId) {
+                return res.status(StatusCodes.FORBIDDEN).json({
+                    success: false,
+                    message: 'Access denied'
+                });
+            }
 
-        // Check ownership for non-admin users
-        if (req.user.model === 'User' && mergedReport.policyId.userId !== userId) {
-            return res.status(StatusCodes.FORBIDDEN).json({
-                success: false,
-                message: 'Access denied'
-            });
-        }
+            // Log access
+            mergedReport.logAccess(
+                req.user.userId,
+                'view',
+                req.ip,
+                req.get('User-Agent')
+            );
+            await mergedReport.save();
 
-        // Log access
-        mergedReport.logAccess(
-            req.user.userId,
-            'view',
-            req.ip,
-            req.get('User-Agent')
-        );
-        await mergedReport.save();
+            // Get dual assignment data for surveyor contacts
+            const DualAssignment = require('../models/DualAssignment');
+            const dualAssignment = await DualAssignment.findOne({ policyId: mergedReport.policyId._id })
+                .populate('ammcSurveyor', 'firstname lastname email phonenumber licenseNumber')
+                .populate('niaSurveyor', 'firstname lastname email phonenumber licenseNumber');
 
-        res.status(StatusCodes.OK).json({
-            success: true,
-            data: {
+            reportData = {
                 reportId: mergedReport._id,
                 policyId: mergedReport.policyId._id,
                 propertyDetails: mergedReport.policyId.propertyDetails,
@@ -179,8 +261,60 @@ router.get('/report/:reportId', allowUserOrAdmin, async (req, res) => {
                 createdAt: mergedReport.createdAt,
                 releasedAt: mergedReport.releasedAt,
                 downloadCount: mergedReport.downloadCount || 0,
-                canDownload: mergedReport.releaseStatus === 'released'
+                canDownload: mergedReport.releaseStatus === 'released',
+                // Add surveyor information
+                surveyorContacts: {
+                    ammc: dualAssignment?.ammcSurveyor ? {
+                        name: `${dualAssignment.ammcSurveyor.firstname} ${dualAssignment.ammcSurveyor.lastname}`,
+                        email: dualAssignment.ammcSurveyor.email,
+                        phone: dualAssignment.ammcSurveyor.phonenumber,
+                        licenseNumber: dualAssignment.ammcSurveyor.licenseNumber,
+                        organization: 'AMMC'
+                    } : null,
+                    nia: dualAssignment?.niaSurveyor ? {
+                        name: `${dualAssignment.niaSurveyor.firstname} ${dualAssignment.niaSurveyor.lastname}`,
+                        email: dualAssignment.niaSurveyor.email,
+                        phone: dualAssignment.niaSurveyor.phonenumber,
+                        licenseNumber: dualAssignment.niaSurveyor.licenseNumber,
+                        organization: 'NIA'
+                    } : null
+                },
+                // Add individual report documents
+                individualReports: {
+                    ammcReportId: dualAssignment?.ammcAssignmentId || null,
+                    niaReportId: dualAssignment?.niaAssignmentId || null
+                }
+            };
+            isMerged = true;
+
+        } else {
+            // If no merged report, try to find a completed policy request
+            const policyRequest = await PolicyRequest.findOne({
+                _id: reportId,
+                userId: req.user.model === 'User' ? userId : undefined,
+                status: 'completed'
+            });
+
+            if (!policyRequest) {
+                return res.status(StatusCodes.NOT_FOUND).json({
+                    success: false,
+                    message: 'Report not found'
+                });
             }
+
+            reportData = {
+                reportId: policyRequest._id,
+                policyId: policyRequest._id,
+                propertyDetails: policyRequest.propertyDetails,
+                status: policyRequest.status,
+                createdAt: policyRequest.createdAt,
+                isMerged: false
+            };
+        }
+
+        res.status(StatusCodes.OK).json({
+            success: true,
+            data: { ...reportData, isMerged }
         });
     } catch (error) {
         console.error('Get report error:', error);
@@ -192,7 +326,113 @@ router.get('/report/:reportId', allowUserOrAdmin, async (req, res) => {
     }
 });
 
-// Download report
+// Download individual AMMC report
+router.post('/download/ammc/:assignmentId', allowUserOrAdmin, async (req, res) => {
+    try {
+        const { assignmentId } = req.params;
+        const { userId } = req.user;
+
+        // Find the assignment and check ownership
+        const Assignment = require('../models/Assignment');
+        const assignment = await Assignment.findById(assignmentId)
+            .populate('policyId', 'userId propertyDetails');
+
+        if (!assignment) {
+            return res.status(StatusCodes.NOT_FOUND).json({
+                success: false,
+                message: 'AMMC report not found'
+            });
+        }
+
+        // Check ownership for non-admin users
+        if (req.user.model === 'User' && assignment.policyId.userId !== userId) {
+            return res.status(StatusCodes.FORBIDDEN).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        if (assignment.status !== 'completed') {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                success: false,
+                message: 'AMMC report is not yet completed'
+            });
+        }
+
+        res.status(StatusCodes.OK).json({
+            success: true,
+            message: 'AMMC report downloaded successfully',
+            data: {
+                assignmentId: assignment._id,
+                organization: 'AMMC',
+                reportData: assignment.surveyData,
+                submittedAt: assignment.submittedAt
+            }
+        });
+    } catch (error) {
+        console.error('Download AMMC report error:', error);
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: 'Failed to download AMMC report',
+            error: error.message
+        });
+    }
+});
+
+// Download individual NIA report
+router.post('/download/nia/:assignmentId', allowUserOrAdmin, async (req, res) => {
+    try {
+        const { assignmentId } = req.params;
+        const { userId } = req.user;
+
+        // Find the NIA assignment and check ownership
+        const Assignment = require('../models/Assignment');
+        const assignment = await Assignment.findById(assignmentId)
+            .populate('policyId', 'userId propertyDetails');
+
+        if (!assignment) {
+            return res.status(StatusCodes.NOT_FOUND).json({
+                success: false,
+                message: 'NIA report not found'
+            });
+        }
+
+        // Check ownership for non-admin users
+        if (req.user.model === 'User' && assignment.policyId.userId !== userId) {
+            return res.status(StatusCodes.FORBIDDEN).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        if (assignment.status !== 'completed') {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                success: false,
+                message: 'NIA report is not yet completed'
+            });
+        }
+
+        res.status(StatusCodes.OK).json({
+            success: true,
+            message: 'NIA report downloaded successfully',
+            data: {
+                assignmentId: assignment._id,
+                organization: 'NIA',
+                reportData: assignment.surveyData,
+                submittedAt: assignment.submittedAt
+            }
+        });
+    } catch (error) {
+        console.error('Download NIA report error:', error);
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: 'Failed to download NIA report',
+            error: error.message
+        });
+    }
+});
+
+// Download merged report
 router.post('/download/:reportId', allowUserOrAdmin, async (req, res) => {
     try {
         const { reportId } = req.params;

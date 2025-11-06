@@ -10,6 +10,13 @@ const createSurveySubmission = async (req, res) => {
     const { userId } = req.user;
     const submissionData = { ...req.body, surveyorId: userId };
 
+    // Get surveyor's organization from Employee model
+    const Employee = require('../models/Employee');
+    const surveyor = await Employee.findById(userId);
+    if (surveyor && surveyor.organization) {
+      submissionData.organization = surveyor.organization;
+    }
+
     // Validate assignment exists and belongs to surveyor
     if (submissionData.assignmentId) {
       const assignment = await Assignment.findOne({
@@ -248,6 +255,15 @@ const submitSurvey = async (req, res) => {
     const hasMainReport = submission.getMainReport();
     if (!hasMainReport) {
       throw new BadRequestError('Main survey document is required');
+    }
+
+    // Ensure organization is set based on surveyor's organization
+    if (!submission.organization) {
+      const Employee = require('../models/Employee');
+      const surveyor = await Employee.findById(userId);
+      if (surveyor && surveyor.organization) {
+        submission.organization = surveyor.organization;
+      }
     }
 
     submission.status = 'submitted';

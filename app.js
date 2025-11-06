@@ -35,6 +35,9 @@ const policyStatusRouter = require('./routes/policyStatus');
 const paymentDecisionRouter = require('./routes/paymentDecision');
 const userReportsRouter = require('./routes/userReports');
 const testMergedReportsRouter = require('./routes/testMergedReports');
+const debugMergedReportsRouter = require('./routes/debugMergedReports');
+const quickTestRouter = require('./routes/quickTest');
+const diagnosticReportsRouter = require('./routes/diagnosticReports');
 const notFoundMiddleware = require('./middlewares/not-found');
 const errorHandlerMiddleware = require('./middlewares/error-handler');
 const cors = require('cors');
@@ -83,6 +86,10 @@ app.use('/api/v1/policy-status', policyStatusRouter);
 app.use('/api/v1/payment-decision', paymentDecisionRouter);
 app.use('/api/v1/user-reports', userReportsRouter);
 app.use('/api/v1/test-merged-reports', testMergedReportsRouter);
+app.use('/api/v1/processing-monitor', processingMonitorRouter);
+app.use('/api/v1/debug-merged-reports', debugMergedReportsRouter);
+app.use('/api/v1/quick-test', quickTestRouter);
+app.use('/api/v1/diagnostic-reports', diagnosticReportsRouter);
 
 // Authentication testing routes
 const authTestRouter = require('./routes/authTest');
