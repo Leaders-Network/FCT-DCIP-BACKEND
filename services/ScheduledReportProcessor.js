@@ -23,7 +23,7 @@ class ScheduledReportProcessor {
         console.log('🕐 Starting scheduled report processor...');
 
         // Run every 5 minutes to check for completed assignments
-        this.scheduledTask = cron.schedule('0 * * * *', async () => {
+        this.scheduledTask = cron.schedule('*/5 * * * *', async () => {
             await this.processCompletedAssignments();
         }, {
             scheduled: true,

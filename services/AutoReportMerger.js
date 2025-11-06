@@ -1,6 +1,7 @@
 const MergedReport = require('../models/MergedReport');
 const DualAssignment = require('../models/DualAssignment');
 const SurveySubmission = require('../models/SurveySubmission');
+const Assignment = require('../models/Assignment');
 const AutomaticConflictFlag = require('../models/AutomaticConflictFlag');
 const { sendAutomaticConflictAlert } = require('../utils/emailService');
 const { Employee } = require('../models/Employee');
@@ -113,9 +114,9 @@ class AutoReportMerger {
     async getSurveySubmission(surveyorId, policyId) {
         return await SurveySubmission.findOne({
             surveyorId,
-            policyId,
-            status: 'completed'
-        }).sort({ submittedAt: -1 });
+            ammcId: policyId, // Note: the field is called ammcId, not policyId
+            status: { $in: ['submitted', 'approved'] } // Look for submitted or approved submissions
+        }).sort({ submissionTime: -1 }); // Sort by submissionTime, not submittedAt
     }
 
     /**
@@ -125,26 +126,26 @@ class AutoReportMerger {
         const conflicts = [];
         const mergedData = {};
 
-        // 1. Merge property details
+        // 1. Merge property details (using surveyDetails instead of surveyData)
         const propertyMerge = this.mergePropertyDetails(
-            ammcSubmission.surveyData.propertyDetails,
-            niaSubmission.surveyData.propertyDetails
+            ammcSubmission.surveyDetails,
+            niaSubmission.surveyDetails
         );
         mergedData.propertyDetails = propertyMerge.merged;
         conflicts.push(...propertyMerge.conflicts);
 
-        // 2. Merge measurements
+        // 2. Merge measurements (create from available data)
         const measurementMerge = this.mergeMeasurements(
-            ammcSubmission.surveyData.measurements,
-            niaSubmission.surveyData.measurements
+            { estimatedValue: ammcSubmission.surveyDetails.estimatedValue },
+            { estimatedValue: niaSubmission.surveyDetails.estimatedValue }
         );
         mergedData.measurements = measurementMerge.merged;
         conflicts.push(...measurementMerge.conflicts);
 
-        // 3. Merge valuations
+        // 3. Merge valuations (create from available data)
         const valuationMerge = this.mergeValuations(
-            ammcSubmission.surveyData.valuation,
-            niaSubmission.surveyData.valuation
+            { estimatedValue: ammcSubmission.surveyDetails.estimatedValue },
+            { estimatedValue: niaSubmission.surveyDetails.estimatedValue }
         );
         mergedData.valuation = valuationMerge.merged;
         conflicts.push(...valuationMerge.conflicts);
@@ -177,48 +178,49 @@ class AutoReportMerger {
         const merged = {};
         const conflicts = [];
 
-        // Property type - must match
-        if (ammcData.propertyType !== niaData.propertyType) {
+        // Property condition comparison
+        if (ammcData.propertyCondition !== niaData.propertyCondition) {
             conflicts.push({
-                field: 'propertyType',
+                field: 'propertyCondition',
+                type: 'mismatch',
+                severity: 'medium',
+                ammcValue: ammcData.propertyCondition,
+                niaValue: niaData.propertyCondition,
+                description: 'Property condition assessment differs between surveyors'
+            });
+        }
+
+        // Structural assessment comparison
+        if (ammcData.structuralAssessment !== niaData.structuralAssessment) {
+            conflicts.push({
+                field: 'structuralAssessment',
                 type: 'mismatch',
                 severity: 'high',
-                ammcValue: ammcData.propertyType,
-                niaValue: niaData.propertyType,
-                description: 'Property type mismatch between surveyors'
+                ammcValue: ammcData.structuralAssessment,
+                niaValue: niaData.structuralAssessment,
+                description: 'Structural assessment differs between surveyors'
             });
-            merged.propertyType = ammcData.propertyType; // Default to AMMC
-        } else {
-            merged.propertyType = ammcData.propertyType;
         }
 
-        // Address - use most complete
-        merged.address = ammcData.address?.length > niaData.address?.length ?
-            ammcData.address : niaData.address;
-
-        // Coordinates - average if close, flag if far apart
-        if (ammcData.coordinates && niaData.coordinates) {
-            const latDiff = Math.abs(ammcData.coordinates.latitude - niaData.coordinates.latitude);
-            const lngDiff = Math.abs(ammcData.coordinates.longitude - niaData.coordinates.longitude);
-
-            if (latDiff > this.conflictThresholds.coordinates || lngDiff > this.conflictThresholds.coordinates) {
-                conflicts.push({
-                    field: 'coordinates',
-                    type: 'significant_difference',
-                    severity: 'medium',
-                    ammcValue: ammcData.coordinates,
-                    niaValue: niaData.coordinates,
-                    description: 'Significant difference in GPS coordinates'
-                });
-            }
-
-            merged.coordinates = {
-                latitude: (ammcData.coordinates.latitude + niaData.coordinates.latitude) / 2,
-                longitude: (ammcData.coordinates.longitude + niaData.coordinates.longitude) / 2
-            };
-        } else {
-            merged.coordinates = ammcData.coordinates || niaData.coordinates;
+        // Risk factors comparison
+        if (ammcData.riskFactors !== niaData.riskFactors) {
+            conflicts.push({
+                field: 'riskFactors',
+                type: 'mismatch',
+                severity: 'medium',
+                ammcValue: ammcData.riskFactors,
+                niaValue: niaData.riskFactors,
+                description: 'Risk factors assessment differs between surveyors'
+            });
         }
+
+        // Use the more detailed assessment or combine them
+        merged.propertyCondition = ammcData.propertyCondition?.length > niaData.propertyCondition?.length ?
+            ammcData.propertyCondition : niaData.propertyCondition;
+        merged.structuralAssessment = ammcData.structuralAssessment?.length > niaData.structuralAssessment?.length ?
+            ammcData.structuralAssessment : niaData.structuralAssessment;
+        merged.riskFactors = ammcData.riskFactors?.length > niaData.riskFactors?.length ?
+            ammcData.riskFactors : niaData.riskFactors;
 
         return { merged, conflicts };
     }
@@ -230,34 +232,9 @@ class AutoReportMerger {
         const merged = {};
         const conflicts = [];
 
-        // Area measurements
-        if (ammcData.totalArea && niaData.totalArea) {
-            const areaDiff = Math.abs(ammcData.totalArea - niaData.totalArea) /
-                Math.max(ammcData.totalArea, niaData.totalArea);
-
-            if (areaDiff > this.conflictThresholds.area) {
-                conflicts.push({
-                    field: 'totalArea',
-                    type: 'significant_difference',
-                    severity: areaDiff > 0.25 ? 'high' : 'medium',
-                    ammcValue: ammcData.totalArea,
-                    niaValue: niaData.totalArea,
-                    difference: `${(areaDiff * 100).toFixed(1)}%`,
-                    description: 'Significant difference in area measurements'
-                });
-            }
-
-            merged.totalArea = (ammcData.totalArea + niaData.totalArea) / 2;
-        } else {
-            merged.totalArea = ammcData.totalArea || niaData.totalArea;
-        }
-
-        // Dimensions - average if both exist
-        merged.dimensions = {
-            length: this.averageIfBothExist(ammcData.dimensions?.length, niaData.dimensions?.length),
-            width: this.averageIfBothExist(ammcData.dimensions?.width, niaData.dimensions?.width),
-            height: this.averageIfBothExist(ammcData.dimensions?.height, niaData.dimensions?.height)
-        };
+        // For now, we don't have specific measurement data in the current schema
+        // This is a placeholder for future enhancement
+        merged.notes = 'Measurements data not available in current survey format';
 
         return { merged, conflicts };
     }
@@ -354,7 +331,7 @@ class AutoReportMerger {
         } else if (highConflicts > 2 || confidenceScore < 70) {
             releaseStatus = 'pending';
         } else {
-            releaseStatus = 'approved';
+            releaseStatus = 'released';
         }
 
         return {
@@ -377,26 +354,26 @@ class AutoReportMerger {
         // Extract report sections from submissions
         const reportSections = {
             ammc: {
-                propertyCondition: ammcSubmission.surveyData.propertyDetails?.condition || 'Not specified',
-                structuralAssessment: ammcSubmission.surveyData.structuralAssessment || 'Assessment completed',
-                riskFactors: ammcSubmission.surveyData.riskFactors || 'Standard risk factors assessed',
+                propertyCondition: ammcSubmission.surveyDetails?.propertyCondition || 'Not specified',
+                structuralAssessment: ammcSubmission.surveyDetails?.structuralAssessment || 'Assessment completed',
+                riskFactors: ammcSubmission.surveyDetails?.riskFactors || 'Standard risk factors assessed',
                 recommendations: ammcSubmission.recommendedAction || 'No specific recommendation',
-                estimatedValue: ammcSubmission.surveyData.valuation?.estimatedValue || 0,
-                surveyorName: ammcSubmission.surveyorName || 'AMMC Surveyor',
-                surveyorLicense: ammcSubmission.surveyorLicense || 'Licensed',
-                submissionDate: ammcSubmission.submittedAt || new Date(),
-                photos: ammcSubmission.surveyData.photos || []
+                estimatedValue: ammcSubmission.surveyDetails?.estimatedValue || 0,
+                surveyorName: 'AMMC Surveyor', // We'll need to populate this from the surveyor data
+                surveyorLicense: 'Licensed',
+                submissionDate: ammcSubmission.submissionTime || new Date(),
+                photos: ammcSubmission.surveyDetails?.photos || []
             },
             nia: {
-                propertyCondition: niaSubmission.surveyData.propertyDetails?.condition || 'Not specified',
-                structuralAssessment: niaSubmission.surveyData.structuralAssessment || 'Assessment completed',
-                riskFactors: niaSubmission.surveyData.riskFactors || 'Standard risk factors assessed',
+                propertyCondition: niaSubmission.surveyDetails?.propertyCondition || 'Not specified',
+                structuralAssessment: niaSubmission.surveyDetails?.structuralAssessment || 'Assessment completed',
+                riskFactors: niaSubmission.surveyDetails?.riskFactors || 'Standard risk factors assessed',
                 recommendations: niaSubmission.recommendedAction || 'No specific recommendation',
-                estimatedValue: niaSubmission.surveyData.valuation?.estimatedValue || 0,
-                surveyorName: niaSubmission.surveyorName || 'NIA Surveyor',
-                surveyorLicense: niaSubmission.surveyorLicense || 'Licensed',
-                submissionDate: niaSubmission.submittedAt || new Date(),
-                photos: niaSubmission.surveyData.photos || []
+                estimatedValue: niaSubmission.surveyDetails?.estimatedValue || 0,
+                surveyorName: 'NIA Surveyor', // We'll need to populate this from the surveyor data
+                surveyorLicense: 'Licensed',
+                submissionDate: niaSubmission.submissionTime || new Date(),
+                photos: niaSubmission.surveyDetails?.photos || []
             }
         };
 
@@ -411,8 +388,8 @@ class AutoReportMerger {
                 conflictType: this.mapConflictType(primaryConflict.field),
                 ammcRecommendation: primaryConflict.ammcValue,
                 niaRecommendation: primaryConflict.niaValue,
-                ammcValue: primaryConflict.field === 'estimatedValue' ? primaryConflict.ammcValue : reportSections.ammc.estimatedValue,
-                niaValue: primaryConflict.field === 'estimatedValue' ? primaryConflict.niaValue : reportSections.nia.estimatedValue,
+                ammcValue: primaryConflict.field === 'estimatedValue' ? primaryConflict.ammcValue : (reportSections.ammc.estimatedValue || 0),
+                niaValue: primaryConflict.field === 'estimatedValue' ? primaryConflict.niaValue : (reportSections.nia.estimatedValue || 0),
                 discrepancyPercentage: primaryConflict.difference ? parseFloat(primaryConflict.difference.replace('%', '')) : 0,
                 conflictSeverity: primaryConflict.severity
             };
@@ -448,7 +425,7 @@ class AutoReportMerger {
             },
 
             // Payment status
-            paymentEnabled: mergeResult.releaseStatus === 'approved' &&
+            paymentEnabled: mergeResult.releaseStatus === 'released' &&
                 mergeResult.finalRecommendation === 'approve' &&
                 mergeResult.conflicts.length === 0,
 
@@ -588,6 +565,9 @@ class AutoReportMerger {
             'recommendation': 'recommendation_mismatch',
             'estimatedValue': 'value_discrepancy',
             'propertyType': 'structural_disagreement',
+            'propertyCondition': 'structural_disagreement',
+            'structuralAssessment': 'structural_disagreement',
+            'riskFactors': 'risk_assessment_difference',
             'totalArea': 'structural_disagreement',
             'coordinates': 'other'
         };

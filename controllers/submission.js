@@ -11,7 +11,7 @@ const createSurveySubmission = async (req, res) => {
     const submissionData = { ...req.body, surveyorId: userId };
 
     // Get surveyor's organization from Employee model
-    const Employee = require('../models/Employee');
+    const { Employee } = require('../models/Employee');
     const surveyor = await Employee.findById(userId);
     if (surveyor && surveyor.organization) {
       submissionData.organization = surveyor.organization;
@@ -259,7 +259,7 @@ const submitSurvey = async (req, res) => {
 
     // Ensure organization is set based on surveyor's organization
     if (!submission.organization) {
-      const Employee = require('../models/Employee');
+      const { Employee } = require('../models/Employee');
       const surveyor = await Employee.findById(userId);
       if (surveyor && surveyor.organization) {
         submission.organization = surveyor.organization;

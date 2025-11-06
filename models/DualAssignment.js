@@ -110,7 +110,21 @@ const DualAssignmentSchema = new mongoose.Schema({
         type: String,
         enum: ['low', 'medium', 'high', 'urgent'],
         default: 'medium'
-    }
+    },
+    processingStatus: {
+        type: String,
+        enum: ['pending', 'processing', 'completed', 'failed'],
+        default: 'pending'
+    },
+    processingStartedAt: Date,
+    processingFailedAt: Date,
+    processingError: String,
+    mergedReportId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'MergedReport',
+        default: null
+    },
+    completedAt: Date
 }, {
     timestamps: true
 });
@@ -119,9 +133,11 @@ const DualAssignmentSchema = new mongoose.Schema({
 DualAssignmentSchema.index({ policyId: 1 }, { unique: true });
 DualAssignmentSchema.index({ assignmentStatus: 1 });
 DualAssignmentSchema.index({ completionStatus: 1 });
+DualAssignmentSchema.index({ processingStatus: 1 });
 DualAssignmentSchema.index({ ammcAssignmentId: 1 });
 DualAssignmentSchema.index({ niaAssignmentId: 1 });
 DualAssignmentSchema.index({ priority: 1, 'estimatedCompletion.overallDeadline': 1 });
+DualAssignmentSchema.index({ completionStatus: 1, processingStatus: 1, mergedReportId: 1 });
 
 // Method to assign AMMC surveyor
 DualAssignmentSchema.methods.assignAMMCSurveyor = function (assignmentId, surveyorContact, assignedBy) {

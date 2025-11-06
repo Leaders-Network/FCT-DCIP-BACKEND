@@ -200,7 +200,7 @@ const requireSurveyorDashboardAccess = async (req, res, next) => {
       if (!surveyor) {
         console.log('Creating surveyor record for employee:', req.user.userId);
         try {
-          const Employee = require('../models/Employee');
+          const { Employee } = require('../models/Employee');
           const user = await Employee.findById(req.user.userId);
 
           surveyor = new Surveyor({

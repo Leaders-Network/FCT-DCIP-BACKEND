@@ -101,10 +101,9 @@ router.get('/user/reports', allowUserOrAdmin, async (req, res) => {
 
         const policyIds = policies.map(p => p._id);
 
-        // Find merged reports for these policies
+        // Find merged reports for these policies (show all statuses)
         const mergedReports = await MergedReport.find({
-            policyId: { $in: policyIds },
-            releaseStatus: 'released'
+            policyId: { $in: policyIds }
         }).populate('policyId', 'propertyDetails contactDetails status');
 
         // Format response
@@ -124,8 +123,7 @@ router.get('/user/reports', allowUserOrAdmin, async (req, res) => {
         }));
 
         const total = await MergedReport.countDocuments({
-            policyId: { $in: policyIds },
-            releaseStatus: 'released'
+            policyId: { $in: policyIds }
         });
 
         res.status(StatusCodes.OK).json({
@@ -323,32 +321,42 @@ router.get('/report/:reportId', allowUserOrAdmin, async (req, res) => {
                 .populate('niaAssignmentId', 'surveyorId status submittedAt');
 
             // Get surveyor information
-            const Employee = require('../models/Employee');
+            const { Employee } = require('../models/Employee');
             let ammcSurveyor = null;
             let niaSurveyor = null;
 
-            if (dualAssignment?.ammcAssignmentId?.surveyorId) {
-                ammcSurveyor = await Employee.findById(dualAssignment.ammcAssignmentId.surveyorId);
-            }
-            if (dualAssignment?.niaAssignmentId?.surveyorId) {
-                niaSurveyor = await Employee.findById(dualAssignment.niaAssignmentId.surveyorId);
+            try {
+                if (dualAssignment?.ammcAssignmentId?.surveyorId) {
+                    ammcSurveyor = await Employee.findById(dualAssignment.ammcAssignmentId.surveyorId);
+                }
+                if (dualAssignment?.niaAssignmentId?.surveyorId) {
+                    niaSurveyor = await Employee.findById(dualAssignment.niaAssignmentId.surveyorId);
+                }
+            } catch (employeeError) {
+                console.error('Error fetching surveyor information:', employeeError);
+                // Continue without surveyor info if there's an error
             }
 
             // Get individual survey submissions for detailed report data
             let ammcSubmission = null;
             let niaSubmission = null;
 
-            if (dualAssignment?.ammcAssignmentId?.surveyorId) {
-                ammcSubmission = await SurveySubmission.findOne({
-                    surveyorId: dualAssignment.ammcAssignmentId.surveyorId,
-                    policyId: mergedReport.policyId._id
-                });
-            }
-            if (dualAssignment?.niaAssignmentId?.surveyorId) {
-                niaSubmission = await SurveySubmission.findOne({
-                    surveyorId: dualAssignment.niaAssignmentId.surveyorId,
-                    policyId: mergedReport.policyId._id
-                });
+            try {
+                if (dualAssignment?.ammcAssignmentId?.surveyorId) {
+                    ammcSubmission = await SurveySubmission.findOne({
+                        surveyorId: dualAssignment.ammcAssignmentId.surveyorId,
+                        ammcId: mergedReport.policyId._id // Use ammcId instead of policyId
+                    });
+                }
+                if (dualAssignment?.niaAssignmentId?.surveyorId) {
+                    niaSubmission = await SurveySubmission.findOne({
+                        surveyorId: dualAssignment.niaAssignmentId.surveyorId,
+                        ammcId: mergedReport.policyId._id // Use ammcId instead of policyId
+                    });
+                }
+            } catch (submissionError) {
+                console.error('Error fetching survey submissions:', submissionError);
+                // Continue without submission data if there's an error
             }
 
             reportData = {
@@ -370,19 +378,31 @@ router.get('/report/:reportId', allowUserOrAdmin, async (req, res) => {
                 // Add surveyor information
                 surveyorContacts: {
                     ammc: ammcSurveyor ? {
-                        name: `${ammcSurveyor.firstname} ${ammcSurveyor.lastname}`,
-                        email: ammcSurveyor.email,
-                        phone: ammcSurveyor.phonenumber,
+                        name: `${ammcSurveyor.firstname || ''} ${ammcSurveyor.lastname || ''}`.trim() || 'AMMC Surveyor',
+                        email: ammcSurveyor.email || 'N/A',
+                        phone: ammcSurveyor.phonenumber || 'N/A',
                         licenseNumber: ammcSurveyor.licenseNumber || 'N/A',
                         organization: 'AMMC'
-                    } : null,
+                    } : {
+                        name: 'AMMC Surveyor',
+                        email: 'N/A',
+                        phone: 'N/A',
+                        licenseNumber: 'N/A',
+                        organization: 'AMMC'
+                    },
                     nia: niaSurveyor ? {
-                        name: `${niaSurveyor.firstname} ${niaSurveyor.lastname}`,
-                        email: niaSurveyor.email,
-                        phone: niaSurveyor.phonenumber,
+                        name: `${niaSurveyor.firstname || ''} ${niaSurveyor.lastname || ''}`.trim() || 'NIA Surveyor',
+                        email: niaSurveyor.email || 'N/A',
+                        phone: niaSurveyor.phonenumber || 'N/A',
                         licenseNumber: niaSurveyor.licenseNumber || 'N/A',
                         organization: 'NIA'
-                    } : null
+                    } : {
+                        name: 'NIA Surveyor',
+                        email: 'N/A',
+                        phone: 'N/A',
+                        licenseNumber: 'N/A',
+                        organization: 'NIA'
+                    }
                 },
                 // Add individual report documents
                 individualReports: {
@@ -390,15 +410,15 @@ router.get('/report/:reportId', allowUserOrAdmin, async (req, res) => {
                     niaReportId: dualAssignment?.niaAssignmentId?._id || null,
                     ammcSubmission: ammcSubmission ? {
                         submissionId: ammcSubmission._id,
-                        surveyData: ammcSubmission.surveyData,
-                        submittedAt: ammcSubmission.submittedAt,
-                        surveyorNotes: ammcSubmission.surveyorNotes
+                        surveyData: ammcSubmission.surveyDetails, // Use surveyDetails instead of surveyData
+                        submittedAt: ammcSubmission.submissionTime, // Use submissionTime instead of submittedAt
+                        surveyorNotes: ammcSubmission.surveyNotes // Use surveyNotes instead of surveyorNotes
                     } : null,
                     niaSubmission: niaSubmission ? {
                         submissionId: niaSubmission._id,
-                        surveyData: niaSubmission.surveyData,
-                        submittedAt: niaSubmission.submittedAt,
-                        surveyorNotes: niaSubmission.surveyorNotes
+                        surveyData: niaSubmission.surveyDetails, // Use surveyDetails instead of surveyData
+                        submittedAt: niaSubmission.submissionTime, // Use submissionTime instead of submittedAt
+                        surveyorNotes: niaSubmission.surveyNotes // Use surveyNotes instead of surveyorNotes
                     } : null
                 }
             };
@@ -435,10 +455,15 @@ router.get('/report/:reportId', allowUserOrAdmin, async (req, res) => {
         });
     } catch (error) {
         console.error('Get report error:', error);
+        console.error('Error stack:', error.stack);
+        console.error('Report ID:', req.params.reportId);
+        console.error('User ID:', req.user?.userId);
+
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: 'Failed to get report',
-            error: error.message
+            error: error.message,
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 });
@@ -482,7 +507,7 @@ router.post('/download/ammc/:assignmentId', allowUserOrAdmin, async (req, res) =
             data: {
                 assignmentId: assignment._id,
                 organization: 'AMMC',
-                reportData: assignment.surveyData,
+                reportData: assignment.surveyData || {}, // Keep as surveyData for Assignment model
                 submittedAt: assignment.submittedAt
             }
         });
@@ -535,7 +560,7 @@ router.post('/download/nia/:assignmentId', allowUserOrAdmin, async (req, res) =>
             data: {
                 assignmentId: assignment._id,
                 organization: 'NIA',
-                reportData: assignment.surveyData,
+                reportData: assignment.surveyData || {}, // Keep as surveyData for Assignment model
                 submittedAt: assignment.submittedAt
             }
         });
