@@ -474,12 +474,14 @@ router.post('/download/ammc/:assignmentId', allowUserOrAdmin, async (req, res) =
         const { assignmentId } = req.params;
         const { userId } = req.user;
 
-        // Find the assignment and check ownership
-        const Assignment = require('../models/Assignment');
-        const assignment = await Assignment.findById(assignmentId)
-            .populate('policyId', 'userId propertyDetails');
+        // Find the AMMC survey submission
+        const SurveySubmission = require('../models/SurveySubmission');
+        const submission = await SurveySubmission.findOne({
+            assignmentId: assignmentId,
+            organization: 'AMMC'
+        }).populate('ammcId', 'userId propertyDetails');
 
-        if (!assignment) {
+        if (!submission) {
             return res.status(StatusCodes.NOT_FOUND).json({
                 success: false,
                 message: 'AMMC report not found'
@@ -487,28 +489,39 @@ router.post('/download/ammc/:assignmentId', allowUserOrAdmin, async (req, res) =
         }
 
         // Check ownership for non-admin users
-        if (req.user.model === 'User' && assignment.policyId.userId !== userId) {
+        if (req.user.model === 'User' && submission.ammcId.userId !== userId) {
             return res.status(StatusCodes.FORBIDDEN).json({
                 success: false,
                 message: 'Access denied'
             });
         }
 
-        if (assignment.status !== 'completed') {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: 'AMMC report is not yet completed'
-            });
+        // Return the survey document or documents
+        let downloadUrl = null;
+        let documents = [];
+
+        if (submission.documents && submission.documents.length > 0) {
+            // Find the main report document
+            const mainReport = submission.documents.find(doc => doc.isMainReport) || submission.documents[0];
+            downloadUrl = mainReport.cloudinaryUrl;
+            documents = submission.documents;
+        } else if (submission.surveyDocument) {
+            // Legacy survey document
+            downloadUrl = typeof submission.surveyDocument === 'string' ?
+                submission.surveyDocument : submission.surveyDocument.url;
         }
 
         res.status(StatusCodes.OK).json({
             success: true,
             message: 'AMMC report downloaded successfully',
             data: {
-                assignmentId: assignment._id,
+                submissionId: submission._id,
                 organization: 'AMMC',
-                reportData: assignment.surveyData || {}, // Keep as surveyData for Assignment model
-                submittedAt: assignment.submittedAt
+                downloadUrl: downloadUrl,
+                documents: documents,
+                surveyData: submission.surveyDetails,
+                submittedAt: submission.submissionTime,
+                surveyorNotes: submission.surveyNotes
             }
         });
     } catch (error) {
@@ -527,12 +540,14 @@ router.post('/download/nia/:assignmentId', allowUserOrAdmin, async (req, res) =>
         const { assignmentId } = req.params;
         const { userId } = req.user;
 
-        // Find the NIA assignment and check ownership
-        const Assignment = require('../models/Assignment');
-        const assignment = await Assignment.findById(assignmentId)
-            .populate('policyId', 'userId propertyDetails');
+        // Find the NIA survey submission
+        const SurveySubmission = require('../models/SurveySubmission');
+        const submission = await SurveySubmission.findOne({
+            assignmentId: assignmentId,
+            organization: 'NIA'
+        }).populate('ammcId', 'userId propertyDetails');
 
-        if (!assignment) {
+        if (!submission) {
             return res.status(StatusCodes.NOT_FOUND).json({
                 success: false,
                 message: 'NIA report not found'
@@ -540,28 +555,39 @@ router.post('/download/nia/:assignmentId', allowUserOrAdmin, async (req, res) =>
         }
 
         // Check ownership for non-admin users
-        if (req.user.model === 'User' && assignment.policyId.userId !== userId) {
+        if (req.user.model === 'User' && submission.ammcId.userId !== userId) {
             return res.status(StatusCodes.FORBIDDEN).json({
                 success: false,
                 message: 'Access denied'
             });
         }
 
-        if (assignment.status !== 'completed') {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: 'NIA report is not yet completed'
-            });
+        // Return the survey document or documents
+        let downloadUrl = null;
+        let documents = [];
+
+        if (submission.documents && submission.documents.length > 0) {
+            // Find the main report document
+            const mainReport = submission.documents.find(doc => doc.isMainReport) || submission.documents[0];
+            downloadUrl = mainReport.cloudinaryUrl;
+            documents = submission.documents;
+        } else if (submission.surveyDocument) {
+            // Legacy survey document
+            downloadUrl = typeof submission.surveyDocument === 'string' ?
+                submission.surveyDocument : submission.surveyDocument.url;
         }
 
         res.status(StatusCodes.OK).json({
             success: true,
             message: 'NIA report downloaded successfully',
             data: {
-                assignmentId: assignment._id,
+                submissionId: submission._id,
                 organization: 'NIA',
-                reportData: assignment.surveyData || {}, // Keep as surveyData for Assignment model
-                submittedAt: assignment.submittedAt
+                downloadUrl: downloadUrl,
+                documents: documents,
+                surveyData: submission.surveyDetails,
+                submittedAt: submission.submissionTime,
+                surveyorNotes: submission.surveyNotes
             }
         });
     } catch (error) {
@@ -616,22 +642,30 @@ router.post('/download/:reportId', allowUserOrAdmin, async (req, res) => {
         mergedReport.lastDownloadedAt = new Date();
         await mergedReport.save();
 
-        // Return the complete report data
+        // Generate and return a downloadable report
+        const reportContent = {
+            reportId: mergedReport._id,
+            policyId: mergedReport.policyId._id,
+            propertyDetails: mergedReport.policyId.propertyDetails,
+            finalRecommendation: mergedReport.finalRecommendation,
+            paymentEnabled: mergedReport.paymentEnabled,
+            conflictDetected: mergedReport.conflictDetected,
+            reportSections: mergedReport.reportSections,
+            mergingMetadata: mergedReport.mergingMetadata,
+            releasedAt: mergedReport.releasedAt,
+            downloadedAt: new Date(),
+            downloadCount: mergedReport.downloadCount
+        };
+
+        // Set headers for file download
+        const fileName = `merged-report-${mergedReport.policyId._id}-${Date.now()}.json`;
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
         res.status(StatusCodes.OK).json({
             success: true,
             message: 'Report downloaded successfully',
-            data: {
-                reportId: mergedReport._id,
-                policyId: mergedReport.policyId._id,
-                downloadCount: mergedReport.downloadCount,
-                propertyDetails: mergedReport.policyId.propertyDetails,
-                finalRecommendation: mergedReport.finalRecommendation,
-                paymentEnabled: mergedReport.paymentEnabled,
-                conflictDetected: mergedReport.conflictDetected,
-                reportSections: mergedReport.reportSections,
-                mergingMetadata: mergedReport.mergingMetadata,
-                releasedAt: mergedReport.releasedAt
-            }
+            data: reportContent
         });
     } catch (error) {
         console.error('Download report error:', error);

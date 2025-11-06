@@ -126,29 +126,29 @@ class AutoReportMerger {
         const conflicts = [];
         const mergedData = {};
 
-        // 1. Merge property details (using surveyDetails instead of surveyData)
+        // 1. Merge property details (no conflicts reported - just merge data)
         const propertyMerge = this.mergePropertyDetails(
             ammcSubmission.surveyDetails,
             niaSubmission.surveyDetails
         );
         mergedData.propertyDetails = propertyMerge.merged;
-        conflicts.push(...propertyMerge.conflicts);
+        // Don't add property conflicts to the main conflicts array
 
-        // 2. Merge measurements (create from available data)
+        // 2. Merge measurements (no conflicts reported - just merge data)
         const measurementMerge = this.mergeMeasurements(
             { estimatedValue: ammcSubmission.surveyDetails.estimatedValue },
             { estimatedValue: niaSubmission.surveyDetails.estimatedValue }
         );
         mergedData.measurements = measurementMerge.merged;
-        conflicts.push(...measurementMerge.conflicts);
+        // Don't add measurement conflicts to the main conflicts array
 
-        // 3. Merge valuations (create from available data)
+        // 3. Merge valuations (no conflicts reported - just merge data)
         const valuationMerge = this.mergeValuations(
             { estimatedValue: ammcSubmission.surveyDetails.estimatedValue },
             { estimatedValue: niaSubmission.surveyDetails.estimatedValue }
         );
         mergedData.valuation = valuationMerge.merged;
-        conflicts.push(...valuationMerge.conflicts);
+        // Don't add valuation conflicts to the main conflicts array
 
         // 4. Merge recommendations
         const recommendationMerge = this.mergeRecommendations(
@@ -176,43 +176,7 @@ class AutoReportMerger {
      */
     mergePropertyDetails(ammcData, niaData) {
         const merged = {};
-        const conflicts = [];
-
-        // Property condition comparison
-        if (ammcData.propertyCondition !== niaData.propertyCondition) {
-            conflicts.push({
-                field: 'propertyCondition',
-                type: 'mismatch',
-                severity: 'medium',
-                ammcValue: ammcData.propertyCondition,
-                niaValue: niaData.propertyCondition,
-                description: 'Property condition assessment differs between surveyors'
-            });
-        }
-
-        // Structural assessment comparison
-        if (ammcData.structuralAssessment !== niaData.structuralAssessment) {
-            conflicts.push({
-                field: 'structuralAssessment',
-                type: 'mismatch',
-                severity: 'high',
-                ammcValue: ammcData.structuralAssessment,
-                niaValue: niaData.structuralAssessment,
-                description: 'Structural assessment differs between surveyors'
-            });
-        }
-
-        // Risk factors comparison
-        if (ammcData.riskFactors !== niaData.riskFactors) {
-            conflicts.push({
-                field: 'riskFactors',
-                type: 'mismatch',
-                severity: 'medium',
-                ammcValue: ammcData.riskFactors,
-                niaValue: niaData.riskFactors,
-                description: 'Risk factors assessment differs between surveyors'
-            });
-        }
+        const conflicts = []; // No conflicts reported for property details
 
         // Use the more detailed assessment or combine them
         merged.propertyCondition = ammcData.propertyCondition?.length > niaData.propertyCondition?.length ?
