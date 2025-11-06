@@ -174,29 +174,103 @@ router.get('/status/:policyId', allowUserOrAdmin, async (req, res) => {
         }
 
         // Check for merged report
-        const mergedReport = await MergedReport.findOne({ policyId });
+        const mergedReport = await MergedReport.findOne({ policyId })
+            .populate('policyId', 'propertyDetails status');
 
         if (!mergedReport) {
+            // Check if dual assignment exists to determine processing stage
+            const DualAssignment = require('../models/DualAssignment');
+            const dualAssignment = await DualAssignment.findOne({ policyId })
+                .populate('ammcAssignmentId', 'status')
+                .populate('niaAssignmentId', 'status');
+
+            if (!dualAssignment) {
+                return res.status(StatusCodes.OK).json({
+                    success: true,
+                    data: {
+                        status: 'not_started',
+                        message: 'Surveys have not been assigned yet',
+                        stage: 'awaiting_assignment',
+                        progress: 0
+                    }
+                });
+            }
+
+            // Calculate survey progress
+            let progress = 0;
+            let message = 'Waiting for surveyors to complete their assessments';
+
+            const ammcCompleted = dualAssignment.ammcAssignmentId?.status === 'completed';
+            const niaCompleted = dualAssignment.niaAssignmentId?.status === 'completed';
+
+            if (ammcCompleted && niaCompleted) {
+                progress = 100;
+                message = 'Both surveys completed. Processing merged report...';
+            } else if (ammcCompleted || niaCompleted) {
+                progress = 50;
+                message = 'One survey completed. Waiting for the other surveyor...';
+            }
+
             return res.status(StatusCodes.OK).json({
                 success: true,
                 data: {
-                    status: 'pending',
-                    message: 'Survey reports are still being processed',
-                    stage: 'awaiting_reports'
+                    status: 'awaiting_surveys',
+                    message,
+                    stage: 'survey_in_progress',
+                    progress,
+                    dualAssignmentId: dualAssignment._id,
+                    surveyStatus: {
+                        ammc: dualAssignment.ammcAssignmentId?.status || 'not_assigned',
+                        nia: dualAssignment.niaAssignmentId?.status || 'not_assigned'
+                    }
                 }
             });
+        }
+
+        // Determine status based on merged report
+        let status = 'processing';
+        let message = 'Report is being processed';
+        let stage = 'processing';
+
+        switch (mergedReport.releaseStatus) {
+            case 'released':
+                status = 'completed';
+                message = 'Report is ready for download';
+                stage = 'completed';
+                break;
+            case 'pending':
+                status = 'under_review';
+                message = 'Report is under administrative review';
+                stage = 'under_review';
+                break;
+            case 'withheld':
+                status = 'processing_delayed';
+                message = 'Report processing has been delayed due to conflicts';
+                stage = 'conflict_resolution';
+                break;
+            default:
+                status = 'processing';
+                message = 'Report is being processed';
+                stage = 'processing';
         }
 
         res.status(StatusCodes.OK).json({
             success: true,
             data: {
-                status: mergedReport.releaseStatus,
-                message: mergedReport.releaseStatus === 'released'
-                    ? 'Report is ready for download'
-                    : 'Report is being processed',
-                stage: mergedReport.releaseStatus === 'released' ? 'completed' : 'processing',
+                status,
+                message,
+                stage,
                 reportId: mergedReport._id,
-                createdAt: mergedReport.createdAt
+                createdAt: mergedReport.createdAt,
+                releasedAt: mergedReport.releasedAt,
+                conflictDetected: mergedReport.conflictDetected,
+                conflictResolved: mergedReport.conflictResolved,
+                processingProgress: 100, // Merged report is fully processed
+                estimatedCompletion: mergedReport.releaseStatus === 'released' ? null : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours if not released
+                conflictDetails: mergedReport.conflictDetected ? {
+                    type: mergedReport.conflictDetails?.conflictType || 'unknown',
+                    severity: mergedReport.conflictDetails?.conflictSeverity || 'medium'
+                } : undefined
             }
         });
     } catch (error) {
@@ -240,11 +314,42 @@ router.get('/report/:reportId', allowUserOrAdmin, async (req, res) => {
             );
             await mergedReport.save();
 
-            // Get dual assignment data for surveyor contacts
+            // Get dual assignment data for surveyor contacts and individual reports
             const DualAssignment = require('../models/DualAssignment');
+            const SurveySubmission = require('../models/SurveySubmission');
+
             const dualAssignment = await DualAssignment.findOne({ policyId: mergedReport.policyId._id })
-                .populate('ammcSurveyor', 'firstname lastname email phonenumber licenseNumber')
-                .populate('niaSurveyor', 'firstname lastname email phonenumber licenseNumber');
+                .populate('ammcAssignmentId', 'surveyorId status submittedAt')
+                .populate('niaAssignmentId', 'surveyorId status submittedAt');
+
+            // Get surveyor information
+            const Employee = require('../models/Employee');
+            let ammcSurveyor = null;
+            let niaSurveyor = null;
+
+            if (dualAssignment?.ammcAssignmentId?.surveyorId) {
+                ammcSurveyor = await Employee.findById(dualAssignment.ammcAssignmentId.surveyorId);
+            }
+            if (dualAssignment?.niaAssignmentId?.surveyorId) {
+                niaSurveyor = await Employee.findById(dualAssignment.niaAssignmentId.surveyorId);
+            }
+
+            // Get individual survey submissions for detailed report data
+            let ammcSubmission = null;
+            let niaSubmission = null;
+
+            if (dualAssignment?.ammcAssignmentId?.surveyorId) {
+                ammcSubmission = await SurveySubmission.findOne({
+                    surveyorId: dualAssignment.ammcAssignmentId.surveyorId,
+                    policyId: mergedReport.policyId._id
+                });
+            }
+            if (dualAssignment?.niaAssignmentId?.surveyorId) {
+                niaSubmission = await SurveySubmission.findOne({
+                    surveyorId: dualAssignment.niaAssignmentId.surveyorId,
+                    policyId: mergedReport.policyId._id
+                });
+            }
 
             reportData = {
                 reportId: mergedReport._id,
@@ -264,25 +369,37 @@ router.get('/report/:reportId', allowUserOrAdmin, async (req, res) => {
                 canDownload: mergedReport.releaseStatus === 'released',
                 // Add surveyor information
                 surveyorContacts: {
-                    ammc: dualAssignment?.ammcSurveyor ? {
-                        name: `${dualAssignment.ammcSurveyor.firstname} ${dualAssignment.ammcSurveyor.lastname}`,
-                        email: dualAssignment.ammcSurveyor.email,
-                        phone: dualAssignment.ammcSurveyor.phonenumber,
-                        licenseNumber: dualAssignment.ammcSurveyor.licenseNumber,
+                    ammc: ammcSurveyor ? {
+                        name: `${ammcSurveyor.firstname} ${ammcSurveyor.lastname}`,
+                        email: ammcSurveyor.email,
+                        phone: ammcSurveyor.phonenumber,
+                        licenseNumber: ammcSurveyor.licenseNumber || 'N/A',
                         organization: 'AMMC'
                     } : null,
-                    nia: dualAssignment?.niaSurveyor ? {
-                        name: `${dualAssignment.niaSurveyor.firstname} ${dualAssignment.niaSurveyor.lastname}`,
-                        email: dualAssignment.niaSurveyor.email,
-                        phone: dualAssignment.niaSurveyor.phonenumber,
-                        licenseNumber: dualAssignment.niaSurveyor.licenseNumber,
+                    nia: niaSurveyor ? {
+                        name: `${niaSurveyor.firstname} ${niaSurveyor.lastname}`,
+                        email: niaSurveyor.email,
+                        phone: niaSurveyor.phonenumber,
+                        licenseNumber: niaSurveyor.licenseNumber || 'N/A',
                         organization: 'NIA'
                     } : null
                 },
                 // Add individual report documents
                 individualReports: {
-                    ammcReportId: dualAssignment?.ammcAssignmentId || null,
-                    niaReportId: dualAssignment?.niaAssignmentId || null
+                    ammcReportId: dualAssignment?.ammcAssignmentId?._id || null,
+                    niaReportId: dualAssignment?.niaAssignmentId?._id || null,
+                    ammcSubmission: ammcSubmission ? {
+                        submissionId: ammcSubmission._id,
+                        surveyData: ammcSubmission.surveyData,
+                        submittedAt: ammcSubmission.submittedAt,
+                        surveyorNotes: ammcSubmission.surveyorNotes
+                    } : null,
+                    niaSubmission: niaSubmission ? {
+                        submissionId: niaSubmission._id,
+                        surveyData: niaSubmission.surveyData,
+                        submittedAt: niaSubmission.submittedAt,
+                        surveyorNotes: niaSubmission.surveyorNotes
+                    } : null
                 }
             };
             isMerged = true;
