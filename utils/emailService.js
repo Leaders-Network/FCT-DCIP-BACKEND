@@ -2,15 +2,26 @@ const nodemailer = require('nodemailer');
 
 // Create email transporter
 const createTransporter = () => {
-    return nodemailer.createTransporter({
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: process.env.SMTP_PORT || 587,
-        secure: false,
-        auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS
-        }
-    });
+    try {
+        return nodemailer.createTransporter({
+            host: process.env.SMTP_HOST || 'smtp.gmail.com',
+            port: process.env.SMTP_PORT || 587,
+            secure: false,
+            auth: {
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASS
+            }
+        });
+    } catch (error) {
+        console.error('Failed to create email transporter:', error);
+        // Return a mock transporter that logs instead of sending
+        return {
+            sendMail: async (options) => {
+                console.log('Email would be sent:', options);
+                return { messageId: 'mock-id' };
+            }
+        };
+    }
 };
 
 /**

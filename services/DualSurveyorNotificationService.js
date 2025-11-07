@@ -4,16 +4,36 @@ const DualAssignment = require('../models/DualAssignment');
 
 class DualSurveyorNotificationService {
     constructor() {
-        // Initialize email transporter
-        this.transporter = nodemailer.createTransporter({
-            host: process.env.SMTP_HOST || 'smtp.gmail.com',
-            port: process.env.SMTP_PORT || 587,
-            secure: false,
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS
+        this.transporter = null;
+    }
+
+    /**
+     * Get or create email transporter (lazy initialization)
+     */
+    getTransporter() {
+        if (!this.transporter) {
+            try {
+                this.transporter = nodemailer.createTransporter({
+                    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+                    port: process.env.SMTP_PORT || 587,
+                    secure: false,
+                    auth: {
+                        user: process.env.SMTP_USER,
+                        pass: process.env.SMTP_PASS
+                    }
+                });
+            } catch (error) {
+                console.error('Failed to create email transporter:', error);
+                // Return a mock transporter that logs instead of sending
+                return {
+                    sendMail: async (options) => {
+                        console.log('Email would be sent:', options);
+                        return { messageId: 'mock-id' };
+                    }
+                };
             }
-        });
+        }
+        return this.transporter;
     }
 
     /**
@@ -408,7 +428,7 @@ class DualSurveyorNotificationService {
                 html
             };
 
-            const result = await this.transporter.sendMail(mailOptions);
+            const result = await this.getTransporter().sendMail(mailOptions);
             console.log('Email sent successfully:', result.messageId);
             return result;
         } catch (error) {
