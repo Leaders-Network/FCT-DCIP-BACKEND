@@ -4,23 +4,223 @@ const Surveyor = require('../models/Surveyor');
 const DualAssignment = require('../models/DualAssignment');
 const Assignment = require('../models/Assignment');
 const { StatusCodes } = require('http-status-codes');
+const nodemailer = require('nodemailer');
+
+// Function to send NIA admin credentials via email
+const sendNIAAdminCredentials = async (email, firstname, lastname, password) => {
+    return new Promise((resolve, reject) => {
+        nodemailer.createTestAccount(async (err, account) => {
+            if (err) {
+                console.error('❌ Failed to create Ethereal test account:', err.message);
+                return reject(err);
+            }
+
+            console.log('\n📧 ===== SENDING NIA ADMIN CREDENTIALS EMAIL =====');
+            console.log('📧 Ethereal test account created');
+
+            const transporter = nodemailer.createTransporter({
+                host: account.smtp.host,
+                port: account.smtp.port,
+                secure: account.smtp.secure,
+                auth: {
+                    user: account.user,
+                    pass: account.pass
+                }
+            });
+
+            const loginUrl = process.env.FRONTEND_URL
+                ? `${process.env.FRONTEND_URL}/nia-admin/login`
+                : 'http://localhost:3000/nia-admin/login';
+
+            const mailOptions = {
+                from: `"FCT-DCIP System" <noreply@fct-dcip.com>`,
+                to: email,
+                subject: '🔐 Your NIA Admin Account Credentials - FCT-DCIP',
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+                            <h1 style="color: white; margin: 0; font-size: 28px;">🔐 Welcome to NIA Admin</h1>
+                            <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">
+                                Your administrator account has been created
+                            </p>
+                        </div>
+                        
+                        <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 8px 8px;">
+                            <p style="font-size: 16px; color: #333; margin-top: 0;">
+                                Hello <strong>${firstname} ${lastname}</strong>,
+                            </p>
+                            
+                            <p style="font-size: 14px; color: #666; line-height: 1.6;">
+                                Your NIA (Nigerian Insurers Association) administrator account has been successfully created. 
+                                You can now access the NIA Admin Dashboard to manage surveyors, assignments, and reports.
+                            </p>
+
+                            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid #667eea;">
+                                <h3 style="margin: 0 0 15px 0; color: #333; font-size: 18px;">📋 Your Login Credentials</h3>
+                                
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <tr>
+                                        <td style="padding: 10px 0; font-weight: bold; color: #555; width: 120px;">Email:</td>
+                                        <td style="padding: 10px 0; color: #333; font-family: 'Courier New', monospace; background: white; padding: 8px 12px; border-radius: 4px;">
+                                            ${email}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 10px 0; font-weight: bold; color: #555;">Password:</td>
+                                        <td style="padding: 10px 0; color: #333; font-family: 'Courier New', monospace; background: white; padding: 8px 12px; border-radius: 4px;">
+                                            ${password}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 10px 0; font-weight: bold; color: #555;">Login URL:</td>
+                                        <td style="padding: 10px 0;">
+                                            <a href="${loginUrl}" style="color: #667eea; text-decoration: none; word-break: break-all;">
+                                                ${loginUrl}
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                                <p style="margin: 0; color: #856404; font-size: 14px;">
+                                    <strong>⚠️ Important Security Notice:</strong><br>
+                                    Please change your password immediately after your first login. 
+                                    This default password is temporary and should not be used long-term.
+                                </p>
+                            </div>
+
+                            <div style="margin: 30px 0; text-align: center;">
+                                <a href="${loginUrl}" 
+                                   style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                                          color: white; 
+                                          padding: 14px 32px; 
+                                          text-decoration: none; 
+                                          border-radius: 6px; 
+                                          display: inline-block; 
+                                          font-weight: bold;
+                                          font-size: 16px;
+                                          box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                                    🚀 Login to NIA Admin Dashboard
+                                </a>
+                            </div>
+
+                            <div style="background: #e7f3ff; padding: 20px; border-radius: 8px; margin: 25px 0;">
+                                <h4 style="margin: 0 0 10px 0; color: #0c5460; font-size: 16px;">📚 Your Permissions</h4>
+                                <ul style="margin: 0; padding-left: 20px; color: #0c5460; font-size: 14px; line-height: 1.8;">
+                                    <li>Manage NIA Surveyors</li>
+                                    <li>Create and Assign Dual Assignments</li>
+                                    <li>View and Review Reports</li>
+                                    <li>Monitor Processing Status</li>
+                                    <li>Handle User Inquiries</li>
+                                </ul>
+                            </div>
+
+                            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                                <p style="font-size: 13px; color: #999; margin: 0; line-height: 1.6;">
+                                    If you did not expect this email or have any questions, please contact your system administrator immediately.
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div style="text-align: center; margin-top: 20px; color: #999; font-size: 12px;">
+                            <p style="margin: 5px 0;">This is an automated message from the FCT-DCIP System</p>
+                            <p style="margin: 5px 0;">Nigerian Insurers Association (NIA)</p>
+                            <p style="margin: 5px 0;">Please do not reply to this email</p>
+                        </div>
+                    </div>
+                `
+            };
+
+            try {
+                const info = await transporter.sendMail(mailOptions);
+
+                console.log('\n✅ ===== EMAIL SENT SUCCESSFULLY =====');
+                console.log('📧 Message ID:', info.messageId);
+                console.log('📧 Recipient:', email);
+                console.log('📧 Subject: Your NIA Admin Account Credentials');
+                console.log('\n🔗 ===== ETHEREAL PREVIEW LINK =====');
+                console.log('🌐 View email in browser:');
+                console.log('🔗', nodemailer.getTestMessageUrl(info));
+                console.log('\n📋 ===== CREDENTIALS SENT =====');
+                console.log('👤 Name:', `${firstname} ${lastname}`);
+                console.log('📧 Email:', email);
+                console.log('🔑 Password:', password);
+                console.log('🔗 Login URL:', loginUrl);
+                console.log('=====================================\n');
+
+                resolve(info);
+            } catch (sendError) {
+                console.error('❌ Failed to send email:', sendError);
+                reject(sendError);
+            }
+        });
+    });
+};
 
 // Create NIA admin
 const createNIAAdmin = async (req, res) => {
     try {
-        const { userId, permissions, profile } = req.body;
+        const { userId, firstname, lastname, email, phonenumber, permissions, profile } = req.body;
 
-        // Check if user exists
-        const user = await Employee.findById(userId);
-        if (!user) {
-            return res.status(StatusCodes.NOT_FOUND).json({
-                success: false,
-                message: 'User not found'
+        let employeeId = userId;
+
+        // If userId is not provided, create a new employee
+        if (!userId) {
+            // Check if email already exists
+            const existingUser = await Employee.findOne({ email });
+            if (existingUser) {
+                return res.status(StatusCodes.CONFLICT).json({
+                    success: false,
+                    message: 'User with this email already exists'
+                });
+            }
+
+            // Get NIA Admin role (note: role enum uses 'NIA-Admin' with hyphen)
+            const niaAdminRole = await Role.findOne({ role: 'NIA-Admin' });
+            if (!niaAdminRole) {
+                return res.status(StatusCodes.NOT_FOUND).json({
+                    success: false,
+                    message: 'NIA-Admin role not found. Please ensure roles are initialized.'
+                });
+            }
+
+            // Get active status (note: status enum uses 'Active' with capital A)
+            const activeStatus = await Status.findOne({ status: 'Active' });
+            if (!activeStatus) {
+                return res.status(StatusCodes.NOT_FOUND).json({
+                    success: false,
+                    message: 'Active status not found. Please ensure statuses are initialized.'
+                });
+            }
+
+            // Create new employee
+            const newEmployee = new Employee({
+                firstname,
+                lastname,
+                email,
+                phonenumber,
+                password: 'ChangeMe123!', // Default password - user should change on first login
+                employeeRole: niaAdminRole._id,
+                employeeStatus: activeStatus._id,
+                organization: 'NIA'
             });
+
+            await newEmployee.save();
+            employeeId = newEmployee._id;
+        } else {
+            // Check if user exists
+            const user = await Employee.findById(userId);
+            if (!user) {
+                return res.status(StatusCodes.NOT_FOUND).json({
+                    success: false,
+                    message: 'User not found'
+                });
+            }
         }
 
         // Check if NIA admin already exists for this user
-        const existingAdmin = await NIAAdmin.findOne({ userId });
+        const existingAdmin = await NIAAdmin.findOne({ userId: employeeId });
         if (existingAdmin) {
             return res.status(StatusCodes.CONFLICT).json({
                 success: false,
@@ -30,8 +230,13 @@ const createNIAAdmin = async (req, res) => {
 
         // Create NIA admin
         const niaAdmin = new NIAAdmin({
-            userId,
-            permissions: permissions || {},
+            userId: employeeId,
+            permissions: permissions || {
+                canManageSurveyors: true,
+                canManageAssignments: true,
+                canViewReports: true,
+                canManageAdmins: false
+            },
             profile: profile || {},
             status: 'active'
         });
@@ -40,6 +245,21 @@ const createNIAAdmin = async (req, res) => {
 
         // Populate user details
         await niaAdmin.populate('userId', 'firstname lastname email phonenumber');
+
+        // Send credentials email if this is a new user (not existing userId)
+        if (!userId) {
+            try {
+                await sendNIAAdminCredentials(
+                    niaAdmin.userId.email,
+                    niaAdmin.userId.firstname,
+                    niaAdmin.userId.lastname,
+                    'ChangeMe123!' // Default password
+                );
+            } catch (emailError) {
+                console.error('Failed to send credentials email:', emailError);
+                // Don't fail the request if email fails
+            }
+        }
 
         res.status(StatusCodes.CREATED).json({
             success: true,

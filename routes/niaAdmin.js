@@ -27,8 +27,24 @@ const {
 // Apply basic authentication to all routes
 router.use(protect);
 
+// Middleware to check if user is admin (AMMC or NIA)
+const checkAdminAccess = (req, res, next) => {
+    const isSuperAdmin = req.user.role === 'Super-admin';
+    const isAMMCAdmin = req.user.role === 'Admin';
+    const isNIAAdmin = req.user.tokenType === 'nia-admin' || req.niaAdmin;
+
+    if (isSuperAdmin || isAMMCAdmin || isNIAAdmin) {
+        return next();
+    }
+
+    return res.status(403).json({
+        success: false,
+        message: 'Admin access required (AMMC or NIA)'
+    });
+};
+
 // Create NIA admin (requires super admin or existing NIA admin with management permission)
-router.post('/', requireAnyAdmin, logNIAAdminActivity('CREATE_NIA_ADMIN'), createNIAAdmin);
+router.post('/', checkAdminAccess, logNIAAdminActivity('CREATE_NIA_ADMIN'), createNIAAdmin);
 
 // Get all NIA admins (requires NIA admin access)
 router.get('/', requireNIAAdmin, requireNIAPermission('canManageSurveyors'), getNIAAdmins);
