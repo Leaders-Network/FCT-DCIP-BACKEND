@@ -2,7 +2,6 @@ const mongoose = require('mongoose');
 const DualAssignment = require('../models/DualAssignment');
 const MergedReport = require('../models/MergedReport');
 const SurveySubmission = require('../models/SurveySubmission');
-const Assignment = require('../models/Assignment');
 const PolicyRequest = require('../models/PolicyRequest');
 const AutoReportMerger = require('../services/AutoReportMerger');
 require('dotenv').config();

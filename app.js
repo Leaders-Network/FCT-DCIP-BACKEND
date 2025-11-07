@@ -44,8 +44,15 @@ const errorHandlerMiddleware = require('./middlewares/error-handler');
 const cors = require('cors');
 const { createStatuses, createRoles, createPropertyCategories, createSurveyorRoles, createFirstSuperAdmin } = require('./controllers/auth')
 const scheduledProcessor = require('./services/ScheduledReportProcessor');
+const { compressionMiddleware, requestTiming } = require('./middlewares/performance');
 
 const app = express()
+
+// Add compression for better performance
+app.use(compressionMiddleware);
+
+// Add request timing for monitoring
+app.use(requestTiming);
 
 const corsOptions = {
   origin: [
@@ -97,7 +104,7 @@ app.use('/api/v1/manual-processing', manualReportProcessingRouter);
 const authTestRouter = require('./routes/authTest');
 app.use('/api/v1/auth-test', authTestRouter);
 
-app.get('/', (req, res) => { res.send('<h3>FCT-DCIP API Server</h3>') })
+app.get('/', (_req, res) => { res.send('<h3>FCT-DCIP API Server</h3>') })
 
 app.use(notFoundMiddleware);
 app.use(errorHandlerMiddleware);
