@@ -7,7 +7,9 @@
     "start": "node app.js",
     "dev": "nodemon app.js",
     "create-admin": "node scripts/createAdmin.js",
-    "create-nia-admin": "node scripts/createNIAAdmin.js"
+    "create-nia-admin": "node scripts/createNIAAdmin.js",
+    "generate-tokens": "node scripts/generateDevTokens.js",
+    "quick-auth": "node scripts/quickAuthSetup.js"
   },
   "keywords": [],
   "author": "",
