@@ -92,7 +92,8 @@ router.get('/surveyors/available', requireNIAAdmin, async (req, res) => {
                 });
 
                 return {
-                    _id: surveyor.userId._id,
+                    _id: surveyor._id, // Surveyor document ID
+                    userId: surveyor.userId._id, // Employee ID - required for assignment
                     firstname: surveyor.userId.firstname,
                     lastname: surveyor.userId.lastname,
                     email: surveyor.userId.email,
