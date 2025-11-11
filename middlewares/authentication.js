@@ -8,12 +8,15 @@ const Surveyor = require('../models/Surveyor')
 const protect = async (req, res, next) => {
   const authHeader = req.headers.authorization
   if (!authHeader || !authHeader.startsWith('Bearer')) {
+    console.error('❌ Auth Error: No authorization header or invalid format');
     throw new UnauthenticatedError('Authentication invalid')
   }
   const token = authHeader.split(' ')[1]
 
   try {
+    console.log('🔐 Verifying token...');
     const payload = jwt.verify(token, process.env.JWT_SECRET)
+    console.log('✅ Token verified. Payload:', { userId: payload.userId, model: payload.model, role: payload.role });
 
     let userObject;
     let modelName;
@@ -22,14 +25,19 @@ const protect = async (req, res, next) => {
     if (payload.model === 'Employee') {
       userObject = await Employee.findOne({ _id: payload.userId });
       modelName = 'Employee';
+      console.log('👤 Looking up Employee:', payload.userId);
     } else {
       userObject = await User.findOne({ _id: payload.userId });
       modelName = 'User';
+      console.log('👤 Looking up User:', payload.userId);
     }
 
     if (!userObject) {
+      console.error('❌ User not found in database:', payload.userId);
       throw new UnauthenticatedError('Authentication invalid: User not found');
     }
+
+    console.log('✅ User found:', { id: userObject._id, model: modelName });
 
     if (modelName === 'Employee') {
       await userObject.populate(['employeeRole', 'employeeStatus']);
@@ -90,9 +98,16 @@ const protect = async (req, res, next) => {
         organization: null,
         tokenType: 'user'
       }
+      console.log('✅ User context set:', { userId: req.user.userId, model: req.user.model, tokenType: req.user.tokenType });
     }
     next()
   } catch (error) {
+    console.error('❌ Authentication error:', error.message);
+    if (error.name === 'JsonWebTokenError') {
+      console.error('❌ JWT Error: Invalid token signature or format');
+    } else if (error.name === 'TokenExpiredError') {
+      console.error('❌ JWT Error: Token has expired');
+    }
     throw new UnauthenticatedError('Authentication invalid')
   }
 }
@@ -276,10 +291,18 @@ const requireSuperAdminAccess = (req, res, next) => {
 
 // Allow both Users and Admins to access user-related endpoints
 const allowUserOrAdmin = (req, res, next) => {
+  console.log('🔒 allowUserOrAdmin check:', {
+    model: req.user?.model,
+    role: req.user?.role,
+    userId: req.user?.userId
+  });
+
   if (req.user.model === 'User' ||
     (req.user.model === 'Employee' && ['Admin', 'Super-admin', 'NIA-Admin'].includes(req.user.role))) {
+    console.log('✅ Access granted to user/admin');
     return next();
   }
+  console.error('❌ Access denied - not a user or admin');
   throw new UnauthenticatedError('You do not have permission to perform this action');
 };
 

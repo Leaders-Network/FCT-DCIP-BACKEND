@@ -48,8 +48,14 @@ module.exports = async (email, mailType, content) => {
 
     let info = await transporter.sendMail(mailOptions);
 
-    console.log('Message sent: %s', info.messageId);
-    console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
+    console.log('\n✅ ===== EMAIL SENT SUCCESSFULLY =====');
+    console.log('📧 Message ID:', info.messageId);
+    console.log('📧 Recipient:', email);
+    console.log('📧 Type:', mailType);
+    console.log('\n🔗 ===== ETHEREAL PREVIEW LINK =====');
+    console.log('🌐 View email in browser:');
+    console.log('🔗', nodemailer.getTestMessageUrl(info));
+    console.log('=====================================\n');
   });
 };
 
