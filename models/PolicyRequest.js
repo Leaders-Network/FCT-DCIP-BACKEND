@@ -77,8 +77,8 @@ const PolicyRequestSchema = new mongoose.Schema({
       type: String,
       enum: ['Contract Works Coverage',
         'Public Liability Coverage',
-        'Employer’s Liability Coverage',
-        'Contractor’s Plant and Equipment Coverage',
+        'Employers Liability Coverage',
+        'Contractors Plant and Equipment Coverage',
         'Professional Indemnity'],
       required: [true, 'Coverage type is required']
     },

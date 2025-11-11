@@ -667,6 +667,7 @@ const createSurveyor = async (req, res) => {
             lastname,
             email,
             phonenumber,
+            phoneNumber, // Frontend sends this
             specializations,
             licenseNumber,
             address,
@@ -674,6 +675,17 @@ const createSurveyor = async (req, res) => {
             experience,
             location
         } = req.body;
+
+        // Get phone number (handle both camelCase and lowercase)
+        const phone = phonenumber || phoneNumber;
+
+        // Validate required fields
+        if (!firstname || !lastname || !email || !phone) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                success: false,
+                message: 'Missing required fields: firstname, lastname, email, and phone number are required'
+            });
+        }
 
         // Validate specializations
         const validSpecializations = ['residential', 'commercial', 'industrial', 'agricultural'];
@@ -685,14 +697,20 @@ const createSurveyor = async (req, res) => {
             });
         }
 
-        // Validate phone number format
+        // Validate and normalize phone number format
+        // Accept formats: +234xxxxxxxxxx, 234xxxxxxxxxx, 0xxxxxxxxxx, or with spaces/dashes
+        let normalizedPhone = phone.replace(/[\s\-]/g, ''); // Remove spaces and dashes
+
         const phoneRegex = /^(?:\+234\d{10}|234\d{10}|0\d{10})$/;
-        if (!phoneRegex.test(phonenumber)) {
+        if (!phoneRegex.test(normalizedPhone)) {
             return res.status(StatusCodes.BAD_REQUEST).json({
                 success: false,
-                message: 'Invalid phone number format. Use: +234xxxxxxxxxx, 234xxxxxxxxxx, or 0xxxxxxxxxx'
+                message: 'Invalid phone number format. Use: +2348012345678, 2348012345678, or 08012345678'
             });
         }
+
+        // Use normalized phone number
+        const finalPhoneNumber = normalizedPhone;
 
         // Check if user already exists
         const existingUser = await Employee.findOne({ email });
@@ -708,7 +726,7 @@ const createSurveyor = async (req, res) => {
             firstname,
             lastname,
             email,
-            phonenumber,
+            phonenumber: finalPhoneNumber,
             employeeRole: await Role.findOne({ role: 'Surveyor' }),
             employeeStatus: await Status.findOne({ status: 'Active' }),
             organization: 'NIA'
