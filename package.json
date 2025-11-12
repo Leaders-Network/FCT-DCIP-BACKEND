@@ -9,7 +9,10 @@
     "create-admin": "node scripts/createAdmin.js",
     "create-nia-admin": "node scripts/createNIAAdmin.js",
     "generate-tokens": "node scripts/generateDevTokens.js",
-    "quick-auth": "node scripts/quickAuthSetup.js"
+    "quick-auth": "node scripts/quickAuthSetup.js",
+    "create-dual-assignments": "node scripts/createMissingDualAssignments.js",
+    "test-conflict-detection": "node scripts/testConflictDetection.js",
+    "reprocess-conflicts": "node scripts/reprocessReportsWithConflicts.js"
   },
   "keywords": [],
   "author": "",
