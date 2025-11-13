@@ -25,6 +25,7 @@ const assignmentRouter = require('./routes/assignment');
 const submissionRouter = require('./routes/submission');
 const dualAssignmentRouter = require('./routes/dualAssignment');
 const niaAdminRouter = require('./routes/niaAdmin');
+const brokerAdminRouter = require('./routes/brokerAdmin');
 const userConflictInquiriesRouter = require('./routes/userConflictInquiries');
 const reportReleaseRouter = require('./routes/reportRelease');
 const automaticConflictFlagsRouter = require('./routes/automaticConflictFlags');
@@ -58,6 +59,7 @@ const corsOptions = {
   origin: [
     'http://localhost:3000',
     'http://localhost:3001',
+    'https://fct-dcip-frontend-6otrsiotl.vercel.app',
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ["Content-Type", "Authorization", 'apikey', 'apiKey', 'x-api-key'],
@@ -84,6 +86,7 @@ app.use('/api/v1/assignment', assignmentRouter);
 app.use('/api/v1/submission', submissionRouter);
 app.use('/api/v1/dual-assignment', dualAssignmentRouter);
 app.use('/api/v1/nia-admin', niaAdminRouter);
+app.use('/api/v1/broker-admin', brokerAdminRouter);
 app.use('/api/v1/user-conflict-inquiries', userConflictInquiriesRouter);
 app.use('/api/v1/report-release', reportReleaseRouter);
 app.use('/api/v1/automatic-conflict-flags', automaticConflictFlagsRouter);

@@ -53,6 +53,16 @@ const protect = async (req, res, next) => {
         tokenType = 'super-admin';
         organization = 'AMMC'; // Super admin belongs to AMMC but can access all
       }
+      // Check if user is Broker Admin
+      else if (userObject.organization === 'Broker') {
+        const BrokerAdmin = require('../models/BrokerAdmin');
+        const brokerAdmin = await BrokerAdmin.findOne({ userId: payload.userId, status: 'active' });
+        if (brokerAdmin) {
+          organization = 'Broker';
+          tokenType = 'broker-admin';
+          req.brokerAdmin = brokerAdmin;
+        }
+      }
       // Check if user is NIA Admin
       else {
         const niaAdmin = await NIAAdmin.findOne({ userId: payload.userId, status: 'active' });
@@ -68,8 +78,8 @@ const protect = async (req, res, next) => {
       if (surveyor) {
         req.surveyor = surveyor;
 
-        // If user is not already super-admin or nia-admin, set as surveyor
-        if (tokenType !== 'super-admin' && tokenType !== 'nia-admin') {
+        // If user is not already super-admin, broker-admin, or nia-admin, set as surveyor
+        if (tokenType !== 'super-admin' && tokenType !== 'broker-admin' && tokenType !== 'nia-admin') {
           organization = surveyor.organization;
           tokenType = 'surveyor';
         }
@@ -320,6 +330,44 @@ const requireOrganization = (organization) => {
   };
 };
 
+// Broker Admin dashboard access
+const requireBrokerAdminAccess = async (req, res, next) => {
+  try {
+    // Super admin can access everything
+    if (req.user.tokenType === 'super-admin') {
+      return next();
+    }
+
+    // If user is already identified as broker-admin, allow access
+    if (req.user.tokenType === 'broker-admin') {
+      return next();
+    }
+
+    // If user is an employee but not yet identified as broker-admin, check if they can be one
+    if (req.user.model === 'Employee' && req.user.organization === 'Broker') {
+      // Check if broker admin record exists
+      const BrokerAdmin = require('../models/BrokerAdmin');
+      let brokerAdmin = await BrokerAdmin.findOne({ userId: req.user.userId, status: 'active' });
+
+      if (brokerAdmin) {
+        // Broker admin record exists, update user context
+        req.brokerAdmin = brokerAdmin;
+        req.user.tokenType = 'broker-admin';
+        req.user.organization = 'Broker';
+        return next();
+      }
+    }
+
+    throw new UnauthenticatedError('Access denied. Broker admin access required.');
+  } catch (error) {
+    if (error instanceof UnauthenticatedError) {
+      throw error;
+    }
+    console.error('Broker admin access error:', error);
+    throw new UnauthenticatedError('Access denied. Broker admin access required.');
+  }
+};
+
 module.exports = {
   protect,
   restrictTo,
@@ -330,6 +378,7 @@ module.exports = {
   requireAdminDashboardAccess,
   requireNIADashboardAccess,
   requireSurveyorDashboardAccess,
+  requireBrokerAdminAccess,
   requireSuperAdminAccess,
   requireOrganization,
   requireDashboardAccess

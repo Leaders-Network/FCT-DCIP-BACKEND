@@ -19,6 +19,10 @@ const ROUTE_ACCESS = {
     '/api/v1/nia-admin/*': ['nia-admin', 'super-admin'],
     '/api/v1/dashboard/nia-admin/*': ['nia-admin', 'super-admin'],
 
+    // Broker Admin dashboard routes
+    '/api/v1/broker-admin/*': ['broker-admin', 'super-admin'],
+    '/api/v1/dashboard/broker-admin/*': ['broker-admin', 'super-admin'],
+
     // Surveyor dashboard routes
     '/api/v1/surveyor/*': ['surveyor', 'super-admin'],
     '/api/v1/dashboard/surveyor/*': ['surveyor', 'super-admin'],
@@ -27,7 +31,7 @@ const ROUTE_ACCESS = {
     '/api/v1/dual-assignment/*': ['admin', 'nia-admin', 'super-admin'],
 
     // Policy routes (users and admins)
-    '/api/v1/policy/*': ['user', 'admin', 'nia-admin', 'super-admin'],
+    '/api/v1/policy/*': ['user', 'admin', 'nia-admin', 'broker-admin', 'super-admin'],
 
     // Assignment routes (admins and surveyors)
     '/api/v1/assignment/*': ['admin', 'nia-admin', 'surveyor', 'super-admin']
@@ -95,6 +99,11 @@ const createDashboardAccess = (dashboardType) => {
                 break;
             case 'nia-admin':
                 if (userTokenType === 'nia-admin') {
+                    return next();
+                }
+                break;
+            case 'broker-admin':
+                if (userTokenType === 'broker-admin') {
                     return next();
                 }
                 break;
@@ -182,5 +191,6 @@ module.exports = {
     requireUserDashboard: createDashboardAccess('user'),
     requireAdminDashboard: createDashboardAccess('admin'),
     requireNIADashboard: createDashboardAccess('nia-admin'),
+    requireBrokerAdminDashboard: createDashboardAccess('broker-admin'),
     requireSurveyorDashboard: createDashboardAccess('surveyor')
 };

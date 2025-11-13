@@ -207,6 +207,36 @@ const PolicyRequestSchema = new mongoose.Schema({
       default: Date.now
     },
     reason: String
+  }],
+  // Broker-specific fields
+  brokerStatus: {
+    type: String,
+    enum: ['pending', 'under_review', 'rejected', 'completed'],
+    default: 'pending'
+  },
+  brokerNotes: {
+    type: String,
+    default: ''
+  },
+  brokerAssignedTo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'BrokerAdmin'
+  },
+  brokerStatusHistory: [{
+    status: {
+      type: String,
+      enum: ['pending', 'under_review', 'rejected', 'completed']
+    },
+    changedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'BrokerAdmin'
+    },
+    changedAt: {
+      type: Date,
+      default: Date.now
+    },
+    reason: String,
+    notes: String
   }]
 }, {
   timestamps: true
@@ -218,6 +248,10 @@ PolicyRequestSchema.index({ status: 1 });
 PolicyRequestSchema.index({ assignedSurveyors: 1 });
 PolicyRequestSchema.index({ createdAt: -1 });
 PolicyRequestSchema.index({ priority: 1, deadline: 1 });
+// Broker-specific indexes
+PolicyRequestSchema.index({ brokerStatus: 1 });
+PolicyRequestSchema.index({ brokerAssignedTo: 1 });
+PolicyRequestSchema.index({ brokerStatus: 1, createdAt: -1 });
 
 // Middleware to update status history
 PolicyRequestSchema.pre('save', function (next) {
@@ -227,6 +261,15 @@ PolicyRequestSchema.pre('save', function (next) {
       changedAt: new Date()
     });
   }
+
+  // Track broker status changes
+  if (this.isModified('brokerStatus') && !this.isNew) {
+    this.brokerStatusHistory.push({
+      status: this.brokerStatus,
+      changedAt: new Date()
+    });
+  }
+
   next();
 });
 
