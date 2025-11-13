@@ -256,10 +256,28 @@ PolicyRequestSchema.index({ brokerStatus: 1, createdAt: -1 });
 // Middleware to update status history
 PolicyRequestSchema.pre('save', function (next) {
   if (this.isModified('status') && !this.isNew) {
+    const oldStatus = this.statusHistory.length > 0 ?
+      this.statusHistory[this.statusHistory.length - 1].status : 'submitted';
+
     this.statusHistory.push({
       status: this.status,
       changedAt: new Date()
     });
+
+    // Create notification for status change if this is a claim (has claimReason)
+    if (this.claimReason) {
+      const notificationService = require('../services/claimNotificationService');
+      const reason = this.statusHistory[this.statusHistory.length - 1].reason || '';
+
+      // Don't await - run async
+      notificationService.notifyStatusChange(
+        this.userId,
+        this._id,
+        oldStatus,
+        this.status,
+        reason
+      ).catch(err => console.error('Notification error:', err));
+    }
   }
 
   // Track broker status changes
