@@ -8,6 +8,8 @@
     "dev": "nodemon app.js",
     "create-admin": "node scripts/createAdmin.js",
     "create-nia-admin": "node scripts/createNIAAdmin.js",
+    "create-broker-admins": "node scripts/createBrokerAdmins.js",
+    "get-broker-credentials": "node scripts/getBrokerAdminCredentials.js",
     "generate-tokens": "node scripts/generateDevTokens.js",
     "quick-auth": "node scripts/quickAuthSetup.js",
     "create-dual-assignments": "node scripts/createMissingDualAssignments.js",

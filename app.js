@@ -40,6 +40,7 @@ const debugMergedReportsRouter = require('./routes/debugMergedReports');
 const quickTestRouter = require('./routes/quickTest');
 const diagnosticReportsRouter = require('./routes/diagnosticReports');
 const manualReportProcessingRouter = require('./routes/manualReportProcessing');
+const claimsRouter = require('./routes/claims');
 const notFoundMiddleware = require('./middlewares/not-found');
 const errorHandlerMiddleware = require('./middlewares/error-handler');
 const cors = require('cors');
@@ -102,6 +103,7 @@ app.use('/api/v1/debug-merged-reports', debugMergedReportsRouter);
 app.use('/api/v1/quick-test', quickTestRouter);
 app.use('/api/v1/diagnostic-reports', diagnosticReportsRouter);
 app.use('/api/v1/manual-processing', manualReportProcessingRouter);
+app.use('/api/v1/claims', claimsRouter);
 
 // Authentication testing routes
 const authTestRouter = require('./routes/authTest');

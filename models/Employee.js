@@ -14,7 +14,7 @@ const StatusSchema = new mongoose.Schema({
 const RoleSchema = new mongoose.Schema({
   role: {
     type: String,
-    enum: ['Super-admin', 'Admin', 'Staff', 'Surveyor', 'NIA-Admin'],
+    enum: ['Super-admin', 'Admin', 'Staff', 'Surveyor', 'NIA-Admin', 'Broker-Admin'],
     default: 'Staff'
   }
 })
@@ -57,7 +57,7 @@ const EmployeeSchema = new mongoose.Schema({
   },
   organization: {
     type: String,
-    enum: ['AMMC', 'NIA'],
+    enum: ['AMMC', 'NIA', 'Broker'],
     default: 'AMMC'
   },
   deleted: {

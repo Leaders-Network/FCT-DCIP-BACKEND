@@ -7,6 +7,8 @@ const { UnauthenticatedError, BadRequestError } = require('../errors');
 const loginBrokerAdmin = async (req, res) => {
     const { email, password } = req.body;
 
+    console.log('🔐 Broker Admin Login Attempt:', { email, passwordProvided: !!password });
+
     if (!email || !password) {
         throw new BadRequestError('Please provide email and password');
     }
@@ -15,12 +17,24 @@ const loginBrokerAdmin = async (req, res) => {
     const employee = await Employee.findOne({ email }).populate(['employeeRole', 'employeeStatus']);
 
     if (!employee) {
+        console.log('❌ Employee not found:', email);
         throw new UnauthenticatedError('Invalid credentials');
     }
 
+    console.log('✅ Employee found:', {
+        id: employee._id,
+        email: employee.email,
+        organization: employee.organization,
+        role: employee.employeeRole?.role,
+        status: employee.employeeStatus?.status
+    });
+
     // Verify password
     const isPasswordCorrect = await employee.comparePassword(password);
+    console.log('🔑 Password comparison result:', isPasswordCorrect);
+
     if (!isPasswordCorrect) {
+        console.log('❌ Password mismatch for:', email);
         throw new UnauthenticatedError('Invalid credentials');
     }
 
@@ -30,7 +44,7 @@ const loginBrokerAdmin = async (req, res) => {
     }
 
     // Check if employee status is active
-    if (employee.employeeStatus?.status !== 'active') {
+    if (employee.employeeStatus?.status !== 'Active') {
         throw new UnauthenticatedError('Account is not active');
     }
 
