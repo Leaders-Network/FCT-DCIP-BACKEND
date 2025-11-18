@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect, requireBrokerAdminAccess, requireSuperAdminAccess } = require('../middlewares/authentication');
+const { UnauthenticatedError } = require('../errors');
 const { loginBrokerAdmin, verifyBrokerAdmin, logoutBrokerAdmin } = require('../controllers/brokerAuth');
 const {
     getBrokerDashboardData,
@@ -36,12 +37,28 @@ router.patch('/claims/:claimId/status', protect, requireBrokerAdminAccess, updat
 // Analytics routes
 router.get('/analytics', protect, requireBrokerAdminAccess, getClaimAnalytics);
 
-// Broker Admin Management routes (Super Admin only)
-router.get('/management/stats', protect, requireSuperAdminAccess, getBrokerAdminStats);
-router.get('/management', protect, requireSuperAdminAccess, getAllBrokerAdmins);
-router.get('/management/:id', protect, requireSuperAdminAccess, getBrokerAdminById);
-router.post('/management', protect, requireSuperAdminAccess, createBrokerAdmin);
-router.patch('/management/:id', protect, requireSuperAdminAccess, updateBrokerAdmin);
-router.delete('/management/:id', protect, requireSuperAdminAccess, deleteBrokerAdmin);
+// Broker Admin Management routes (Super Admin or Broker Admin with management permissions)
+const requireBrokerManagementAccess = (req, res, next) => {
+    // Allow Super Admins
+    if (req.user.role === 'Super-admin') {
+        return next();
+    }
+
+    // Allow Broker Admins with canManageAdmins permission
+    if (req.user.tokenType === 'broker-admin' && req.brokerAdmin) {
+        if (req.brokerAdmin.permissions?.canManageAdmins === true) {
+            return next();
+        }
+    }
+
+    throw new UnauthenticatedError('Access denied. Broker admin management permission required.');
+};
+
+router.get('/management/stats', protect, requireBrokerManagementAccess, getBrokerAdminStats);
+router.get('/management', protect, requireBrokerManagementAccess, getAllBrokerAdmins);
+router.get('/management/:id', protect, requireBrokerManagementAccess, getBrokerAdminById);
+router.post('/management', protect, requireBrokerManagementAccess, createBrokerAdmin);
+router.patch('/management/:id', protect, requireBrokerManagementAccess, updateBrokerAdmin);
+router.delete('/management/:id', protect, requireBrokerManagementAccess, deleteBrokerAdmin);
 
 module.exports = router;
