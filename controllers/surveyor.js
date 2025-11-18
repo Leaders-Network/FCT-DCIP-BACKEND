@@ -133,6 +133,10 @@ const getSurveyorAssignments = async (req, res) => {
     const surveyorUserId = req.user.userId;
     const { status, priority, page = 1, limit = 10 } = req.query;
 
+    console.log('📋 Get Surveyor Assignments - User ID:', surveyorUserId);
+    console.log('📋 User organization:', req.user.organization);
+    console.log('📋 Filters - Status:', status, 'Priority:', priority);
+
     const query = { surveyorId: surveyorUserId };
     if (status && status !== 'all') {
       // Map frontend filter values to backend statuses
@@ -148,6 +152,8 @@ const getSurveyorAssignments = async (req, res) => {
       query.priority = priority;
     }
 
+    console.log('📋 Query:', JSON.stringify(query));
+
     const skip = (page - 1) * limit;
 
     const assignments = await Assignment.find(query)
@@ -158,6 +164,18 @@ const getSurveyorAssignments = async (req, res) => {
       .limit(parseInt(limit));
 
     const total = await Assignment.countDocuments(query);
+
+    console.log('📋 Found assignments:', assignments.length, 'Total:', total);
+
+    // If no assignments found, check if any assignments exist at all
+    if (assignments.length === 0) {
+      const allAssignments = await Assignment.countDocuments({});
+      console.log('📋 Total assignments in database:', allAssignments);
+
+      // Check if there are assignments for this organization
+      const orgAssignments = await Assignment.countDocuments({ organization: req.user.organization });
+      console.log(`📋 Total ${req.user.organization} assignments:`, orgAssignments);
+    }
 
     res.status(StatusCodes.OK).json({
       success: true,
@@ -172,7 +190,7 @@ const getSurveyorAssignments = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get surveyor assignments error:', error);
+    console.error('❌ Get surveyor assignments error:', error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: 'Failed to get assignments',

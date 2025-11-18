@@ -5,6 +5,7 @@ const SurveySubmission = require('../models/SurveySubmission');
 const Surveyor = require('../models/Surveyor');
 const { Property } = require('../models/Property');
 const { BadRequestError, NotFoundError } = require('../errors');
+const { validatePolicy, searchUserPolicies } = require('../services/policyValidationService');
 
 // Create policy request (for users)
 const createPolicyRequest = async (req, res) => {
@@ -689,6 +690,71 @@ const deletePolicyRequest = async (req, res) => {
   }
 };
 
+// Search user's policies (for autocomplete in claim submission)
+const searchPolicies = async (req, res) => {
+  try {
+    const { userId, query } = req.query;
+
+    // Verify user can only search their own policies (unless admin)
+    if (req.user.model === 'User' && req.user.userId.toString() !== userId) {
+      throw new BadRequestError('You can only search your own policies');
+    }
+
+    if (!userId || !query) {
+      throw new BadRequestError('userId and query parameters are required');
+    }
+
+    const policies = await searchUserPolicies(userId, query);
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      count: policies.length,
+      policies
+    });
+  } catch (error) {
+    console.error('Search policies error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to search policies',
+      error: error.message
+    });
+  }
+};
+
+// Validate policy number (for claim submission)
+const validatePolicyNumber = async (req, res) => {
+  try {
+    const { policyNumber } = req.params;
+    const userId = req.query.userId || req.user.userId;
+
+    // Verify user can only validate their own policies (unless admin)
+    if (req.user.model === 'User' && req.user.userId.toString() !== userId) {
+      throw new BadRequestError('You can only validate your own policies');
+    }
+
+    const result = await validatePolicy(policyNumber, userId);
+
+    if (!result.isValid) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        error: result.error
+      });
+    }
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      policy: result.policy
+    });
+  } catch (error) {
+    console.error('Validate policy error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to validate policy',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   createPolicyRequest,
   getAllPolicyRequests,
@@ -699,5 +765,7 @@ module.exports = {
   reviewSurveySubmission,
   getUserPolicyRequests,
   sendPolicyToUser,
-  deletePolicyRequest
+  deletePolicyRequest,
+  searchPolicies,
+  validatePolicyNumber
 };

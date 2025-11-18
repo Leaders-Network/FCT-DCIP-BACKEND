@@ -25,6 +25,7 @@ const assignmentRouter = require('./routes/assignment');
 const submissionRouter = require('./routes/submission');
 const dualAssignmentRouter = require('./routes/dualAssignment');
 const niaAdminRouter = require('./routes/niaAdmin');
+const brokerAdminRouter = require('./routes/brokerAdmin');
 const userConflictInquiriesRouter = require('./routes/userConflictInquiries');
 const reportReleaseRouter = require('./routes/reportRelease');
 const automaticConflictFlagsRouter = require('./routes/automaticConflictFlags');
@@ -39,6 +40,8 @@ const debugMergedReportsRouter = require('./routes/debugMergedReports');
 const quickTestRouter = require('./routes/quickTest');
 const diagnosticReportsRouter = require('./routes/diagnosticReports');
 const manualReportProcessingRouter = require('./routes/manualReportProcessing');
+const claimsRouter = require('./routes/claims');
+const notificationsRouter = require('./routes/notifications');
 const notFoundMiddleware = require('./middlewares/not-found');
 const errorHandlerMiddleware = require('./middlewares/error-handler');
 const cors = require('cors');
@@ -58,6 +61,7 @@ const corsOptions = {
   origin: [
     'http://localhost:3000',
     'http://localhost:3001',
+    'https://fct-dcip-frontend-83mrqo57b.vercel.app',
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ["Content-Type", "Authorization", 'apikey', 'apiKey', 'x-api-key'],
@@ -84,6 +88,7 @@ app.use('/api/v1/assignment', assignmentRouter);
 app.use('/api/v1/submission', submissionRouter);
 app.use('/api/v1/dual-assignment', dualAssignmentRouter);
 app.use('/api/v1/nia-admin', niaAdminRouter);
+app.use('/api/v1/broker-admin', brokerAdminRouter);
 app.use('/api/v1/user-conflict-inquiries', userConflictInquiriesRouter);
 app.use('/api/v1/report-release', reportReleaseRouter);
 app.use('/api/v1/automatic-conflict-flags', automaticConflictFlagsRouter);
@@ -99,6 +104,8 @@ app.use('/api/v1/debug-merged-reports', debugMergedReportsRouter);
 app.use('/api/v1/quick-test', quickTestRouter);
 app.use('/api/v1/diagnostic-reports', diagnosticReportsRouter);
 app.use('/api/v1/manual-processing', manualReportProcessingRouter);
+app.use('/api/v1/claims', claimsRouter);
+app.use('/api/v1/notifications', notificationsRouter);
 
 // Authentication testing routes
 const authTestRouter = require('./routes/authTest');

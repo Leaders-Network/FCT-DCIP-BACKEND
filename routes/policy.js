@@ -8,6 +8,10 @@ const router = express.Router();
 // All routes require authentication
 router.use(protect);
 
+// Policy search and validation (for claim submission) - must come before /:ammcId
+router.get('/search', allowUserOrAdmin, policyController.searchPolicies); // Search user's policies
+router.get('/validate/:policyNumber', allowUserOrAdmin, policyController.validatePolicyNumber); // Validate policy number
+
 // Policy request management
 router.post('/', allowUserOrAdmin, policyController.createPolicyRequest); // Create new policy request
 router.get('/user', allowUserOrAdmin, policyController.getUserPolicyRequests); // Get user's own policy requests
