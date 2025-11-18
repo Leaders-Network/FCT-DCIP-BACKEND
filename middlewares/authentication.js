@@ -293,9 +293,18 @@ const requireSurveyorDashboardAccess = async (req, res, next) => {
 
 // Super admin has access to everything
 const requireSuperAdminAccess = (req, res, next) => {
+  console.log('🔒 requireSuperAdminAccess check:', {
+    role: req.user?.role,
+    tokenType: req.user?.tokenType,
+    userId: req.user?.userId
+  });
+
   if (req.user.role === 'Super-admin') {
+    console.log('✅ Super admin access granted');
     return next();
   }
+
+  console.error('❌ Access denied - not a super admin');
   throw new UnauthenticatedError('Access denied. Super admin access required.');
 };
 

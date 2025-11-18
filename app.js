@@ -61,6 +61,7 @@ const corsOptions = {
   origin: [
     'http://localhost:3000',
     'http://localhost:3001',
+    'https://www.fctbuilders.gladfaith.com',
     'https://fct-dcip-frontend-83mrqo57b.vercel.app',
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],

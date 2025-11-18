@@ -35,6 +35,10 @@ const BrokerAdminSchema = new mongoose.Schema({
         canAccessAnalytics: {
             type: Boolean,
             default: false
+        },
+        canManageAdmins: {
+            type: Boolean,
+            default: false
         }
     },
     profile: {
