@@ -23,8 +23,9 @@ const getEnhancedPolicyStatus = async (req, res) => {
 
         // Get dual assignment if exists
         const dualAssignment = await DualAssignment.findOne({ policyId })
-            .populate('ammcSurveyorId')
-            .populate('niaSurveyorId');
+            .populate('ammcAssignmentId')
+            .populate('niaAssignmentId')
+            .populate('policyId');
 
         // Get regular assignments
         const assignments = await Assignment.find({ policyId })
@@ -93,8 +94,9 @@ const getPolicyStatusHistory = async (req, res) => {
 
         // Get related data for building history
         const dualAssignment = await DualAssignment.findOne({ policyId })
-            .populate('ammcSurveyorId')
-            .populate('niaSurveyorId');
+            .populate('ammcAssignmentId')
+            .populate('niaAssignmentId')
+            .populate('policyId');
 
         const assignments = await Assignment.find({ policyId })
             .populate('surveyorId')
@@ -251,7 +253,7 @@ function buildStatusHistory(policy, dualAssignment, assignments, submissions, me
 
     // Assignment events
     if (dualAssignment) {
-        if (dualAssignment.ammcSurveyorId) {
+        if (dualAssignment.ammcSurveyorContact) {
             history.push({
                 _id: `ammc_assigned_${dualAssignment._id}`,
                 status: 'assigned',
@@ -260,12 +262,12 @@ function buildStatusHistory(policy, dualAssignment, assignments, submissions, me
                 notes: 'AMMC surveyor assigned to property assessment',
                 metadata: {
                     assignmentType: 'ammc',
-                    surveyorName: dualAssignment.ammcSurveyorId.name || 'AMMC Surveyor'
+                    surveyorName: dualAssignment.ammcSurveyorContact.name || 'AMMC Surveyor'
                 }
             });
         }
 
-        if (dualAssignment.niaSurveyorId) {
+        if (dualAssignment.niaSurveyorContact) {
             history.push({
                 _id: `nia_assigned_${dualAssignment._id}`,
                 status: 'assigned',
@@ -274,7 +276,7 @@ function buildStatusHistory(policy, dualAssignment, assignments, submissions, me
                 notes: 'NIA surveyor assigned to property assessment',
                 metadata: {
                     assignmentType: 'nia',
-                    surveyorName: dualAssignment.niaSurveyorId.name || 'NIA Surveyor'
+                    surveyorName: dualAssignment.niaSurveyorContact.name || 'NIA Surveyor'
                 }
             });
         }
@@ -327,12 +329,12 @@ function buildNotifications(policy, dualAssignment, assignments, submissions, me
     const notifications = [];
 
     // Assignment notifications
-    if (dualAssignment?.ammcSurveyorId) {
+    if (dualAssignment?.ammcSurveyorContact) {
         notifications.push({
             _id: `notif_ammc_${dualAssignment._id}`,
             type: 'assignment',
             title: 'AMMC Surveyor Assigned',
-            message: `${dualAssignment.ammcSurveyorId.name || 'AMMC Surveyor'} has been assigned to assess your property.`,
+            message: `${dualAssignment.ammcSurveyorContact.name || 'AMMC Surveyor'} has been assigned to assess your property.`,
             timestamp: dualAssignment.createdAt,
             read: false,
             priority: 'medium',
@@ -340,12 +342,12 @@ function buildNotifications(policy, dualAssignment, assignments, submissions, me
         });
     }
 
-    if (dualAssignment?.niaSurveyorId) {
+    if (dualAssignment?.niaSurveyorContact) {
         notifications.push({
             _id: `notif_nia_${dualAssignment._id}`,
             type: 'assignment',
             title: 'NIA Surveyor Assigned',
-            message: `${dualAssignment.niaSurveyorId.name || 'NIA Surveyor'} has been assigned to assess your property.`,
+            message: `${dualAssignment.niaSurveyorContact.name || 'NIA Surveyor'} has been assigned to assess your property.`,
             timestamp: dualAssignment.updatedAt,
             read: false,
             priority: 'medium',
@@ -386,16 +388,16 @@ function buildEstimatedTimeline(policy, dualAssignment, assignments, submissions
     if (dualAssignment) {
         milestones.push({
             stage: 'AMMC Surveyor Assignment',
-            estimatedDate: dualAssignment.ammcSurveyorId ? dualAssignment.createdAt : new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-            completed: !!dualAssignment.ammcSurveyorId,
-            actualDate: dualAssignment.ammcSurveyorId ? dualAssignment.createdAt : undefined
+            estimatedDate: dualAssignment.ammcSurveyorContact ? dualAssignment.createdAt : new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+            completed: !!dualAssignment.ammcSurveyorContact,
+            actualDate: dualAssignment.ammcSurveyorContact ? dualAssignment.createdAt : undefined
         });
 
         milestones.push({
             stage: 'NIA Surveyor Assignment',
-            estimatedDate: dualAssignment.niaSurveyorId ? dualAssignment.updatedAt : new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-            completed: !!dualAssignment.niaSurveyorId,
-            actualDate: dualAssignment.niaSurveyorId ? dualAssignment.updatedAt : undefined
+            estimatedDate: dualAssignment.niaSurveyorContact ? dualAssignment.updatedAt : new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+            completed: !!dualAssignment.niaSurveyorContact,
+            actualDate: dualAssignment.niaSurveyorContact ? dualAssignment.updatedAt : undefined
         });
     }
 

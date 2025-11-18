@@ -133,9 +133,13 @@ const getSurveyorAssignments = async (req, res) => {
     const surveyorUserId = req.user.userId;
     const { status, priority, page = 1, limit = 10 } = req.query;
 
-    console.log('📋 Get Surveyor Assignments - User ID:', surveyorUserId);
+    console.log('📋 ========== GET SURVEYOR ASSIGNMENTS ==========');
+    console.log('📋 User ID:', surveyorUserId);
     console.log('📋 User organization:', req.user.organization);
+    console.log('📋 User tokenType:', req.user.tokenType);
+    console.log('📋 User role:', req.user.role);
     console.log('📋 Filters - Status:', status, 'Priority:', priority);
+    console.log('📋 Surveyor object:', req.surveyor ? 'Present' : 'Missing');
 
     const query = { surveyorId: surveyorUserId };
     if (status && status !== 'all') {
