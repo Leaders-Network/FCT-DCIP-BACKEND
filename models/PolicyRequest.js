@@ -208,10 +208,20 @@ const PolicyRequestSchema = new mongoose.Schema({
     },
     reason: String
   }],
-  // Broker-specific fields
+  // Broker-specific fields (for insurance claims)
+  claimRequested: {
+    type: Boolean,
+    default: false
+  },
+  claimRequestedAt: {
+    type: Date
+  },
+  claimReason: {
+    type: String
+  },
   brokerStatus: {
     type: String,
-    enum: ['pending', 'under_review', 'rejected', 'completed'],
+    enum: ['pending', 'under_review', 'approved', 'rejected', 'completed'],
     default: 'pending'
   },
   brokerNotes: {
@@ -225,7 +235,7 @@ const PolicyRequestSchema = new mongoose.Schema({
   brokerStatusHistory: [{
     status: {
       type: String,
-      enum: ['pending', 'under_review', 'rejected', 'completed']
+      enum: ['pending', 'under_review', 'approved', 'rejected', 'completed']
     },
     changedBy: {
       type: mongoose.Schema.Types.ObjectId,

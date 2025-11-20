@@ -7,8 +7,11 @@ const getBrokerDashboardData = async (req, res) => {
     try {
         const brokerAdminId = req.brokerAdmin._id;
 
-        // Aggregate claim statistics
+        // Aggregate claim statistics (only for policies with claim requests)
         const statistics = await PolicyRequest.aggregate([
+            {
+                $match: { claimRequested: true }
+            },
             {
                 $group: {
                     _id: '$brokerStatus',
@@ -35,6 +38,7 @@ const getBrokerDashboardData = async (req, res) => {
 
         // Calculate average processing time
         const completedClaims = await PolicyRequest.find({
+            claimRequested: true,
             brokerStatus: 'completed',
             'brokerStatusHistory.0': { $exists: true }
         }).select('brokerStatusHistory createdAt');
@@ -62,6 +66,7 @@ const getBrokerDashboardData = async (req, res) => {
 
         // Get recent activity
         const recentActivity = await PolicyRequest.find({
+            claimRequested: true,
             'brokerStatusHistory.0': { $exists: true }
         })
             .sort({ 'brokerStatusHistory.changedAt': -1 })
@@ -117,8 +122,8 @@ const getAllClaims = async (req, res) => {
             limit = 10
         } = req.query;
 
-        // Build query
-        const query = {};
+        // Build query - only fetch policies with claim requests
+        const query = { claimRequested: true };
 
         // Filter by broker status
         if (status && status !== 'all') {

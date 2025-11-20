@@ -28,7 +28,7 @@ const submitClaim = async (req, res) => {
         const sanitizedPolicyNumber = policyNumber.trim();
         const sanitizedClaimReason = claimReason.trim().substring(0, 1000); // Limit to 1000 chars
 
-        // Validate policy number
+        // Validate policy number and find the existing policy
         const policyValidation = await validatePolicy(sanitizedPolicyNumber, userId);
 
         if (!policyValidation.isValid) {
@@ -38,6 +38,35 @@ const submitClaim = async (req, res) => {
             });
         }
 
+        // Get the existing policy
+        const policy = await PolicyRequest.findById(policyValidation.policy._id);
+
+        if (!policy) {
+            throw new NotFoundError('Policy not found');
+        }
+
+        // Check if claim already requested for this policy
+        if (policy.claimRequested) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                success: false,
+                error: 'A claim has already been requested for this policy'
+            });
+        }
+
+        // Update the existing policy with claim request
+        policy.claimRequested = true;
+        policy.claimRequestedAt = new Date();
+        policy.claimReason = sanitizedClaimReason;
+        policy.brokerStatus = 'pending';
+
+        // Add to broker status history
+        policy.brokerStatusHistory.push({
+            status: 'pending',
+            changedAt: new Date(),
+            reason: 'Claim requested by user',
+            notes: sanitizedClaimReason
+        });
+
         // Validate uploaded files (if any)
         let uploadedDocuments = [];
         if (req.files && req.files.length > 0) {
@@ -45,55 +74,42 @@ const submitClaim = async (req, res) => {
             if (!fileValidation.isValid) {
                 throw new BadRequestError(fileValidation.errors.join('; '));
             }
-        }
 
-        // Create claim request
-        const claimResult = await createClaimRequest({
-            userId,
-            policyNumber: sanitizedPolicyNumber,
-            claimReason: sanitizedClaimReason,
-            policyDetails: policyValidation.policy,
-            documents: []
-        });
-
-        if (!claimResult.success) {
-            throw new Error(claimResult.error || 'Failed to create claim request');
-        }
-
-        // Upload files if present
-        if (req.files && req.files.length > 0) {
+            // Upload files
             try {
-                uploadedDocuments = await uploadDocuments(req.files, claimResult.claimId);
+                uploadedDocuments = await uploadDocuments(req.files, policy._id);
 
-                // Update claim with document metadata
-                const claim = await PolicyRequest.findById(claimResult.claimId);
-                claim.documents = uploadedDocuments.map(doc => ({
+                // Add document metadata to policy
+                const newDocuments = uploadedDocuments.map(doc => ({
                     fileName: doc.fileName,
                     fileType: doc.fileType,
                     fileSize: doc.fileSize,
                     cloudinaryUrl: doc.cloudinaryUrl,
                     cloudinaryPublicId: doc.cloudinaryPublicId,
-                    category: 'supporting_documents',
+                    category: 'claim_supporting_documents',
                     documentType: 'other',
                     uploadedBy: userId,
                     uploadedAt: doc.uploadedAt,
                     isRequired: false,
                     isVerified: false
                 }));
-                await claim.save();
+
+                policy.documents = [...(policy.documents || []), ...newDocuments];
             } catch (uploadError) {
                 console.error('File upload error:', uploadError);
                 // Don't fail the claim submission if file upload fails
             }
         }
 
-        console.log(`Claim submitted successfully: ${claimResult.referenceNumber} by user ${userId}`);
+        await policy.save();
 
-        res.status(StatusCodes.CREATED).json({
+        console.log(`Claim requested for policy ${policy.referenceNumber || policy._id} by user ${userId}`);
+
+        res.status(StatusCodes.OK).json({
             success: true,
-            message: 'Claim submitted successfully',
-            claimId: claimResult.claimId,
-            referenceNumber: claimResult.referenceNumber,
+            message: 'Claim request submitted successfully. The broker admin will review your claim.',
+            policyId: policy._id,
+            referenceNumber: policy.referenceNumber,
             documentsUploaded: uploadedDocuments.length
         });
     } catch (error) {

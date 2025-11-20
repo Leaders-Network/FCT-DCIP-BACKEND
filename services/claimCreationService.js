@@ -54,6 +54,8 @@ const createClaimRequest = async (data) => {
             userId,
             referenceNumber,
             claimReason,
+            claimRequested: true,
+            claimRequestedAt: new Date(),
 
             // Copy property details from policy
             propertyDetails: {
