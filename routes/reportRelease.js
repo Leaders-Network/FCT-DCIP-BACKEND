@@ -14,23 +14,31 @@ router.get('/policy/:policyId', allowUserOrAdmin, async (req, res) => {
         const { policyId } = req.params;
         const { userId } = req.user;
 
+        console.log('🔍 Fetching policy:', { policyId, userId, userModel: req.user.model });
+
         // Check if user owns this policy (unless admin)
         const policy = await PolicyRequest.findById(policyId);
         if (!policy) {
+            console.error('❌ Policy not found:', policyId);
             return res.status(StatusCodes.NOT_FOUND).json({
                 success: false,
                 message: 'Policy not found'
             });
         }
 
+        console.log('✅ Policy found:', { policyUserId: policy.userId, requestUserId: userId });
+
         // Check ownership for non-admin users
-        if (req.user.model === 'User' && policy.userId !== userId) {
+        // Convert both to strings for comparison to handle ObjectId vs string
+        if (req.user.model === 'User' && policy.userId.toString() !== userId.toString()) {
+            console.error('❌ Access denied - user does not own this policy');
             return res.status(StatusCodes.FORBIDDEN).json({
                 success: false,
                 message: 'Access denied'
             });
         }
 
+        console.log('✅ Access granted, returning policy data');
         res.status(StatusCodes.OK).json({
             success: true,
             data: policy
