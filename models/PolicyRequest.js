@@ -84,10 +84,9 @@ const PolicyRequestSchema = new mongoose.Schema({
     },
     policyDuration: {
       type: String,
-      enum: ['3 Months (Short-term Project)',
-        '6 Months',
+      enum: [
         '1 Year',
-        'Project-Based (Until Completion)'],
+      ],
       required: [true, 'Policy duration is required']
     },
     additionalCoverage: [{
