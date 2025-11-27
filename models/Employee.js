@@ -14,7 +14,7 @@ const StatusSchema = new mongoose.Schema({
 const RoleSchema = new mongoose.Schema({
   role: {
     type: String,
-    enum: ['Super-admin', 'Admin', 'Staff'],
+    enum: ['Super-admin', 'Admin', 'Staff', 'Surveyor', 'NIA-Admin', 'Broker-Admin'],
     default: 'Staff'
   }
 })
@@ -55,24 +55,34 @@ const EmployeeSchema = new mongoose.Schema({
     ref: 'Role',
     required: [true, 'Please provide role']
   },
-  deleted: { 
-    type: Boolean, 
-    default: false 
+  organization: {
+    type: String,
+    enum: ['AMMC', 'NIA', 'Broker'],
+    default: 'AMMC'
   },
-}, {timestamps: true})
+  deleted: {
+    type: Boolean,
+    default: false
+  },
+}, { timestamps: true })
 
 
 EmployeeSchema.pre('save', async function () {
-    const salt = await bcrypt.genSalt(10)
-    if(this.isNew){
-        const objectId = this._id.toString()
-        this.password = await bcrypt.hash(objectId, salt)
-    }
+  const salt = await bcrypt.genSalt(10)
+  if (this.isNew) {
+    const objectId = this._id.toString()
+    this.password = await bcrypt.hash(objectId, salt)
+  }
 })
 
-EmployeeSchema.methods.createToken = function () {
+EmployeeSchema.methods.createToken = async function () {
+  // Populate role and status names
+  await this.populate(['employeeRole', 'employeeStatus']);
+  const roleName = this.employeeRole?.role || undefined;
+  const statusName = this.employeeStatus?.status || undefined;
+
   return jwt.sign(
-    { userId: this._id, fullname: `${this.firstname} ${this.lastname}`, status: this.employeeStatus, role: this.employeeRole },
+    { userId: this._id, fullname: `${this.firstname} ${this.lastname}`, status: statusName, role: roleName, model: 'Employee' },
     process.env.JWT_SECRET,
     {
       expiresIn: process.env.JWT_LIFETIME,
@@ -85,18 +95,23 @@ EmployeeSchema.methods.comparePassword = async function (canditatePassword) {
   return isMatch
 }
 
-EmployeeSchema.methods.createJWT = function () {
+EmployeeSchema.methods.createJWT = async function () {
+  // Populate role and status names
+  await this.populate(['employeeRole', 'employeeStatus']);
+  const roleName = this.employeeRole?.role || undefined;
+  const statusName = this.employeeStatus?.status || undefined;
+
   return jwt.sign(
-    { userId: this._id, fullname: this.fullname },
+    { userId: this._id, fullname: `${this.firstname} ${this.lastname}`, status: statusName, role: roleName, model: 'Employee' },
     process.env.JWT_SECRET,
     {
       expiresIn: process.env.JWT_LIFETIME,
     }
-  )
+  );
 }
 
 
-const Employee =  mongoose.model('Employee', EmployeeSchema)
+const Employee = mongoose.model('Employee', EmployeeSchema)
 const Status = mongoose.model('Status', StatusSchema)
 const Role = mongoose.model('Role', RoleSchema)
 

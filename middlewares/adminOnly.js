@@ -1,0 +1,23 @@
+const { UnauthenticatedError } = require('../errors');
+const { Employee, Role } = require('../models/Employee');
+
+// Middleware to restrict access to admins only
+const adminOnly = async (req, res, next) => {
+  try {
+    console.log("req.user in adminOnly:", req.user);
+    // req.user is set by authentication middleware
+    if (!req.user || req.user.model !== 'Employee') {
+      throw new UnauthenticatedError('Access denied: Not an employee');
+    }
+
+    if (req.user.role && ['Admin', 'Super-admin', 'NIA-Admin'].includes(req.user.role)) {
+      return next();
+    }
+
+    throw new UnauthenticatedError('Access denied: Admins only');
+  } catch (err) {
+    return res.status(401).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = adminOnly;

@@ -4,28 +4,37 @@
   "description": "\"# FCT-DCIP-BACKEND\"",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon app.js"
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "create-admin": "node scripts/createAdmin.js",
+    "create-nia-admin": "node scripts/createNIAAdmin.js",
+    "create-broker-admins": "node scripts/createBrokerAdmins.js",
+    "get-broker-credentials": "node scripts/getBrokerAdminCredentials.js",
+    "generate-tokens": "node scripts/generateDevTokens.js",
+    "quick-auth": "node scripts/quickAuthSetup.js",
+    "create-dual-assignments": "node scripts/createMissingDualAssignments.js",
+    "test-conflict-detection": "node scripts/testConflictDetection.js",
+    "reprocess-conflicts": "node scripts/reprocessReportsWithConflicts.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.7.0",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "express-async-errors": "^3.1.1",
-    "express-rate-limit": "^7.4.0",
-    "helmet": "^7.1.0",
     "http-status-codes": "^2.3.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.6.3",
-    "nodemailer": "^6.9.15",
-    "nodemon": "^3.1.10"
+    "multer": "^2.0.2",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^6.9.15"
   },
   "devDependencies": {
-    "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1"
+    "nodemon": "^3.1.7"
   }
 }

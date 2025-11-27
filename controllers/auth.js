@@ -6,26 +6,56 @@ const sendEmail = require("../utils/sendEmail");
 const bcrypt = require('bcryptjs')
 const { StatusCodes } = require('http-status-codes')
 const { BadRequestError, UnauthenticatedError, NotFoundError } = require('../errors');
-const generateRandomString = require('../middlewares/PolicyNumberGenerator');
-const Policy = require('../models/Policy');
+const { generateRandomString, generatePolicyNumber } = require('../middlewares/PolicyNumberGenerator');
 
 
 let emailTokenStoreEmployee = {}
 let emailTokenStoreUser = {}
 const createStatuses = async () => {
     const existingStatuses = await Status.find({})
-    if(existingStatuses.length === 0){
+    if (existingStatuses.length === 0) {
         await Status.create([{ status: 'Active' }, { status: 'Inactive' }])
     }
 }
 
 const createRoles = async () => {
     const existingRoles = await Role.find({})
-    if(existingRoles.length === 0){
+    if (existingRoles.length === 0) {
         await Role.create([{ role: 'Super-admin' }, { role: 'Admin' }, { role: 'Staff' }])
     }
 }
 
+const createPropertyCategories = async () => {
+    const existingCategories = await PropertyCategory.find({})
+    if (existingCategories.length === 0) {
+        await PropertyCategory.create([
+            { category: "Single Occupier Office Building" },
+            { category: "Single Occupier Residential Building" },
+            { category: "Hotel/Hostel/Guest House" },
+            { category: "Recreation Centre/Club House/Cinema Hall" },
+            { category: "School/Training Institute" },
+            { category: "Petrol/Gas Station" },
+            { category: "Hospital/Clinic/Health Centre" },
+            { category: "Multi Occupier/Multi Purpose Business Building" },
+            { category: "Multi Occupier/Mixed Use Residential Building" },
+            { category: "Others" }
+        ])
+        console.log("Property Categories initialized successfully!")
+    }
+}
+
+// Initialize surveyor roles if needed
+const createSurveyorRoles = async () => {
+    try {
+        const surveyorRole = await Role.findOne({ role: 'Surveyor' })
+        if (!surveyorRole) {
+            await Role.create({ role: 'Surveyor' })
+            console.log("Surveyor role created successfully!")
+        }
+    } catch (error) {
+        console.error("Error creating surveyor role:", error)
+    }
+}
 
 const createFirstSuperAdmin = async () => {
     let superAdminRole = await Role.findOne({ role: 'Super-admin' })
@@ -34,83 +64,81 @@ const createFirstSuperAdmin = async () => {
     const { email } = firstSuperAdmin
     const superAdminExists = await Employee.findOne({ email });
 
-    if(superAdminExists === null){ 
-        try{
+    if (superAdminExists === null) {
+        try {
             await Employee.create(firstSuperAdmin)
             console.log("Database Initialized Successfully !")
         }
-        catch(error){
+        catch (error) {
             console.error("Error Initializing Database !")
-            return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error});
+            return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error });
         }
     }
 }
 
-    
+const requestOtp = async (req, res) => {
+    const { email: rawEmail } = req.body;
+    const email = rawEmail.trim().toLowerCase();
+    console.log(`Requesting OTP for email: ${email}`);
 
-//     }
-
-const verifyOtp = async(req, res) => {
-    const { otp,email } = req.body;
-    // const email = emailTokenStoreUser[otp]
-
-    try{
-        const user = await Otp.findOne({ email });
-        const updatedUser = await User.findOne({ email });
-        if(!user){
-            return res.status(StatusCodes.NOT_FOUND).json({
-                status:'Unsuccessful',
-                message:'User Not Found'
-            })
-        }
-        if(!otp){
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                status:'Unsuccessful',
-                message:'Please provide OTP',
-            })
-        }
-        if( otp !== user.otp){
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                status:'Unsuccessful',
-                message:'Invalid OTP !',
-                otp,
-                userOtp : user.otp
-            })
-        }
-        
-        updatedUser.isEmailVerified = true
-        await updatedUser.save()
-        await Otp.deleteOne({ email })
-         res.status(StatusCodes.OK).json({success: true, message: 'OTP verified successfully!'});
-
-        // if (otpData) {
-            // await Otp.deleteOne({ email })
-           
-        // } else {
-        //     res.status(StatusCodes.BAD_REQUEST).json({success: false,  message: ''});
-        // }
-    }
-    catch(error){
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error});
+    const userExists = await User.findOne({ email })
+    if (userExists) { return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "This Email Is Already Registered !" }) }
+    const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
+    emailTokenStoreUser[generatedOtp] = email
+    try {
+        await Otp.deleteMany({ email });
+        const newOtp = await Otp.create({ email, otp: generatedOtp });
+        console.log('New OTP created in DB:', newOtp);
+        await sendEmail(email, "verifyemail", generatedOtp);
+        res.status(StatusCodes.OK).json({ success: true, message: 'OTP sent successfully!' });
+    } catch (error) {
+        console.error('Error sending OTP:', error);
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: `Error sending OTP: ${error}` });
     }
 };
 
+const verifyOtp = async (req, res) => {
+    const { otp, email: rawEmail } = req.body;
+    const email = rawEmail.trim().toLowerCase();
+    console.log(`Verifying OTP: ${otp} for email: ${email}`);
+
+    if (!email || !otp) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Please provide OTP!' });
+    }
+
+    try {
+        const otpData = await Otp.findOne({ email, otp });
+        console.log('OTP data from DB:', otpData);
+
+        if (otpData) {
+            await Otp.deleteOne({ email, otp });
+            res.status(StatusCodes.OK).json({ success: true, message: 'OTP verified successfully!' });
+            await Otp.deleteOne({ email })
+        } else {
+            res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Invalid OTP !' });
+        }
+    }
+    catch (error) {
+        console.error('Error verifying OTP:', error);
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: error.message });
+    }
+};
 
 const sendResetPasswordOtpUser = async (req, res, next) => {
     const { email } = req.body
 
     try {
-      const userDoc = await User.findOne({ email })
-      if(!userDoc){ throw new NotFoundError("No User With That Email !") }
-      const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
-      emailTokenStoreUser[generatedOtp] = email
+        const userDoc = await User.findOne({ email })
+        if (!userDoc) { throw new NotFoundError("No User With That Email !") }
+        const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
+        emailTokenStoreUser[generatedOtp] = email
 
-      await sendEmail(userDoc.email, "resetpassword", generatedOtp);
-      res.status(StatusCodes.OK).json({
-        success: true,
-        message: "Password reset otp sent to your email successfully",
-      });
-    } 
+        await sendEmail(userDoc.email, "resetpassword", generatedOtp);
+        res.status(StatusCodes.OK).json({
+            success: true,
+            message: "Password reset otp sent to your email successfully",
+        });
+    }
     catch (error) {
         next(error)
     }
@@ -123,20 +151,20 @@ const verifyPasswordResetOtpUser = async (req, res) => {
     const email = emailTokenStoreUser[otp]
 
     try {
-      const userObject = await User.findOne({ email })
-      const otpData = await Otp.findOne({ email: userObject.email, otp })
+        const userObject = await User.findOne({ email })
+        const otpData = await Otp.findOne({ email: userObject.email, otp })
 
-      if (userObject && otpData) {
-        await Otp.deleteOne({email: userObject.email})
-        const token = userObject.createJWT()
-        return res.status(StatusCodes.OK).json({ success: true, message: "OTP Verified Successfully !", token });
-      } 
-      else {
-        return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Invalid Credentials" });
-      }
-    } 
+        if (userObject && otpData) {
+            await Otp.deleteOne({ email: userObject.email })
+            const token = userObject.createJWT()
+            return res.status(StatusCodes.OK).json({ success: true, message: "OTP Verified Successfully !", token });
+        }
+        else {
+            return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Invalid Credentials" });
+        }
+    }
     catch (error) {
-      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(error);
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(error);
     }
 };
 
@@ -147,105 +175,61 @@ const resetPasswordUser = async (req, res) => {
     } = req
     const theKeys = Object.keys(emailTokenStoreUser)
 
-    if(theKeys.length > 0){
+    if (theKeys.length > 0) {
         const email = emailTokenStoreUser[theKeys[0]]
 
         try {
-          const userObject = await User.findOne({ email, _id: userId })
-          if (userObject) {
-            const salt = await bcrypt.genSalt(10)
-            const hashedPassword = await bcrypt.hash(newpassword, salt);
-            await User.findOneAndUpdate({ _id: userId }, { password: hashedPassword }, { new: true, runValidators: true });
+            const userObject = await User.findOne({ email, _id: userId })
+            if (userObject) {
+                const salt = await bcrypt.genSalt(10)
+                const hashedPassword = await bcrypt.hash(newpassword, salt);
+                await User.findOneAndUpdate({ _id: userId }, { password: hashedPassword }, { new: true, runValidators: true });
 
-            delete emailTokenStoreUser[theKeys[0]]
-            return res.status(StatusCodes.OK).json({ success: true, message: "Password reset successfull" });
-          } 
-          else {
-            return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Unable To Find User With Specified Email !" })
-          }
-        } 
+                delete emailTokenStoreUser[theKeys[0]]
+                return res.status(StatusCodes.OK).json({ success: true, message: "Password reset successfull" });
+            }
+            else {
+                return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Unable To Find User With Specified Email !" })
+            }
+        }
         catch (error) {
             return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(error)
         }
     }
-    else{
+    else {
         return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json("Something Went Wrong, Please Try Again !");
     }
 };
 
 const register = async (req, res) => {
+    const confirmPassword = req.body['confirm password'] || req.body['confirmPassword'] || req.body['confirmpassword']
 
-    const {fullname,email,phonenumber,password,confirmPassword,accountType,ammcRegNumber,nicomRegNumber} = req.body
-
-    if(!fullname||!email||!phonenumber||!password||!confirmPassword){
-         return res.status(StatusCodes.BAD_REQUEST).json({
-            status:'Unsuccessful',
-            message:'Kindly fill all fields'
-         })
-    }
-
-    if(!accountType){
-        return res.status(StatusCodes.BAD_REQUEST).json({
-            success:false,
-            message:"Select what type of account you want to create"
-        })
-    }
-
-    if(accountType === "Surveyor"){
-        if(!ammcRegNumber || !nicomRegNumber ){
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success:false,
-                message:"To create a surveyor account you need a AMMC and NICOM Registration number"
-            })
+    try {
+        if (!confirmPassword || confirmPassword !== req.body.password) {
+            throw new BadRequestError('Please provide a matching confirm-password')
         }
-        
+        else {
+            const user = await User.create({ ...req.body })
+            const token = user.createJWT()
+            const userObject = user.toObject()
+            delete userObject.password
+            delete userObject.__v
+            res.status(StatusCodes.CREATED).json({ success: true, user: userObject, token })
+        }
     }
-
-     if(!confirmPassword || confirmPassword !== password){
-            return res.status(StatusCodes.BAD_REQUEST).json({
-            status:'Unsuccessful',
-            message:'Passwords do not match'
-         })
-         } 
-         try {
-            const checkUser =await User.findOne({email})
-            const hashedPassWord = bcrypt.hashSync(password,10)
-            if(checkUser){
-                return res.status(StatusCodes.BAD_REQUEST).json({
-                status:'Unsuccessful',
-                message:'Account already exists'
-                })
-            }else{
-            const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
-            emailTokenStoreUser[generatedOtp] = email
-            await sendEmail(email, "verifyemail", generatedOtp);
-            const user = await User.create({
-                fullname,
-                email,
-                phonenumber,
-                password:hashedPassWord,
-                otp:generatedOtp,
-                accountType,
-                ammcRegNumber,
-                nicomRegNumber
-            })
-            res.status(StatusCodes.CREATED).json({
-                status:"Successful",
-                message:"User Successfully created kindly check your email for otp",
-                data:user
-            })
-            }
-
-
-         } catch (error) {
-            res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error});
-         }
+    catch (error) {
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(val => val.message);
+            throw new BadRequestError(messages.join(', '));
+        }
+        throw error;
     }
+};
 
 const login = async (req, res, next) => {
     const { email, password } = req.body
-  
-    try{
+
+    try {
         if (!email || !password) {
             throw new BadRequestError('Please Provide Email And Password !')
         }
@@ -255,15 +239,16 @@ const login = async (req, res, next) => {
         }
         const isPasswordCorrect = await user.comparePassword(password)
         if (!isPasswordCorrect) {
+            throw new UnauthenticatedError('Invalid Credentials !')
         }
 
-        const token = user.createJWT()
+        const token = await user.createJWT() // <--- Added await
         const userDisplay = user.toObject()
         delete userDisplay.password
         delete userDisplay.__v
-        res.status(StatusCodes.OK).json({ success: true,  user: userDisplay, token })
+        res.status(StatusCodes.OK).json({ success: true, user: userDisplay, token })
     }
-    catch(error){
+    catch (error) {
         next(error)
     }
 };
@@ -319,19 +304,36 @@ const removeProperty = async (req, res, next) => {
     } = req
 
     try {
-        const property = await Property.findById({
-        _id: propertyId,
-        ownedBy: userId,
-      })
-      if (!property || property.deleted) {
-        throw new NotFoundError(`Property Not Found Or Already Deleted !`)
-      }
-      property.deleted = true
-      await property.save()
+        const property = await Property.findOne({
+            _id: propertyId,
+            ownedBy: userId,
+        })
 
-      return res.status(StatusCodes.OK).json({ success: true, message: 'Property Deleted Successfully !' })
+        if (!property || property.deleted) {
+            throw new NotFoundError(`Property Not Found Or Already Deleted !`)
+        }
+
+        // Check if property is referenced in any active policy requests
+        const PolicyRequest = require('../models/PolicyRequest');
+        const activePolicyRequests = await PolicyRequest.find({
+            propertyId: propertyId,
+            status: { $in: ['submitted', 'assigned', 'surveyed', 'approved'] }
+        });
+
+        if (activePolicyRequests.length > 0) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                success: false,
+                message: 'Cannot delete property with active policy requests. Please complete or cancel related policies first.'
+            });
+        }
+
+        property.deleted = true
+        property.status = 'Cancelled'
+        await property.save()
+
+        return res.status(StatusCodes.OK).json({ success: true, message: 'Property Deleted Successfully !' })
     }
-    catch(error){
+    catch (error) {
         next(error)
     }
 }
@@ -341,75 +343,82 @@ const updateUser = async (req, res) => {
 }
 
 const getAllUsers = async (req, res) => {
+    try {
+        const users = await User.find().select('-password'); // exclude password from results
+        res.status(StatusCodes.OK).json({ success: true, users });
+    } catch (error) {
+        console.error(`Error fetching users: ${error}`);
+        next(error);
+    }
+};
 
-}
 
-const getUserById = async (req, res) => {
+const getUserById = async (req, res, next) => {
+    const { id } = req.params;
+    try {
+        const user = await User.findById(id).select('-password');
+        if (!user) {
+            throw new NotFoundError('User not found');
+        }
 
-}
+        res.status(StatusCodes.OK).json({ success: true, user });
+    } catch (error) {
+        console.error(`Error fetching users: ${error}`);
+        next(error);
+    }
+};
+
 
 const getAllProperties = async (req, res, message = null) => {
-    const properties = await Property.find({ ownedBy: req.user.userId }).populate(['category', 'ownedBy'])
-    if(!properties){ return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "User Has No Properties !" }) }
-    if(message){ return res.status(StatusCodes.OK).json({ success: true, message, allProperties: { count: properties.length, properties } }) }
+    const properties = await Property.find({
+        ownedBy: req.user.userId,
+        deleted: { $ne: true }
+    }).populate(['category', 'ownedBy'])
+
+    if (!properties || properties.length === 0) {
+        return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "User Has No Properties !" })
+    }
+
+    if (message) {
+        return res.status(StatusCodes.OK).json({ success: true, message, allProperties: { count: properties.length, properties } })
+    }
     return res.status(StatusCodes.OK).json({ success: true, allProperties: { count: properties.length, properties } })
 }
 
-const getPropertyById = async (req,res) => {
-    const {id} = req.params
-    try {
-        const property = await Property.findById(id)
-        if(!property){
-            res.status(StatusCodes.NOT_FOUND).json({
-                status:false,
-                message:'Property Not Found!'
-            })
-        }
+const getPropertyById = async () => {
 
-        res.status(StatusCodes.OK).json({
-            status:true,
-            message:'Property Found!',
-            data:property
-        })
-
-    } catch (error) {
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-            status:false,
-            message:'' + error
-        })
-    }
 }
 
 const updateProperty = async (req, res, next) => {
-      const {
+    const {
         body: { category, address, phonenumber },
         user: { userId },
         params: { id: propertyId },
-      } = req
+    } = req
 
-      const updateData = { category, address, phonenumber }
+    const updateData = { category, address, phonenumber }
 
-  try {      
+    try {
         const property = await Property.findById(propertyId);
         if (!property) {
             throw new NotFoundError('Property Not Found !');
         }
 
-        if(req.body.removeImages){
-                const toRemove = req.body.removeImages
-                const imagesToRemove = Array.isArray(toRemove) ? toRemove : [toRemove]
+        if (req.body.removeImages) {
+            const toRemove = req.body.removeImages
+            const imagesToRemove = Array.isArray(toRemove) ? toRemove : [toRemove]
 
             property.images = property.images.filter(image => !imagesToRemove.includes(image))
         }
-        
-        if(req.body.images){
+
+        if (req.body.images) {
             const toAdd = req.body.images
             const imagesToAdd = Array.isArray(toAdd) ? toAdd : [toAdd]
 
             updateData.images = property.images || []
             updateData.images.push(...imagesToAdd)
         }
-        else{ updateData.images = property.images }
+        else { updateData.images = property.images }
 
 
         const updatedProperty = await Property.findByIdAndUpdate(
@@ -424,7 +433,7 @@ const updateProperty = async (req, res, next) => {
         const message = "Property Updated Successfully !"
         await getAllProperties(req, res, message)
     }
-    catch(error){
+    catch (error) {
         next(error)
     }
 }
@@ -434,18 +443,18 @@ const updateProperty = async (req, res, next) => {
 const sendResetPasswordOtpEmployee = async (req, res) => {
     const { email } = req.body
     try {
-      const userDoc = await Employee.findOne({ email })
-      const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
-      emailTokenStoreEmployee[generatedOtp] = email
+        const userDoc = await Employee.findOne({ email })
+        const generatedOtp = Math.floor(10000 + Math.random() * 90000).toString();
+        emailTokenStoreEmployee[generatedOtp] = email
 
-      await sendEmail(userDoc.email, "resetpassword", generatedOtp);
-      res.status(StatusCodes.OK).json({
-        success: true,
-        message: "Password reset otp sent to your email successfully",
-      });
-    } 
+        await sendEmail(userDoc.email, "resetpassword", generatedOtp);
+        res.status(StatusCodes.OK).json({
+            success: true,
+            message: "Password reset otp sent to your email successfully",
+        });
+    }
     catch (error) {
-      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false,  message: `${error}` });
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: `${error}` });
     }
 };
 
@@ -456,19 +465,19 @@ const verifyOtpEmployee = async (req, res) => {
     const email = emailTokenStoreEmployee[otp]
 
     try {
-      const userObject = await Employee.findOne({ email })
-      const otpData = await Otp.findOne({ email: userObject.email, otp })
+        const userObject = await Employee.findOne({ email })
+        const otpData = await Otp.findOne({ email: userObject.email, otp })
 
-      if (userObject && otpData) {
-        await Otp.deleteOne({email: userObject.email})
-        return res.status(StatusCodes.OK).json({ success: true, message: "OTP Verified Successfully !" });
-      } 
-      else {
-        return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Invalid Credentials" });
-      }
-    } 
+        if (userObject && otpData) {
+            await Otp.deleteOne({ email: userObject.email })
+            return res.status(StatusCodes.OK).json({ success: true, message: "OTP Verified Successfully !" });
+        }
+        else {
+            return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Invalid Credentials" });
+        }
+    }
     catch (error) {
-      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(error);
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(error);
     }
 };
 
@@ -477,41 +486,41 @@ const resetPasswordEmployee = async (req, res) => {
         body: { newpassword }
     } = req
     const theKeys = Object.keys(emailTokenStoreEmployee)
-    if(theKeys.length > 0){
+    if (theKeys.length > 0) {
         const email = emailTokenStoreEmployee[theKeys[0]]
 
         try {
-          const userObject = await Employee.findOne({ email })
-    
-          if (userObject) {
-            const salt = await bcrypt.genSalt(10)
-            const hashedPassword = await bcrypt.hash(newpassword, salt);
-            const status = 'Active'
-            const activeStatus = await Status.findOne({status})
-            await Employee.findOneAndUpdate({ email: userObject.email }, { password: hashedPassword, employeeStatus: activeStatus._id }, { new: true, runValidators: true });
-            delete emailTokenStoreEmployee[theKeys[0]]
-            return res.status(StatusCodes.OK).json({ success: true, message: "Password reset successfull" });
-          } 
-          else {
-            return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Unable To Find User With Specified Email !" });
-          }
-        } 
+            const userObject = await Employee.findOne({ email })
+
+            if (userObject) {
+                const salt = await bcrypt.genSalt(10)
+                const hashedPassword = await bcrypt.hash(newpassword, salt);
+                const status = 'Active'
+                const activeStatus = await Status.findOne({ status })
+                await Employee.findOneAndUpdate({ email: userObject.email }, { password: hashedPassword, employeeStatus: activeStatus._id }, { new: true, runValidators: true });
+                delete emailTokenStoreEmployee[theKeys[0]]
+                return res.status(StatusCodes.OK).json({ success: true, message: "Password reset successfull" });
+            }
+            else {
+                return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Unable To Find User With Specified Email !" });
+            }
+        }
         catch (error) {
             return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(error)
         }
     }
-    else{
+    else {
         return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json("Something Went Wrong, Please Try Again !");
     }
 };
 
 
 const getModelById = async (userId) => {
-    const userObject = await User.findOne({ _id: userId })
-    if(userObject){ return { model: User, userObject } }
-
     const employee = await Employee.findOne({ _id: userId })
-    if(employee){ return { model: Employee, userObject: employee } }
+    if (employee) { return { model: Employee, userObject: employee } }
+
+    const userObject = await User.findOne({ _id: userId })
+    if (userObject) { return { model: User, userObject } }
 
     return null
 }
@@ -519,8 +528,8 @@ const getModelById = async (userId) => {
 
 const loginEmployee = async (req, res, next) => {
     const { email, password } = req.body
-  
-    try{
+
+    try {
         if (!email || !password || email === "" || password === "") {
             throw new BadRequestError('Please provide email and password')
         }
@@ -532,13 +541,45 @@ const loginEmployee = async (req, res, next) => {
         if (!isPasswordCorrect) {
             throw new UnauthenticatedError('Invalid Credentials')
         }
-        const token = employee.createJWT()
+        const token = await employee.createJWT() // <--- Added await
         const employeeDisplay = employee.toObject()
         delete employeeDisplay.password
         delete employeeDisplay.__v
-        res.status(StatusCodes.OK).json({ success: true, employee: employeeDisplay, token })
+
+        // Check if employee is a surveyor and include organization info
+        const Surveyor = require('../models/Surveyor');
+        const NIAAdmin = require('../models/NIAAdmin');
+
+        let surveyorInfo = null;
+        let organization = null;
+
+        // Check if employee is a surveyor
+        const surveyor = await Surveyor.findOne({ userId: employee._id });
+        if (surveyor) {
+            surveyorInfo = {
+                _id: surveyor._id,
+                organization: surveyor.organization,
+                profile: surveyor.profile,
+                status: surveyor.status
+            };
+            organization = surveyor.organization;
+        }
+
+        // Check if employee is a NIA admin
+        const niaAdmin = await NIAAdmin.findOne({ userId: employee._id });
+        if (niaAdmin) {
+            organization = 'NIA';
+        }
+
+        res.status(StatusCodes.OK).json({
+            success: true,
+            employee: employeeDisplay,
+            token,
+            surveyorInfo,
+            organization
+        })
     }
-    catch(error){
+    catch (error) {
         next(error)
     }
 };
@@ -546,7 +587,7 @@ const loginEmployee = async (req, res, next) => {
 const omitFields = (obj, fieldsToOmit) => {
     const newObj = { ...obj }
     fieldsToOmit.forEach(field => {
-        if(newObj['ownedBy']){
+        if (newObj['ownedBy']) {
             let ownedBy = newObj['ownedBy']
             delete ownedBy[field]
         }
@@ -560,53 +601,54 @@ const registerEmployee = async (req, res) => {
     const { userId } = req.user
     const { firstname, lastname, phonenumber, email, statusId, roleId } = req.body
 
-    try{
+    try {
         const creator = await Employee.findById({ _id: userId }).populate(['employeeRole', 'employeeStatus'])
-        if(!creator){ return res.status(StatusCodes.NOT_FOUND).json({ message: "Employee Not Found !" }) }
+        if (!creator) { return res.status(StatusCodes.NOT_FOUND).json({ message: "Employee Not Found !" }) }
 
         const creatorRole = creator.employeeRole.role
         const creatorStatus = creator.employeeStatus.status
-        if(creatorStatus === 'Active'){
-            if(creatorRole === 'Super-admin'){
-        
+        if (creatorStatus === 'Active') {
+            if (creatorRole === 'Super-admin') {
+
             }
-            else if(creatorRole === 'Admin'){
-                const { role: roleToBeCreated } =  await Role.findById({_id: roleId})
-                if(roleToBeCreated === 'Super-admin'){ return res.status(StatusCodes.UNAUTHORIZED).json({ message: "Admins Cannot Create Super-admins !" }) } 
+            else if (creatorRole === 'Admin') {
+                const { role: roleToBeCreated } = await Role.findOne({ role: roleId })
+                if (roleToBeCreated === 'Super-admin') { return res.status(StatusCodes.UNAUTHORIZED).json({ message: "Admins Cannot Create Super-admins !" }) }
             }
-            else if(creatorRole === 'Staff'){
+            else if (creatorRole === 'Staff') {
                 return res.status(StatusCodes.UNAUTHORIZED).json({ message: "Staff Cannot Create An Employee !" })
             }
 
             const employeeExists = await Employee.findOne({ email });
             const employeeData = { firstname, lastname, phonenumber, email, employeeStatus: statusId, employeeRole: roleId }
-        
-            if(employeeExists === null){ 
-                try{
-                        const employeeObject = await Employee.create(employeeData)
-                        const token = employeeObject.createToken()
-                        const {status} = await Status.findById({_id: statusId})
-                        const {role} =  await Role.findById({_id: roleId})
 
-                        const fieldsToOmit = ['password', '__v', 'employeeStatus', 'createdAt', 'updatedAt', 'employeeRole']
+            if (employeeExists === null) {
+                try {
+                    let employeeObject = await Employee.create(employeeData)
+                    employeeObject = await employeeObject.populate('employeeRole', 'role') // Populate the role
+                    const token = employeeObject.createToken()
+                    const { status } = await Status.findById({ _id: statusId })
+                    const roleName = employeeObject.employeeRole.role // Get the role name from populated object
 
-                        const employeeDisplay = omitFields(employeeObject.toObject(), fieldsToOmit)
-                        return res.status(StatusCodes.CREATED).json({ success: true, employee: { employeeDisplay, status, role }, token })
+                    const fieldsToOmit = ['password', '__v', 'employeeStatus', 'createdAt', 'updatedAt', 'employeeRole']
+
+                    const employeeDisplay = omitFields(employeeObject.toObject(), fieldsToOmit)
+                    return res.status(StatusCodes.CREATED).json({ success: true, employee: { employeeDisplay, status, role: roleName }, token })
                 }
-                catch(error){
-                    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error});
+                catch (error) {
+                    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error });
                 }
             }
-            else{
-                throw new BadRequestError('This Employee Already Exists !') 
+            else {
+                throw new BadRequestError('This Employee Already Exists !')
             }
         }
-        else{
+        else {
             return res.status(StatusCodes.BAD_REQUEST).json({ message: "Employee Has Not Been Activated !" })
         }
     }
-    catch(error){
-        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error})
+    catch (error) {
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error })
     }
 };
 
@@ -617,9 +659,9 @@ const deleteEmployee = async (req, res) => {
 const returnAvailableRoles = async (req, res) => {
     const { userId } = req.user
 
-    try{
+    try {
         const loggedInEmployee = await Employee.findById({ _id: userId }).populate(['employeeRole', 'employeeStatus'])
-        if(!loggedInEmployee){ return res.status(StatusCodes.NOT_FOUND).json({ message: "Employee Not Found !" }) }
+        if (!loggedInEmployee) { return res.status(StatusCodes.NOT_FOUND).json({ message: "Employee Not Found !" }) }
 
         const employeeRole = loggedInEmployee.employeeRole.role
         const employeeStatus = loggedInEmployee.employeeStatus.status
@@ -633,23 +675,23 @@ const returnAvailableRoles = async (req, res) => {
         const admin = mappedRoles.find(mapped => mapped.role === "Admin")
         const staff = mappedRoles.find(mapped => mapped.role === "Staff")
 
-        if(employeeStatus === 'Active'){
-            if(employeeRole === 'Super-admin'){
+        if (employeeStatus === 'Active') {
+            if (employeeRole === 'Super-admin') {
                 return res.status(StatusCodes.OK).json({ success: true, availableRoles: [superAdmin, admin, staff] })
             }
-            else if(employeeRole === 'Admin'){
+            else if (employeeRole === 'Admin') {
                 return res.status(StatusCodes.OK).json({ success: true, availableRoles: [admin, staff] })
             }
-            else{ return res.status(StatusCodes.OK).json({ success: true, message: "As A Staff You Don't Have Enough Permission" }) }
+            else { return res.status(StatusCodes.OK).json({ success: true, message: "As A Staff You Don't Have Enough Permission" }) }
         }
     }
-    catch(error){
+    catch (error) {
         return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error })
     }
 }
 
 const returnAvailableCategories = async (req, res) => {
-    try{
+    try {
         const allCategories = await PropertyCategory.find()
         const mappedCategories = allCategories.map(category => ({
             _id: category._id,
@@ -657,7 +699,7 @@ const returnAvailableCategories = async (req, res) => {
         }))
         return res.status(StatusCodes.OK).json({ success: true, mappedCategories })
     }
-    catch(error){
+    catch (error) {
         return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error })
     }
 }
@@ -669,16 +711,16 @@ const updateEmployee = async (req, res) => {
 const getAllEmployees = async (req, res) => {
     const { userId } = req.user
 
-    try{
+    try {
         const loggedInEmployee = await Employee.findById({ _id: userId }).populate(['employeeRole', 'employeeStatus'])
-        if(!loggedInEmployee){ return res.status(StatusCodes.NOT_FOUND).json({ message: "Employee Not Found !" }) }
+        if (!loggedInEmployee) { return res.status(StatusCodes.NOT_FOUND).json({ message: "Employee Not Found !" }) }
 
         const employeeRole = loggedInEmployee.employeeRole.role
         const employeeStatus = loggedInEmployee.employeeStatus.status
-        if(employeeStatus === 'Active'){
-            if(employeeRole === 'Super-admin' || employeeRole === 'Admin'){
-                const allEmployees = await Employee.find({ }).populate(['employeeRole', 'employeeStatus'])
-                if(!allEmployees){ return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Could Not Find Any Employee !" }) }
+        if (employeeStatus === 'Active') {
+            if (employeeRole === 'Super-admin' || employeeRole === 'Admin') {
+                const allEmployees = await Employee.find({}).populate(['employeeRole', 'employeeStatus'])
+                if (!allEmployees) { return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Could Not Find Any Employee !" }) }
 
                 const fieldsToOmit = ['password', '__v'];
                 const sanitizedEmployees = allEmployees.map(employee => omitFields(employee.toObject(), fieldsToOmit));
@@ -686,7 +728,7 @@ const getAllEmployees = async (req, res) => {
             }
         }
     }
-    catch(error){
+    catch (error) {
         return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error })
     }
 }
@@ -698,21 +740,26 @@ const getEmployeeById = async (req, res) => {
 const addProperty = async (req, res, next) => {
     try {
         req.body.ownedBy = req.user.userId
-        
-        const images = req.body.images
 
-        const imagesArray = Array.isArray(images) ? images : [images]
-        const base64Regex = /^data:image\/(png|jpeg|jpg|gif);base64,[A-Za-z0-9+/=]+$/
+        const images = req.body.images || []
 
-        const formattedImages = imagesArray.filter(image => base64Regex.test(image))
-        if(imagesArray.length > 0 && formattedImages.length === 0){
-            throw new BadRequestError('No valid base64 images found.')
+        // Handle images if provided (now optional)
+        let formattedImages = []
+        if (images && images.length > 0) {
+            const imagesArray = Array.isArray(images) ? images : [images]
+            const base64Regex = /^data:image\/(png|jpeg|jpg|gif);base64,[A-Za-z0-9+/=]+$/
+
+            formattedImages = imagesArray.filter(image => image && base64Regex.test(image))
+
+            // Only throw error if images were provided but none are valid
+            if (imagesArray.length > 0 && formattedImages.length === 0) {
+                throw new BadRequestError('No valid base64 images found. Please ensure images are in valid format.')
+            }
         }
         req.body.images = formattedImages
-        
-        const property = await Property.create({ ...req.body, category: req.body.categoryId })
 
-        if(req.user.role && req.user.status === "Active" && (req.user.role === "Super-admin" || req.user.role === "Admin")){
+        const property = await Property.create({ ...req.body, category: req.body.categoryId })
+        if (req.user.role && req.user.status === "Active" && (req.user.role === "Super-admin" || req.user.role === "Admin")) {
             await Property.findOneAndUpdate(
                 { _id: property._id },
                 { $set: { status: "Blacklist" } },
@@ -725,80 +772,18 @@ const addProperty = async (req, res, next) => {
         const propertyDisplay = omitFields(populatedProperty.toObject(), fieldsToOmit)
 
         return res.status(StatusCodes.OK).json({ success: true, message: 'Property added successfully!', propertyDisplay })
-    } 
+    }
     catch (error) {
         next(error)
     }
 }
-
-const newPolicy = async (req,res) =>{
-    const {policyNumber} = req.body
-    const {id} = req.params
-    
-    if(!policyNumber){
-        const policyNum = generateRandomString(10)
-        const {buildingNumber,insuranceClass,insuranceCompany} = req.body
-        try {
-            const property = await Property.findById(id)
-            if(!property){
-                res.status(StatusCodes.NOT_FOUND).json({ success: false, message:'Property not found' })
-            }
-
-            const policy =await Property.findOne({policyNum})
-            if(policy){
-                res.status(StatusCodes.BAD_REQUEST).json({ success: false, message:'Policy already exists kindly renew or Resubmit the new policy' })
-            }
-
-            const createPolicy = await Property.findByIdAndUpdate(id,{
-                policyNumber:policyNum,
-                buildingNumber,
-                insuranceClass,
-                insuranceCompany,
-            },{new:true})
-
-            return res.status(StatusCodes.CREATED).json({
-                success:true,
-                message:'Policy Created!',
-                data:createPolicy
-            })
-        } catch (error) {
-        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error })
-        }
-    }else{
-        const {phonenumber} = req.body 
-        try {
-            const policy =await Property.findOneAndUpdate({policyNumber},{
-                phonenumber
-            },{
-                new:true
-            })
-            if(!policy){
-                res.status(StatusCodes.NOT_FOUND).json({ success: false, message:'Policy does not exist kindly create a new one' })
-            }
-
-            return res.status(StatusCodes.OK).json({
-                success:true,
-                message:'Policy Renewed!',
-                data:policy
-            })
-
-        } catch (error) {
-            return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message:error })
-        }
-    }
-}
-
-
-
-
-
-
 
 
 
 
 
 module.exports = {
+    requestOtp,
     verifyOtp,
     register,
     login,
@@ -812,16 +797,18 @@ module.exports = {
     registerEmployee,
     createStatuses,
     createRoles,
+    createPropertyCategories,
+    createSurveyorRoles,
     getModelById,
     createFirstSuperAdmin,
     addProperty,
     deleteUser,
     removeProperty,
     getAllProperties,
+    getAllUsers,
+    getUserById,
     updateProperty,
     getAllEmployees,
     returnAvailableRoles,
     returnAvailableCategories,
-    getPropertyById,
-    newPolicy
 }

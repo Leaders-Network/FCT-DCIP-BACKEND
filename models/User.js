@@ -28,19 +28,10 @@ const UserSchema = new mongoose.Schema({
     required: [true, 'Please provide password'],
     minlength: 6,
   },
-  accountType:{
-    type:String,
-    enum:["Builder","Surveyor"],
-    
-    default:"Builder"
-  },
-  ammcRegNumber:{
-    type:String,
-    default:''
-  },
-  nicomRegNumber:{
-    type:String,
-    default:''
+  role: {
+    type: String,
+    enum: ['admin', 'user'],
+    default: 'user',
   },
   isEmailVerified:{
     type: Boolean,
@@ -53,9 +44,15 @@ const UserSchema = new mongoose.Schema({
 })
 
 
+UserSchema.pre('save', async function () {
+    const salt = await bcrypt.genSalt(10)
+    this.password = await bcrypt.hash(this.password, salt)
+    this.isEmailVerified = true
+})
+  
 UserSchema.methods.createJWT = function () {
     return jwt.sign(
-      { userId: this._id, fullname: this.fullname },
+      { userId: this._id, fullname: this.fullname, role: this.role, model: 'User' },
       process.env.JWT_SECRET,
       {
         expiresIn: process.env.JWT_LIFETIME,
