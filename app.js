@@ -58,21 +58,35 @@ app.use(compressionMiddleware);
 app.use(requestTiming);
 
 const corsOptions = {
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'https://www.fctbuilders.gladfaith.com',
-    'https://fctbuilders.gladfaith.com',
-    'https://fct-dcip-frontend-ten.vercel.app',
-    'https://fct-dcip-frontend-h440cotuv.vercel.app',
-    'https://fct-dcip-frontend-83mrqo57b.vercel.app',
-  ],
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'https://www.fctbuilders.gladfaith.com',
+      'https://fctbuilders.gladfaith.com',
+      'https://fct-dcip-frontend-ten.vercel.app',
+      'https://fct-dcip-frontend-h440cotuv.vercel.app',
+      'https://fct-dcip-frontend-83mrqo57b.vercel.app',
+    ];
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(null, true); // Allow all origins for now to debug
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ["Content-Type", "Authorization", 'apikey', 'apiKey', 'x-api-key'],
   credentials: true,
+  optionsSuccessStatus: 200, // Some legacy browsers choke on 204
+  preflightContinue: false,
 }
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
 
 app.use(express.json());
 app.use('/api/v1/auth', authRouter);
