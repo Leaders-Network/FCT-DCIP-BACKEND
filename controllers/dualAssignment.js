@@ -443,6 +443,10 @@ const assignNIASurveyor = async (req, res) => {
     }
 };
 
+const SurveySubmission = require('../models/SurveySubmission');
+
+// ... (other controller code)
+
 // Get dual assignment by policy ID
 const getDualAssignmentByPolicy = async (req, res) => {
     try {
@@ -462,9 +466,29 @@ const getDualAssignmentByPolicy = async (req, res) => {
             });
         }
 
+        // Manually populate survey submissions
+        const ammcReportEvent = dualAssignment.timeline.find(e => e.event === 'ammc_report_submitted');
+        const niaReportEvent = dualAssignment.timeline.find(e => e.event === 'nia_report_submitted');
+
+        let ammcSubmission = null;
+        if (ammcReportEvent && ammcReportEvent.metadata && ammcReportEvent.metadata.reportId) {
+            ammcSubmission = await SurveySubmission.findById(ammcReportEvent.metadata.reportId);
+        }
+
+        let niaSubmission = null;
+        if (niaReportEvent && niaReportEvent.metadata && niaReportEvent.metadata.reportId) {
+            niaSubmission = await SurveySubmission.findById(niaReportEvent.metadata.reportId);
+        }
+
+        const responseData = {
+            ...dualAssignment.toObject(),
+            ammcSubmission,
+            niaSubmission
+        };
+
         res.status(StatusCodes.OK).json({
             success: true,
-            data: dualAssignment
+            data: responseData
         });
     } catch (error) {
         console.error('Get dual assignment error:', error);
