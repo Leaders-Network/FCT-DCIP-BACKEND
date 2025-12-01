@@ -1,8 +1,8 @@
-# FCT-DCIP Backend
+# Builders-Liability-AMMC Backend
 
 ## 📋 Overview
 
-The FCT-DCIP (Federal Capital Territory - Distress and Compulsory Insurance Policy) Backend is a comprehensive Node.js/Express API that manages insurance policy requests, dual surveyor assignments, report processing, and administrative functions for the AMMC (Abuja Municipal Management Council) and NIA (Nigerian Insurers Association).
+The Builders-Liability-AMMC (Federal Capital Territory - Distress and Compulsory Insurance Policy) Backend is a comprehensive Node.js/Express API that manages insurance policy requests, dual surveyor assignments, report processing, and administrative functions for the AMMC (Abuja Municipal Management Council) and NIA (Nigerian Insurers Association).
 
 ## 🏗️ Architecture
 
@@ -28,7 +28,7 @@ The FCT-DCIP (Federal Capital Territory - Distress and Compulsory Insurance Poli
 ## 📁 Project Structure
 
 ```
-FCT-DCIP-BACKEND/
+Builders-Liability-AMMC-BACKEND/
 ├── controllers/          # Request handlers
 │   ├── auth.js          # Authentication & user management
 │   ├── policy.js        # Policy request management
@@ -86,7 +86,7 @@ FCT-DCIP-BACKEND/
 1. **Clone the repository**
 ```bash
 git clone <repository-url>
-cd FCT-DCIP-BACKEND
+cd Builders-Liability-AMMC-BACKEND
 ```
 
 2. **Install dependencies**

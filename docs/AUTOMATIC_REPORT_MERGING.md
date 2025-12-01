@@ -311,7 +311,7 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your-email@domain.com
 SMTP_PASS=your-app-password
-SMTP_FROM=noreply@fct-dcip.gov.ng
+SMTP_FROM=noreply@Builders-Liability-AMMC.gov.ng
 
 # Frontend URL for email links
 FRONTEND_URL=https://your-frontend-domain.com

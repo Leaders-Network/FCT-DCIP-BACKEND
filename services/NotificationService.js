@@ -14,7 +14,7 @@ class NotificationService {
             // Get all admins (Admin, Super-admin, and NIA-Admin roles)
             const admins = await Employee.find({
                 employeeRole: { $in: await this.getAdminRoleIds() },
-                organization: { $in: ['AMMC', 'FCT-DCIP'] }, // Include both AMMC and FCT-DCIP
+                organization: { $in: ['AMMC', 'Builders-Liability-AMMC'] }, // Include both AMMC and Builders-Liability-AMMC
                 deleted: false
             }).populate('employeeRole employeeStatus');
 

@@ -378,15 +378,54 @@ const submitSurvey = async (req, res) => {
     // Get surveyor organization from assignment or user context
     const surveyorOrganization = assignment.organization || req.user.organization || 'AMMC';
 
+    // --- Start New File Handling Logic ---
+    let documents = [];
     let surveyDocumentUrl = '';
-    if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        use_filename: true,
-        folder: 'survey-documents'
-      });
-      surveyDocumentUrl = result.secure_url;
-      fs.unlinkSync(req.file.path);
+    const { uploadToCloudinary } = require('../utils/cloudinary');
+
+    if (req.files && req.files.documents && req.files.documents.length > 0) {
+      const folder = assignmentId
+        ? `survey-documents/${assignmentId}`
+        : `survey-documents/${ammcId || 'general'}`;
+
+      for (const file of req.files.documents) {
+        try {
+          const uploadResult = await uploadToCloudinary(
+            file.buffer,
+            file.originalname,
+            folder
+          );
+
+          const documentData = {
+            fileName: file.originalname,
+            fileType: file.mimetype,
+            fileSize: file.size,
+            cloudinaryUrl: uploadResult.url,
+            cloudinaryPublicId: uploadResult.publicId,
+            category: 'survey_report', // Or derive from request if available
+            documentType: 'supporting_document', // Default type
+            uploadedBy: surveyorUserId,
+            uploadedAt: new Date(),
+            isMainReport: documents.length === 0, // First document is the main one
+          };
+
+          documents.push(documentData);
+
+        } catch (uploadError) {
+          console.error('File upload error:', uploadError);
+          // Decide if you want to stop or continue if one file fails
+          throw new BadRequestError(`Failed to upload file ${file.originalname}: ${uploadError.message}`);
+        }
+      }
+
+      if (documents.length > 0) {
+        // Set the legacy surveyDocumentUrl from the first uploaded document
+        surveyDocumentUrl = documents[0].cloudinaryUrl;
+        // Mark the first document as the main report
+        documents[0].documentType = 'main_report';
+      }
     }
+    // --- End New File Handling Logic ---
 
     // Validate required survey details
     if (!surveyDetails.propertyCondition || !surveyDetails.propertyCondition.trim()) {
@@ -408,7 +447,12 @@ const submitSurvey = async (req, res) => {
       surveyorId: surveyorUserId,
       assignmentId,
       surveyDetails,
-      surveyDocument: surveyDocumentUrl,
+      documents: documents, // New format - array of documents
+      surveyDocument: surveyDocumentUrl ? {
+        url: surveyDocumentUrl,
+        publicId: documents.length > 0 ? documents[0].cloudinaryPublicId : null,
+        name: documents.length > 0 ? documents[0].fileName : 'survey-document.pdf'
+      } : '', // Legacy format for backward compatibility
       surveyNotes,
       contactLog: contactLog || [],
       recommendedAction,
@@ -527,7 +571,7 @@ const submitSurvey = async (req, res) => {
 
     // Update policy request status with dual-surveyor context
     const policyUpdateData = {
-      surveyDocument: surveyDocumentUrl,
+      surveyDocument: surveyDocumentUrl || (documents.length > 0 ? documents[0].cloudinaryUrl : ''),
       surveyNotes
     };
 
@@ -542,11 +586,17 @@ const submitSurvey = async (req, res) => {
 
     await PolicyRequest.findByIdAndUpdate(ammcId, policyUpdateData);
 
+    // Fetch the submission again to ensure all fields are included in response
+    const savedSubmission = await SurveySubmission.findById(submission._id)
+      .populate('ammcId', 'policyNumber contactDetails')
+      .populate('assignmentId', 'deadline priority')
+      .select('+documents'); // Explicitly select documents to ensure it's returned
+
     res.status(StatusCodes.CREATED).json({
       success: true,
       message: 'Survey submitted successfully',
       data: {
-        submission,
+        submission: savedSubmission, // Use the fetched submission to ensure documents are included
         dualAssignmentInfo: dualAssignmentUpdate,
         otherSurveyorNotified: !!otherSurveyorNotification,
         organization: surveyorOrganization

@@ -30,6 +30,46 @@ const MergedReportSchema = new mongoose.Schema({
         type: String,
         default: null
     },
+    // Document references from individual submissions
+    ammcDocumentUrl: {
+        type: String,
+        default: null
+    },
+    ammcDocumentPublicId: {
+        type: String,
+        default: null
+    },
+    niaDocumentUrl: {
+        type: String,
+        default: null
+    },
+    niaDocumentPublicId: {
+        type: String,
+        default: null
+    },
+    // Store all documents from both submissions
+    ammcDocuments: [{
+        fileName: String,
+        fileType: String,
+        fileSize: Number,
+        cloudinaryUrl: String,
+        cloudinaryPublicId: String,
+        category: String,
+        documentType: String,
+        isMainReport: Boolean,
+        uploadedAt: Date
+    }],
+    niaDocuments: [{
+        fileName: String,
+        fileType: String,
+        fileSize: Number,
+        cloudinaryUrl: String,
+        cloudinaryPublicId: String,
+        category: String,
+        documentType: String,
+        isMainReport: Boolean,
+        uploadedAt: Date
+    }],
     conflictDetected: {
         type: Boolean,
         default: false

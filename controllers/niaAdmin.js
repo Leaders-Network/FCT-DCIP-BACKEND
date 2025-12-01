@@ -33,9 +33,9 @@ const sendNIAAdminCredentials = async (email, firstname, lastname, password) => 
                 : 'http://localhost:3000/nia-admin/login';
 
             const mailOptions = {
-                from: `"FCT-DCIP System" <noreply@fct-dcip.com>`,
+                from: `"Builders-Liability-AMMC System" <noreply@Builders-Liability-AMMC.com>`,
                 to: email,
-                subject: '🔐 Your NIA Admin Account Credentials - FCT-DCIP',
+                subject: '🔐 Your NIA Admin Account Credentials - Builders-Liability-AMMC',
                 html: `
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
@@ -124,7 +124,7 @@ const sendNIAAdminCredentials = async (email, firstname, lastname, password) => 
                         </div>
                         
                         <div style="text-align: center; margin-top: 20px; color: #999; font-size: 12px;">
-                            <p style="margin: 5px 0;">This is an automated message from the FCT-DCIP System</p>
+                            <p style="margin: 5px 0;">This is an automated message from the Builders-Liability-AMMC System</p>
                             <p style="margin: 5px 0;">Nigerian Insurers Association (NIA)</p>
                             <p style="margin: 5px 0;">Please do not reply to this email</p>
                         </div>

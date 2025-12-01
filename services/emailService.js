@@ -26,9 +26,9 @@ const sendBrokerAdminCredentials = async (brokerAdminData) => {
         const { email, firstname, lastname, password, brokerFirmName, brokerFirmLicense } = brokerAdminData;
 
         const mailOptions = {
-            from: '"FCT-DCIP Admin" <noreply@fct-dcip.gov.ng>',
+            from: '"Builders-Liability-AMMC Admin" <noreply@Builders-Liability-AMMC.gov.ng>',
             to: email,
-            subject: 'Your Broker Admin Account Credentials - FCT-DCIP',
+            subject: 'Your Broker Admin Account Credentials - Builders-Liability-AMMC',
             html: `
                 <!DOCTYPE html>
                 <html>
@@ -106,7 +106,7 @@ const sendBrokerAdminCredentials = async (brokerAdminData) => {
                 <body>
                     <div class="container">
                         <div class="header">
-                            <h1>Welcome to FCT-DCIP Broker Portal</h1>
+                            <h1>Welcome to Builders-Liability-AMMC Broker Portal</h1>
                         </div>
                         <div class="content">
                             <p>Dear ${firstname} ${lastname},</p>
@@ -153,21 +153,21 @@ const sendBrokerAdminCredentials = async (brokerAdminData) => {
                                 </a>
                             </center>
                             
-                            <p>If you have any questions or need assistance, please contact the FCT-DCIP support team.</p>
+                            <p>If you have any questions or need assistance, please contact the Builders-Liability-AMMC support team.</p>
                             
                             <p>Best regards,<br>
-                            <strong>FCT-DCIP Administration Team</strong></p>
+                            <strong>Builders-Liability-AMMC Administration Team</strong></p>
                         </div>
                         <div class="footer">
                             <p>This is an automated message. Please do not reply to this email.</p>
-                            <p>&copy; ${new Date().getFullYear()} FCT-DCIP. All rights reserved.</p>
+                            <p>&copy; ${new Date().getFullYear()} Builders-Liability-AMMC. All rights reserved.</p>
                         </div>
                     </div>
                 </body>
                 </html>
             `,
             text: `
-Welcome to FCT-DCIP Broker Portal
+Welcome to Builders-Liability-AMMC Broker Portal
 
 Dear ${firstname} ${lastname},
 
@@ -189,14 +189,14 @@ Broker Firm Details:
 Firm Name: ${brokerFirmName}
 License Number: ${brokerFirmLicense}
 
-If you have any questions or need assistance, please contact the FCT-DCIP support team.
+If you have any questions or need assistance, please contact the Builders-Liability-AMMC support team.
 
 Best regards,
-FCT-DCIP Administration Team
+Builders-Liability-AMMC Administration Team
 
 ---
 This is an automated message. Please do not reply to this email.
-© ${new Date().getFullYear()} FCT-DCIP. All rights reserved.
+© ${new Date().getFullYear()} Builders-Liability-AMMC. All rights reserved.
             `
         };
 

@@ -21,14 +21,14 @@ const generateRandomString = (length = 10) => {
 
 /**
  * Generate a formatted policy number
- * Format: FCT-DCIP-YYYY-XXXXXX (e.g., FCT-DCIP-2024-ABC123)
+ * Format: Builders-Liability-AMMC-YYYY-XXXXXX (e.g., Builders-Liability-AMMC-2024-ABC123)
  * @returns {string} - Formatted policy number
  */
 const generatePolicyNumber = () => {
   const currentYear = new Date().getFullYear();
   const randomPart = generateRandomString(6);
   
-  return `FCT-DCIP-${currentYear}-${randomPart}`;
+  return `Builders-Liability-AMMC-${currentYear}-${randomPart}`;
 };
 
 /**

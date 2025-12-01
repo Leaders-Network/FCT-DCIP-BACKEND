@@ -2,7 +2,7 @@ const multer = require('multer');
 const { StatusCodes } = require('http-status-codes');
 
 // Multer configuration for file uploads
-const storage = multer.diskStorage({});
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
   if (file.mimetype.startsWith('image') || file.mimetype.startsWith('application/pdf')) {

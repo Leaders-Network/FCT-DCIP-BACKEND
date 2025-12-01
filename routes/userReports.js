@@ -51,22 +51,66 @@ router.get('/', protect, async (req, res) => {
             _id: { $in: policyIds },
             status: 'completed'
         })
-        .select('propertyDetails.address propertyDetails.propertyType status createdAt');
+            .select('propertyDetails.address propertyDetails.propertyType status createdAt');
 
         // Format and combine reports
-        const formattedMergedReports = mergedReports.map(report => ({
-            reportId: report._id,
-            policyId: report.policyId._id,
-            propertyAddress: report.policyId.propertyDetails?.address || 'Address not available',
-            propertyType: report.policyId.propertyDetails?.propertyType || 'Type not specified',
-            status: report.releaseStatus,
-            finalRecommendation: report.finalRecommendation,
-            paymentEnabled: report.paymentEnabled,
-            conflictDetected: report.conflictDetected,
-            createdAt: report.createdAt,
-            downloadCount: report.accessHistory?.filter(access => access.accessType === 'download').length || 0,
-            canDownload: report.releaseStatus === 'released' && report.finalRecommendation,
-            isMerged: true
+        const formattedMergedReports = await Promise.all(mergedReports.map(async (report) => {
+            // Get document URLs from merged report or fetch from submissions
+            let ammcDocumentUrl = report.ammcDocumentUrl;
+            let niaDocumentUrl = report.niaDocumentUrl;
+
+            // If not stored in merged report, fetch from submissions
+            if (!ammcDocumentUrl || !niaDocumentUrl) {
+                const SurveySubmission = require('../models/SurveySubmission');
+                const [ammcSubmission, niaSubmission] = await Promise.all([
+                    SurveySubmission.findById(report.ammcReportId),
+                    SurveySubmission.findById(report.niaReportId)
+                ]);
+
+                if (ammcSubmission) {
+                    const ammcDocs = ammcSubmission.documents || [];
+                    if (ammcDocs.length > 0) {
+                        const mainDoc = ammcDocs.find(doc => doc.isMainReport) || ammcDocs[0];
+                        ammcDocumentUrl = mainDoc.cloudinaryUrl;
+                    } else if (ammcSubmission.surveyDocument) {
+                        ammcDocumentUrl = typeof ammcSubmission.surveyDocument === 'string'
+                            ? ammcSubmission.surveyDocument
+                            : ammcSubmission.surveyDocument.url;
+                    }
+                }
+
+                if (niaSubmission) {
+                    const niaDocs = niaSubmission.documents || [];
+                    if (niaDocs.length > 0) {
+                        const mainDoc = niaDocs.find(doc => doc.isMainReport) || niaDocs[0];
+                        niaDocumentUrl = mainDoc.cloudinaryUrl;
+                    } else if (niaSubmission.surveyDocument) {
+                        niaDocumentUrl = typeof niaSubmission.surveyDocument === 'string'
+                            ? niaSubmission.surveyDocument
+                            : niaSubmission.surveyDocument.url;
+                    }
+                }
+            }
+
+            return {
+                reportId: report._id,
+                policyId: report.policyId._id,
+                propertyAddress: report.policyId.propertyDetails?.address || 'Address not available',
+                propertyType: report.policyId.propertyDetails?.propertyType || 'Type not specified',
+                status: report.releaseStatus,
+                finalRecommendation: report.finalRecommendation,
+                paymentEnabled: report.paymentEnabled,
+                conflictDetected: report.conflictDetected,
+                createdAt: report.createdAt,
+                downloadCount: report.accessHistory?.filter(access => access.accessType === 'download').length || 0,
+                canDownload: report.releaseStatus === 'released' && report.finalRecommendation,
+                isMerged: true,
+                documentUrls: {
+                    ammc: ammcDocumentUrl,
+                    nia: niaDocumentUrl,
+                    merged: report.mergedDocumentUrl
+                }
+            };
         }));
 
         const formattedCompletedReports = completedReports.map(report => ({

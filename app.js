@@ -64,29 +64,32 @@ const corsOptions = {
       'http://localhost:3001',
       'https://www.fctbuilders.gladfaith.com',
       'https://fctbuilders.gladfaith.com',
-      'https://fct-dcip-frontend-ten.vercel.app',
-      'https://fct-dcip-frontend-h440cotuv.vercel.app',
-      'https://fct-dcip-frontend-83mrqo57b.vercel.app',
+      'https://Builders-Liability-AMMC-frontend-ten.vercel.app',
+      'https://Builders-Liability-AMMC-frontend-h440cotuv.vercel.app',
+      'https://Builders-Liability-AMMC-frontend-83mrqo57b.vercel.app',
     ];
+
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
+    const cleanedOrigin = origin.toLowerCase();
+
+    if (allowedOrigins.includes(cleanedOrigin)) {
+      return callback(null, true);
     } else {
       console.log('CORS blocked origin:', origin);
-      callback(null, true); // Allow all origins for now to debug
+      return callback(null, true); // Allow all origins for now to debug
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ["Content-Type", "Authorization", 'apikey', 'apiKey', 'x-api-key'],
+  allowedHeaders: ["Content-Type", "Authorization", 'apikey', 'x-api-key'],
   credentials: true,
   optionsSuccessStatus: 200, // Some legacy browsers choke on 204
   preflightContinue: false,
 }
 
 // Handle preflight requests explicitly
-app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 app.use('/api/v1/auth', authRouter);
@@ -117,7 +120,6 @@ app.use('/api/v1/policy-status', policyStatusRouter);
 app.use('/api/v1/payment-decision', paymentDecisionRouter);
 app.use('/api/v1/user-reports', userReportsRouter);
 app.use('/api/v1/test-merged-reports', testMergedReportsRouter);
-app.use('/api/v1/processing-monitor', processingMonitorRouter);
 app.use('/api/v1/debug-merged-reports', debugMergedReportsRouter);
 app.use('/api/v1/quick-test', quickTestRouter);
 app.use('/api/v1/diagnostic-reports', diagnosticReportsRouter);
@@ -129,7 +131,7 @@ app.use('/api/v1/notifications', notificationsRouter);
 const authTestRouter = require('./routes/authTest');
 app.use('/api/v1/auth-test', authTestRouter);
 
-app.get('/', (_req, res) => { res.send('<h3>FCT-DCIP API Server</h3>') })
+app.get('/', (_req, res) => { res.send('<h3>Builders-Liability-AMMC API Server</h3>') })
 
 app.use(notFoundMiddleware);
 app.use(errorHandlerMiddleware);
@@ -139,7 +141,7 @@ const PORT = process.env.PORT || 5000
 const start = async () => {
   try {
     // Connect to MongoDB with retry logic
-    const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/fct-dcip-local';
+    const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/Builders-Liability-AMMC-local';
     await connectWithRetry(uri);
 
     // Initialize database data

@@ -315,7 +315,7 @@ The system automatically sends email notifications for:
 Use the provided migration script to set up the conflict management system:
 
 ```bash
-node FCT-DCIP-BACKEND/scripts/setupConflictManagement.js
+node Builders-Liability-AMMC-BACKEND/scripts/setupConflictManagement.js
 ```
 
 This will:

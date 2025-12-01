@@ -1,11 +1,11 @@
-# FCT-DCIP Backend API Documentation
+# Builders-Liability-AMMC Backend API Documentation
 
 ## Overview
-Complete backend implementation for the FCT-DCIP Insurance platform with surveyor workflow management, policy requests, and file handling.
+Complete backend implementation for the Builders-Liability-AMMC Insurance platform with surveyor workflow management, policy requests, and file handling.
 
 ## Base URL
 ```
-Production: https://fct-dcip-backend-1.onrender.com/api/v1
+Production: https://Builders-Liability-AMMC-backend-1.onrender.com/api/v1
 Local: http://localhost:3000/api/v1
 ```
 

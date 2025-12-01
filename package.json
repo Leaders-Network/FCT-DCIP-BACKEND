@@ -1,7 +1,7 @@
 {
-  "name": "fct-dcip-backend",
+  "name": "Builders-Liability-AMMC-backend",
   "version": "1.0.0",
-  "description": "\"# FCT-DCIP-BACKEND\"",
+  "description": "\"# Builders-Liability-AMMC-BACKEND\"",
   "main": "index.js",
   "scripts": {
     "start": "node app.js",

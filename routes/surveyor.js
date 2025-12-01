@@ -38,7 +38,7 @@ router.patch('/assignments/:assignmentId/status', logSurveyorActivity('UPDATE_AS
 router.get('/dual-assignments', getSurveyorDualAssignments);
 
 // Survey submissions (supports both AMMC and NIA surveyors)
-router.post('/surveys', upload.single('surveyDocument'), logSurveyorActivity('SUBMIT_SURVEY'), submitSurvey);
+router.post('/surveys', upload.fields([{ name: 'documents', maxCount: 10 }]), logSurveyorActivity('SUBMIT_SURVEY'), submitSurvey);
 router.get('/submissions', getSurveyorSubmissions);
 
 // Profile management (supports both AMMC and NIA surveyors)

@@ -359,11 +359,52 @@ class AutoReportMerger {
             };
         }
 
+        // Extract document references from submissions
+        const ammcDocuments = ammcSubmission.documents || [];
+        const niaDocuments = niaSubmission.documents || [];
+
+        // Get main report documents
+        const ammcMainDoc = ammcDocuments.find(doc => doc.isMainReport) || ammcDocuments[0];
+        const niaMainDoc = niaDocuments.find(doc => doc.isMainReport) || niaDocuments[0];
+
+        // Get legacy surveyDocument if documents array is empty
+        const ammcLegacyDoc = ammcSubmission.surveyDocument;
+        const niaLegacyDoc = niaSubmission.surveyDocument;
+
         const mergedReport = new MergedReport({
             policyId: dualAssignment.policyId._id,
             dualAssignmentId: dualAssignment._id,
             ammcReportId: ammcSubmission._id,
             niaReportId: niaSubmission._id,
+
+            // Document references - store URLs from submissions
+            ammcDocumentUrl: ammcMainDoc?.cloudinaryUrl ||
+                (typeof ammcLegacyDoc === 'string' ? ammcLegacyDoc : ammcLegacyDoc?.url) ||
+                null,
+            ammcDocumentPublicId: ammcMainDoc?.cloudinaryPublicId ||
+                (typeof ammcLegacyDoc === 'object' ? ammcLegacyDoc?.publicId : null) ||
+                null,
+            niaDocumentUrl: niaMainDoc?.cloudinaryUrl ||
+                (typeof niaLegacyDoc === 'string' ? niaLegacyDoc : niaLegacyDoc?.url) ||
+                null,
+            niaDocumentPublicId: niaMainDoc?.cloudinaryPublicId ||
+                (typeof niaLegacyDoc === 'object' ? niaLegacyDoc?.publicId : null) ||
+                null,
+            // Store all documents metadata for reference
+            ammcDocuments: ammcDocuments.length > 0 ? ammcDocuments :
+                (ammcLegacyDoc ? [{
+                    fileName: typeof ammcLegacyDoc === 'object' ? ammcLegacyDoc.name : 'survey-document.pdf',
+                    cloudinaryUrl: typeof ammcLegacyDoc === 'string' ? ammcLegacyDoc : ammcLegacyDoc.url,
+                    cloudinaryPublicId: typeof ammcLegacyDoc === 'object' ? ammcLegacyDoc.publicId : null,
+                    isMainReport: true
+                }] : []),
+            niaDocuments: niaDocuments.length > 0 ? niaDocuments :
+                (niaLegacyDoc ? [{
+                    fileName: typeof niaLegacyDoc === 'object' ? niaLegacyDoc.name : 'survey-document.pdf',
+                    cloudinaryUrl: typeof niaLegacyDoc === 'string' ? niaLegacyDoc : niaLegacyDoc.url,
+                    cloudinaryPublicId: typeof niaLegacyDoc === 'object' ? niaLegacyDoc.publicId : null,
+                    isMainReport: true
+                }] : []),
 
             // Report sections
             reportSections,

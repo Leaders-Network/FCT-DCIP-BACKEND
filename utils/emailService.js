@@ -105,7 +105,7 @@ const sendAutomaticConflictAlert = async (adminEmail, conflictFlag) => {
                     </div>
                     
                     <div style="margin-top: 20px; text-align: center; color: #6c757d; font-size: 12px;">
-                        <p>This is an automated notification from the FCT-DCIP System</p>
+                        <p>This is an automated notification from the Builders-Liability-AMMC System</p>
                         <p>Please do not reply to this email</p>
                     </div>
                 </div>
@@ -198,7 +198,7 @@ const sendReportMergingNotification = async (adminEmail, mergedReport) => {
                     </div>
                     
                     <div style="margin-top: 20px; text-align: center; color: #6c757d; font-size: 12px;">
-                        <p>This is an automated notification from the FCT-DCIP System</p>
+                        <p>This is an automated notification from the Builders-Liability-AMMC System</p>
                         <p>Please do not reply to this email</p>
                     </div>
                 </div>
@@ -347,7 +347,7 @@ const sendPaymentDecisionNotification = async (userEmail, decisionData) => {
                     </div>
                     
                     <div style="margin-top: 20px; text-align: center; color: #6c757d; font-size: 12px;">
-                        <p>This is an automated notification from the FCT-DCIP System</p>
+                        <p>This is an automated notification from the Builders-Liability-AMMC System</p>
                         <p>Please do not reply to this email</p>
                     </div>
                 </div>
@@ -431,7 +431,7 @@ const sendReportAvailableNotification = async (userEmail, reportData) => {
                     </div>
                     
                     <div style="margin-top: 20px; text-align: center; color: #6c757d; font-size: 12px;">
-                        <p>This is an automated notification from the FCT-DCIP System</p>
+                        <p>This is an automated notification from the Builders-Liability-AMMC System</p>
                         <p>Please do not reply to this email</p>
                     </div>
                 </div>
@@ -538,7 +538,7 @@ const sendConflictInquiryNotification = async (adminEmail, inquiry) => {
                     </div>
                     
                     <div style="margin-top: 20px; text-align: center; color: #6c757d; font-size: 12px;">
-                        <p>This is an automated notification from the FCT-DCIP System</p>
+                        <p>This is an automated notification from the Builders-Liability-AMMC System</p>
                         <p>Please do not reply to this email</p>
                     </div>
                 </div>
@@ -627,7 +627,7 @@ const sendConflictInquiryResponse = async (userEmail, inquiry, response) => {
                     </div>
                     
                     <div style="margin-top: 20px; text-align: center; color: #6c757d; font-size: 12px;">
-                        <p>This is an automated notification from the FCT-DCIP System</p>
+                        <p>This is an automated notification from the Builders-Liability-AMMC System</p>
                         <p>Please do not reply to this email</p>
                     </div>
                 </div>
@@ -755,7 +755,7 @@ const sendReportProcessingUpdate = async (userEmail, updateData) => {
                     </div>
                     
                     <div style="margin-top: 20px; text-align: center; color: #6c757d; font-size: 12px;">
-                        <p>This is an automated notification from the FCT-DCIP System</p>
+                        <p>This is an automated notification from the Builders-Liability-AMMC System</p>
                         <p>Please do not reply to this email</p>
                     </div>
                 </div>

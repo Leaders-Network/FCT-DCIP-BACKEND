@@ -583,6 +583,15 @@ router.post('/download/nia/:assignmentId', allowUserOrAdmin, async (req, res) =>
             // Legacy survey document
             downloadUrl = typeof submission.surveyDocument === 'string' ?
                 submission.surveyDocument : submission.surveyDocument.url;
+        } else {
+            // Fallback: Check assignment for documents
+            const Assignment = require('../models/Assignment');
+            const assignment = await Assignment.findById(assignmentId);
+            if (assignment && assignment.documents && assignment.documents.length > 0) {
+                const mainReport = assignment.documents.find(doc => doc.isMainReport) || assignment.documents[0];
+                downloadUrl = mainReport.cloudinaryUrl;
+                documents = assignment.documents;
+            }
         }
 
         res.status(StatusCodes.OK).json({
@@ -650,7 +659,45 @@ router.post('/download/:reportId', allowUserOrAdmin, async (req, res) => {
         mergedReport.lastDownloadedAt = new Date();
         await mergedReport.save();
 
-        // Generate and return a downloadable report
+        // Get submission documents if not already stored in merged report
+        const SurveySubmission = require('../models/SurveySubmission');
+        let ammcDocuments = mergedReport.ammcDocuments || [];
+        let niaDocuments = mergedReport.niaDocuments || [];
+        let ammcDocumentUrl = mergedReport.ammcDocumentUrl;
+        let niaDocumentUrl = mergedReport.niaDocumentUrl;
+
+        // If documents not stored in merged report, fetch from submissions
+        if (ammcDocuments.length === 0 || !ammcDocumentUrl) {
+            const ammcSubmission = await SurveySubmission.findById(mergedReport.ammcReportId);
+            if (ammcSubmission) {
+                ammcDocuments = ammcSubmission.documents || [];
+                if (ammcDocuments.length > 0) {
+                    const mainDoc = ammcDocuments.find(doc => doc.isMainReport) || ammcDocuments[0];
+                    ammcDocumentUrl = mainDoc.cloudinaryUrl;
+                } else if (ammcSubmission.surveyDocument) {
+                    ammcDocumentUrl = typeof ammcSubmission.surveyDocument === 'string'
+                        ? ammcSubmission.surveyDocument
+                        : ammcSubmission.surveyDocument.url;
+                }
+            }
+        }
+
+        if (niaDocuments.length === 0 || !niaDocumentUrl) {
+            const niaSubmission = await SurveySubmission.findById(mergedReport.niaReportId);
+            if (niaSubmission) {
+                niaDocuments = niaSubmission.documents || [];
+                if (niaDocuments.length > 0) {
+                    const mainDoc = niaDocuments.find(doc => doc.isMainReport) || niaDocuments[0];
+                    niaDocumentUrl = mainDoc.cloudinaryUrl;
+                } else if (niaSubmission.surveyDocument) {
+                    niaDocumentUrl = typeof niaSubmission.surveyDocument === 'string'
+                        ? niaSubmission.surveyDocument
+                        : niaSubmission.surveyDocument.url;
+                }
+            }
+        }
+
+        // Generate and return a downloadable report with document URLs
         const reportContent = {
             reportId: mergedReport._id,
             policyId: mergedReport.policyId._id,
@@ -662,13 +709,33 @@ router.post('/download/:reportId', allowUserOrAdmin, async (req, res) => {
             mergingMetadata: mergedReport.mergingMetadata,
             releasedAt: mergedReport.releasedAt,
             downloadedAt: new Date(),
-            downloadCount: mergedReport.downloadCount
+            downloadCount: mergedReport.downloadCount,
+            // Document URLs for download
+            documents: {
+                ammc: {
+                    mainReportUrl: ammcDocumentUrl,
+                    allDocuments: ammcDocuments.map(doc => ({
+                        fileName: doc.fileName,
+                        url: doc.cloudinaryUrl,
+                        publicId: doc.cloudinaryPublicId,
+                        isMainReport: doc.isMainReport || false
+                    }))
+                },
+                nia: {
+                    mainReportUrl: niaDocumentUrl,
+                    allDocuments: niaDocuments.map(doc => ({
+                        fileName: doc.fileName,
+                        url: doc.cloudinaryUrl,
+                        publicId: doc.cloudinaryPublicId,
+                        isMainReport: doc.isMainReport || false
+                    }))
+                },
+                merged: {
+                    url: mergedReport.mergedDocumentUrl,
+                    publicId: mergedReport.mergedDocumentPublicId
+                }
+            }
         };
-
-        // Set headers for file download
-        const fileName = `merged-report-${mergedReport.policyId._id}-${Date.now()}.json`;
-        res.setHeader('Content-Type', 'application/json');
-        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
 
         res.status(StatusCodes.OK).json({
             success: true,

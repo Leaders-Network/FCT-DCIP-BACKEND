@@ -2,7 +2,7 @@
 
 ## Overview
 
-The FCT-DCIP authentication system has been redesigned to provide clear, role-based access control with proper token management. The system supports five distinct token types with specific dashboard access permissions.
+The Builders-Liability-AMMC authentication system has been redesigned to provide clear, role-based access control with proper token management. The system supports five distinct token types with specific dashboard access permissions.
 
 ## Token Types and Access Levels
 
