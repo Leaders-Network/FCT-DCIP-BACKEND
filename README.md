@@ -1,4 +1,4 @@
-# FCT-DCIP-BACKEND
+# Builders-Liability-AMMC-BACKEND
 
 Backend API for the FCT-DCIP Leaders Network platform. This project manages authentication, employee and user management, property records, policy generation, and OTP-based security features.
 
