@@ -9,7 +9,7 @@ const UserConflictInquirySchema = new mongoose.Schema({
     mergedReportId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'MergedReport',
-        required: [true, 'Merged Report ID is required']
+        default: null
     },
     userId: {
         type: mongoose.Schema.Types.ObjectId,
