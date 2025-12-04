@@ -4,7 +4,8 @@ const UserConflictInquirySchema = new mongoose.Schema({
     policyId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'PolicyRequest',
-        required: [true, 'Policy ID is required']
+        required: false, // Optional - user might raise general inquiry
+        default: null
     },
     mergedReportId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -18,7 +19,7 @@ const UserConflictInquirySchema = new mongoose.Schema({
     },
     referenceId: {
         type: String,
-        required: [true, 'Reference ID is required']
+        required: false // Generated automatically by pre-save hook
         // unique: true removed - handled by schema.index() below
     },
     conflictType: {
@@ -53,6 +54,10 @@ const UserConflictInquirySchema = new mongoose.Schema({
         email: {
             type: String,
             required: [true, 'User email is required']
+        },
+        name: {
+            type: String,
+            default: ''
         },
         phone: {
             type: String,

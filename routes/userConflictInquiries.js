@@ -388,20 +388,26 @@ router.post('/', protect, async (req, res) => {
     try {
         const { policyId, mergedReportId, conflictType, description, urgency, contactPreference, userContact } = req.body;
 
-        if (!policyId || !conflictType || !description || !userContact?.email) {
-            return res.status(400).json({ success: false, message: 'Missing required fields' });
+        // Validate required fields
+        if (!conflictType || !description || !userContact?.email) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields: conflictType, description, and userContact.email are required'
+            });
         }
 
+        // policyId is optional - user might be raising a general inquiry
         let mergedReport = null;
-        if (mergedReportId) {
-            mergedReport = await MergedReport.findById(mergedReportId);
-        }
-        if (!mergedReport) {
-            mergedReport = await MergedReport.findOne({ policyId: policyId });
+        if (policyId) {
+            if (mergedReportId) {
+                mergedReport = await MergedReport.findById(mergedReportId);
+            }
+            if (!mergedReport) {
+                mergedReport = await MergedReport.findOne({ policyId: policyId });
+            }
         }
 
         const inquiryData = {
-            policyId,
             userId: req.user.userId,
             conflictType,
             description,
@@ -409,11 +415,18 @@ router.post('/', protect, async (req, res) => {
             contactPreference: contactPreference || 'email',
             userContact: {
                 email: userContact.email,
+                name: userContact.name || '',
                 phone: userContact.phone || '',
                 preferredTime: userContact.preferredTime || ''
             }
         };
 
+        // Add policyId if provided
+        if (policyId) {
+            inquiryData.policyId = policyId;
+        }
+
+        // Add mergedReportId if found
         if (mergedReport) {
             inquiryData.mergedReportId = mergedReport._id;
         }
@@ -421,6 +434,7 @@ router.post('/', protect, async (req, res) => {
         const inquiry = new UserConflictInquiry(inquiryData);
         await inquiry.save();
 
+        // Notify administrators
         await notifyAdministrators(inquiry);
 
         res.status(201).json({
@@ -435,7 +449,11 @@ router.post('/', protect, async (req, res) => {
 
     } catch (error) {
         console.error('Error submitting conflict inquiry:', error);
-        res.status(500).json({ success: false, message: 'Failed to submit conflict inquiry', error: error.message });
+        res.status(500).json({
+            success: false,
+            message: 'Failed to submit conflict inquiry',
+            error: error.message
+        });
     }
 });
 
