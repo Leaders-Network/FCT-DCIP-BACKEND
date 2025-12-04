@@ -133,15 +133,37 @@ const createSurveyor = async (req, res) => {
 // Get all surveyors
 const getAllSurveyors = async (req, res) => {
   try {
-    const { status, organization } = req.query;
+    const { status, organization, search, specialization } = req.query;
     const query = {};
+
     if (status) {
       query.status = status;
     }
     if (organization) {
       query.organization = organization;
     }
-    const surveyors = await Surveyor.find(query).populate('userId', 'firstname lastname email phonenumber');
+    if (specialization) {
+      query['profile.specialization'] = { $in: [specialization.toLowerCase()] };
+    }
+
+    // Get surveyors first
+    let surveyors = await Surveyor.find(query).populate('userId', 'firstname lastname email phonenumber');
+
+    // Apply search filter on populated data (since we need to search employee fields)
+    if (search && search.trim()) {
+      const searchLower = search.toLowerCase();
+      surveyors = surveyors.filter(surveyor => {
+        const user = surveyor.userId;
+        return (
+          (user?.firstname || '').toLowerCase().includes(searchLower) ||
+          (user?.lastname || '').toLowerCase().includes(searchLower) ||
+          (user?.email || '').toLowerCase().includes(searchLower) ||
+          (surveyor.licenseNumber || '').toLowerCase().includes(searchLower) ||
+          (surveyor.organization || '').toLowerCase().includes(searchLower)
+        );
+      });
+    }
+
     res.status(StatusCodes.OK).json({ success: true, data: surveyors });
   } catch (error) {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });

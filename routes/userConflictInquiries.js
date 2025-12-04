@@ -78,7 +78,7 @@ router.get('/my-inquiries', protect, async (req, res) => {
 // @access  Private (Admin)
 router.get('/admin', protect, async (req, res) => {
     try {
-        const { status, urgency, conflictType, organization, page = 1, limit = 20 } = req.query;
+        const { status, urgency, conflictType, organization, search, page = 1, limit = 20 } = req.query;
 
         let filter = {};
 
@@ -96,6 +96,15 @@ router.get('/admin', protect, async (req, res) => {
 
         if (organization && organization !== 'all') {
             filter.assignedOrganization = organization;
+        }
+
+        // Add search functionality
+        if (search && search.trim()) {
+            filter.$or = [
+                { referenceId: { $regex: search, $options: 'i' } },
+                { description: { $regex: search, $options: 'i' } },
+                { conflictType: { $regex: search, $options: 'i' } }
+            ];
         }
 
         const inquiries = await UserConflictInquiry.find(filter)
