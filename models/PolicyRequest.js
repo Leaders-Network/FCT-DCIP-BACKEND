@@ -10,9 +10,28 @@ const PolicyRequestSchema = new mongoose.Schema({
     ref: 'Property',
   },
   propertyDetails: {
-    address: {
+    plotNumber: {
       type: String,
-      required: [true, 'Property address is required']
+      required: [true, 'Plot number is required'],
+      trim: true
+    },
+    cadastralZone: {
+      type: String,
+      required: [true, 'Cadastral zone is required'],
+      trim: true
+    },
+    district: {
+      type: String,
+      required: [true, 'District is required'],
+      trim: true
+    },
+    fullAddress: {
+      type: String,
+      required: [true, 'Full property address is required']
+    },
+    // Legacy field for backward compatibility
+    address: {
+      type: String
     },
     propertyType: {
       type: String,
