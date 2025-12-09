@@ -131,6 +131,10 @@ app.use('/api/v1/notifications', notificationsRouter);
 const authTestRouter = require('./routes/authTest');
 app.use('/api/v1/auth-test', authTestRouter);
 
+// Email testing route
+const testEmailRouter = require('./routes/testEmail');
+app.use('/api/v1/test-email', testEmailRouter);
+
 app.get('/', (_req, res) => { res.send('<h3>Builders-Liability-AMMC API Server</h3>') })
 
 app.use(notFoundMiddleware);

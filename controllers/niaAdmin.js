@@ -6,37 +6,46 @@ const Assignment = require('../models/Assignment');
 const { StatusCodes } = require('http-status-codes');
 const nodemailer = require('nodemailer');
 
+// Import Unified Email Service
+const UnifiedEmailService = require('../services/UnifiedEmailService');
+
 // Function to send NIA admin credentials via email
 const sendNIAAdminCredentials = async (email, firstname, lastname, password) => {
-    return new Promise((resolve, reject) => {
-        nodemailer.createTestAccount(async (err, account) => {
-            if (err) {
-                console.error('❌ Failed to create Ethereal test account:', err.message);
-                return reject(err);
-            }
+    try {
+        console.log('\n📧 ===== SENDING NIA ADMIN CREDENTIALS EMAIL =====');
 
-            console.log('\n📧 ===== SENDING NIA ADMIN CREDENTIALS EMAIL =====');
-            console.log('📧 Ethereal test account created');
+        const loginUrl = process.env.FRONTEND_URL
+            ? `${process.env.FRONTEND_URL}/nia-admin/login`
+            : 'http://localhost:3000/nia-admin/login';
 
-            const transporter = nodemailer.createTransporter({
-                host: account.smtp.host,
-                port: account.smtp.port,
-                secure: account.smtp.secure,
-                auth: {
-                    user: account.user,
-                    pass: account.pass
-                }
-            });
+        // Use Unified Email Service
+        const result = await UnifiedEmailService.sendNIAAdminCredentials(
+            email,
+            firstname,
+            lastname,
+            password,
+            loginUrl
+        );
 
-            const loginUrl = process.env.FRONTEND_URL
-                ? `${process.env.FRONTEND_URL}/nia-admin/login`
-                : 'http://localhost:3000/nia-admin/login';
+        console.log('✅ NIA Admin credentials email sent successfully');
+        console.log('   Recipient:', email);
+        console.log('   Name:', `${firstname} ${lastname}`);
+        console.log('==========================================\n');
 
-            const mailOptions = {
-                from: `"Builders-Liability-AMMC System" <noreply@Builders-Liability-AMMC.com>`,
-                to: email,
-                subject: '🔐 Your NIA Admin Account Credentials - Builders-Liability-AMMC',
-                html: `
+        return result;
+    } catch (error) {
+        console.error('❌ Failed to send NIA admin credentials:', error.message);
+        throw error;
+    }
+};
+
+// DEPRECATED - Old email sending code (kept for reference, can be deleted)
+const OLD_sendNIAAdminCredentials_DEPRECATED = async () => {
+    const mailOptions = {
+        from: `"Builders-Liability-AMMC System" <https://fctbuilders.gladfaith.com/>`,
+        to: email,
+        subject: '🔐 Your NIA Admin Account Credentials - Builders-Liability-AMMC',
+        html: `
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
                             <h1 style="color: white; margin: 0; font-size: 28px;">🔐 Welcome to NIA Admin</h1>
@@ -130,33 +139,42 @@ const sendNIAAdminCredentials = async (email, firstname, lastname, password) => 
                         </div>
                     </div>
                 `
-            };
+    };
 
-            try {
-                const info = await transporter.sendMail(mailOptions);
+try {
+      const mailOptions = {
+        from: `"Builders-Liability-AMMC System" <https://fctbuilders.gladfaith.com/>`,
+        to: email,
+        subject: '🔐 Your NIA Admin Account Credentials - Builders-Liability-AMMC',
+        html: `
+          <!-- your long HTML remains unchanged -->
+          ${/* OMITTED HERE FOR READABILITY — it was all correct */""}
+        `
+      };
 
-                console.log('\n✅ ===== EMAIL SENT SUCCESSFULLY =====');
-                console.log('📧 Message ID:', info.messageId);
-                console.log('📧 Recipient:', email);
-                console.log('📧 Subject: Your NIA Admin Account Credentials');
-                console.log('\n🔗 ===== ETHEREAL PREVIEW LINK =====');
-                console.log('🌐 View email in browser:');
-                console.log('🔗', nodemailer.getTestMessageUrl(info));
-                console.log('\n📋 ===== CREDENTIALS SENT =====');
-                console.log('👤 Name:', `${firstname} ${lastname}`);
-                console.log('📧 Email:', email);
-                console.log('🔑 Password:', password);
-                console.log('🔗 Login URL:', loginUrl);
-                console.log('=====================================\n');
+      const info = await transporter.sendMail(mailOptions);
 
-                resolve(info);
-            } catch (sendError) {
-                console.error('❌ Failed to send email:', sendError);
-                reject(sendError);
-            }
-        });
-    });
-};
+      console.log('\n✅ ===== REAL EMAIL SENT SUCCESSFULLY =====');
+      console.log('📧 Message ID:', info.messageId);
+      console.log('📧 Recipient:', email);
+      console.log('📧 Subject: Your NIA Admin Account Credentials');
+      console.log('📧 From:', process.env.EMAIL);
+      console.log('📧 SMTP Host:', process.env.SMTP_HOST);
+      console.log('✉️  Email delivered via real SMTP (Gmail)');
+      console.log('\n📨 ===== CREDENTIALS SENT =====');
+      console.log('👤 Name:', `${firstname} ${lastname}`);
+      console.log('📧 Email:', email);
+      console.log('🔑 Password:', password);
+      console.log('🔗 Login URL:', loginUrl);
+      console.log('==========================================\n');
+
+      resolve(info);
+
+    } catch (error) {
+      console.error('❌ Failed to send email:', error.message);
+      reject(error);
+    }
+  }
 
 // Create NIA admin
 const createNIAAdmin = async (req, res) => {

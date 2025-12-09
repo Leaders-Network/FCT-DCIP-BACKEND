@@ -1,61 +1,50 @@
-require('dotenv').config();
-const nodemailer = require("nodemailer");
-const Otp = require("../models/OTP");
-
+/**
+ * Legacy email utility - now uses UnifiedEmailService
+ * Kept for backward compatibility
+ */
+const UnifiedEmailService = require('../services/UnifiedEmailService');
 
 module.exports = async (email, mailType, content) => {
-  nodemailer.createTestAccount(async (err, account) => {
-    if (err) {
-      console.error('Failed to create a testing account. ' + err.message);
-      return process.exit(1);
-    }
+  try {
+    console.log('📧 Sending email via Unified Email Service');
+    console.log('   To:', email);
+    console.log('   Type:', mailType);
 
-    console.log('Credentials obtained, sending message...');
+    let result;
 
-    const transporter = nodemailer.createTransport({
-      host: account.smtp.host,
-      port: account.smtp.port,
-      secure: account.smtp.secure,
-      auth: {
-        user: account.user,
-        pass: account.pass
-      }
-    });
-
-    let mailOptions;
     if (mailType === "verifyemail") {
-      mailOptions = {
-        from: `"${process.env.EMAIL_FROM}" <${process.env.EMAIL}>`,
-        to: email,
-        subject: "Verify Your Email",
-        html: content,
-      };
+      // Extract OTP from content if it's an OTP email
+      const otpMatch = content.match(/\b\d{5,6}\b/);
+      if (otpMatch) {
+        result = await UnifiedEmailService.sendOTPEmail(email, otpMatch[0]);
+      } else {
+        // Generic email
+        result = await UnifiedEmailService.sendEmail({
+          to: email,
+          subject: "Verify Your Email - FCT-DCIP",
+          html: content
+        });
+      }
     } else if (mailType === "surveyorCredentials") {
-      mailOptions = {
-        from: `"${process.env.EMAIL_FROM}" <${process.env.EMAIL}>`,
+      // For surveyor credentials, use generic send (credentials should be in content)
+      result = await UnifiedEmailService.sendEmail({
         to: email,
         subject: "Your DCIP Surveyor Account Credentials",
-        html: content,
-      };
+        html: content
+      });
     } else {
-      mailOptions = {
-        from: `"${process.env.EMAIL_FROM}" <${process.env.EMAIL}>`,
+      // Password reset or other
+      result = await UnifiedEmailService.sendEmail({
         to: email,
-        subject: "Reset Your Password",
-        html: content,
-      };
+        subject: "Reset Your Password - FCT-DCIP",
+        html: content
+      });
     }
 
-    let info = await transporter.sendMail(mailOptions);
-
-    console.log('\n✅ ===== EMAIL SENT SUCCESSFULLY =====');
-    console.log('📧 Message ID:', info.messageId);
-    console.log('📧 Recipient:', email);
-    console.log('📧 Type:', mailType);
-    console.log('\n🔗 ===== ETHEREAL PREVIEW LINK =====');
-    console.log('🌐 View email in browser:');
-    console.log('🔗', nodemailer.getTestMessageUrl(info));
-    console.log('=====================================\n');
-  });
+    return result;
+  } catch (error) {
+    console.error('❌ Email send failed:', error.message);
+    throw error;
+  }
 };
 

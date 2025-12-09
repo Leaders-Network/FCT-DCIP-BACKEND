@@ -32,7 +32,7 @@ const sendAutomaticConflictAlert = async (adminEmail, conflictFlag) => {
         const transporter = createTransporter();
 
         const mailOptions = {
-            from: process.env.SMTP_FROM || process.env.SMTP_USER,
+            from: `"Builders-Liability-AMMC System" <https://fctbuilders.gladfaith.com/>`,
             to: adminEmail,
             subject: `🚨 Automatic Conflict Detected - ${conflictFlag.conflictType}`,
             html: `
@@ -129,7 +129,7 @@ const sendReportMergingNotification = async (adminEmail, mergedReport) => {
         const transporter = createTransporter();
 
         const mailOptions = {
-            from: process.env.SMTP_FROM || process.env.SMTP_USER,
+            from: `"Builders-Liability-AMMC System" <https://fctbuilders.gladfaith.com/>`,
             to: adminEmail,
             subject: `📊 Report Merging Completed - ${mergedReport.releaseStatus.toUpperCase()}`,
             html: `
@@ -279,7 +279,7 @@ const sendPaymentDecisionNotification = async (userEmail, decisionData) => {
         };
 
         const mailOptions = {
-            from: process.env.SMTP_FROM || process.env.SMTP_USER,
+            from: `"Builders-Liability-AMMC System" <https://fctbuilders.gladfaith.com/>`,
             to: userEmail,
             subject: `${getDecisionTitle(decisionData.decision)} - Policy ${decisionData.policyId}`,
             html: `
@@ -371,7 +371,7 @@ const sendReportAvailableNotification = async (userEmail, reportData) => {
         const transporter = createTransporter();
 
         const mailOptions = {
-            from: process.env.SMTP_FROM || process.env.SMTP_USER,
+            from: `"Builders-Liability-AMMC System" <https://fctbuilders.gladfaith.com/>`,
             to: userEmail,
             subject: `📊 Your Property Assessment Report is Ready - Policy ${reportData.policyId}`,
             html: `
@@ -455,7 +455,7 @@ const sendConflictInquiryNotification = async (adminEmail, inquiry) => {
         const transporter = createTransporter();
 
         const mailOptions = {
-            from: process.env.SMTP_FROM || process.env.SMTP_USER,
+            from: `"Builders-Liability-AMMC System" <https://fctbuilders.gladfaith.com/>`,
             to: adminEmail,
             subject: `🔍 New User Conflict Inquiry - ${inquiry.referenceId}`,
             html: `
@@ -562,7 +562,7 @@ const sendConflictInquiryResponse = async (userEmail, inquiry, response) => {
         const transporter = createTransporter();
 
         const mailOptions = {
-            from: process.env.SMTP_FROM || process.env.SMTP_USER,
+            from: `"Builders-Liability-AMMC System" <https://fctbuilders.gladfaith.com/>`,
             to: userEmail,
             subject: `✅ Response to Your Conflict Inquiry - ${inquiry.referenceId}`,
             html: `
@@ -681,7 +681,7 @@ const sendReportProcessingUpdate = async (userEmail, updateData) => {
         };
 
         const mailOptions = {
-            from: process.env.SMTP_FROM || process.env.SMTP_USER,
+            from: `"Builders-Liability-AMMC System" <https://fctbuilders.gladfaith.com/>`,
             to: userEmail,
             subject: `${getStatusIcon(updateData.status)} Report Processing Update - Policy ${updateData.policyId}`,
             html: `

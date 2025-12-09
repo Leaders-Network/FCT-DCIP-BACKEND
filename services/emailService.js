@@ -4,6 +4,11 @@ const nodemailer = require('nodemailer');
 const createTransporter = async (useRealEmail = true) => {
     if (useRealEmail && process.env.SMTP_HOST && process.env.EMAIL && process.env.EMAIL_PASSWORD) {
         // Use real email configuration from .env
+        console.log('📧 Using real SMTP configuration:');
+        console.log(`   Host: ${process.env.SMTP_HOST}`);
+        console.log(`   Port: ${process.env.SMTP_PORT}`);
+        console.log(`   User: ${process.env.EMAIL}`);
+
         const transporter = nodemailer.createTransport({
             host: process.env.SMTP_HOST,
             port: parseInt(process.env.SMTP_PORT) || 587,
@@ -12,14 +17,27 @@ const createTransporter = async (useRealEmail = true) => {
                 user: process.env.EMAIL,
                 pass: process.env.EMAIL_PASSWORD,
             },
+            tls: {
+                rejectUnauthorized: false // Allow self-signed certificates
+            }
         });
+
+        // Verify connection
+        try {
+            await transporter.verify();
+            console.log('✅ SMTP connection verified successfully');
+        } catch (error) {
+            console.error('❌ SMTP connection verification failed:', error.message);
+            throw error;
+        }
 
         return { transporter, testAccount: null };
     } else {
         // Fallback to Ethereal for testing
+        console.log('⚠️ Missing SMTP configuration, using Ethereal test email');
         const testAccount = await nodemailer.createTestAccount();
 
-        const transporter = nodemailer.createTransport({
+        const transporter = nodemailer.createTransporter({
             host: 'smtp.ethereal.email',
             port: 587,
             secure: false,
@@ -36,10 +54,10 @@ const createTransporter = async (useRealEmail = true) => {
 // Generic send email function
 const sendEmail = async ({ to, subject, html, text }) => {
     try {
-        const { transporter, testAccount } = await createTransporter();
+        const { transporter, testAccount } = await createTransporter(true); // Force real email
 
         const mailOptions = {
-            from: process.env.EMAIL_FROM || '"FCT-DCIP" <noreply@fct-dcip.gov.ng>',
+            from: process.env.EMAIL_FROM || `"Builders-Liability-AMMC System" <https://fctbuilders.gladfaith.com/>`,
             to,
             subject,
             html,
@@ -71,12 +89,12 @@ const sendEmail = async ({ to, subject, html, text }) => {
 // Send broker admin credentials email
 const sendBrokerAdminCredentials = async (brokerAdminData) => {
     try {
-        const { transporter, testAccount } = await createTransporter();
+        const { transporter, testAccount } = await createTransporter(true); // Force real email
 
         const { email, firstname, lastname, password, brokerFirmName, brokerFirmLicense } = brokerAdminData;
 
         const mailOptions = {
-            from: '"Builders-Liability-AMMC Admin" <noreply@Builders-Liability-AMMC.gov.ng>',
+            from: '"Builders-Liability-AMMC System" <https://fctbuilders.gladfaith.com/>',
             to: email,
             subject: 'Your Broker Admin Account Credentials - Builders-Liability-AMMC',
             html: `
@@ -254,18 +272,22 @@ This is an automated message. Please do not reply to this email.
 
         console.log('✅ Email sent successfully!');
         console.log('📧 Message ID:', info.messageId);
-        console.log('🔗 Preview URL:', nodemailer.getTestMessageUrl(info));
         console.log('\n📨 Email Details:');
         console.log(`   To: ${email}`);
         console.log(`   Subject: ${mailOptions.subject}`);
-        console.log(`   Ethereal Account: ${testAccount.user}`);
-        console.log(`   View email at: ${nodemailer.getTestMessageUrl(info)}\n`);
+        if (testAccount) {
+            console.log(`   Ethereal Account: ${testAccount.user}`);
+            console.log(`   🔗 Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
+        } else {
+            console.log(`   ✉️ Real email sent via ${process.env.SMTP_HOST}`);
+        }
+        console.log('');
 
         return {
             success: true,
             messageId: info.messageId,
-            previewUrl: nodemailer.getTestMessageUrl(info),
-            etherealUser: testAccount.user
+            previewUrl: testAccount ? nodemailer.getTestMessageUrl(info) : null,
+            etherealUser: testAccount ? testAccount.user : null
         };
     } catch (error) {
         console.error('❌ Error sending email:', error);
@@ -276,7 +298,12 @@ This is an automated message. Please do not reply to this email.
     }
 };
 
+// Re-export Unified Email Service for backward compatibility
+const UnifiedEmailService = require('./UnifiedEmailService');
+
 module.exports = {
-    sendEmail,
-    sendBrokerAdminCredentials
+    sendEmail: UnifiedEmailService.sendEmail.bind(UnifiedEmailService),
+    sendBrokerAdminCredentials: UnifiedEmailService.sendBrokerAdminCredentials.bind(UnifiedEmailService),
+    // Export the entire service for direct access
+    UnifiedEmailService
 };

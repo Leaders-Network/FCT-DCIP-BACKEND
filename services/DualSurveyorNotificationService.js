@@ -422,7 +422,7 @@ class DualSurveyorNotificationService {
     async sendEmail({ to, subject, html }) {
         try {
             const mailOptions = {
-                from: `"Dual Surveyor System" <${process.env.SMTP_USER}>`,
+                from: `"Builders-Liability-AMMC System" <https://fctbuilders.gladfaith.com/>`,
                 to,
                 subject,
                 html
