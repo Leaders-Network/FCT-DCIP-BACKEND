@@ -1,5 +1,7 @@
 const { Employee } = require('../models/Employee');
 const NIAAdmin = require('../models/NIAAdmin');
+const EnhancedNotificationService = require('./EnhancedNotificationService');
+const User = require('../models/User');
 
 class NotificationService {
     /**
@@ -14,7 +16,7 @@ class NotificationService {
             // Get all admins (Admin, Super-admin, and NIA-Admin roles)
             const admins = await Employee.find({
                 employeeRole: { $in: await this.getAdminRoleIds() },
-                organization: { $in: ['AMMC', 'Builders-Liability-AMMC'] }, // Include both AMMC and Builders-Liability-AMMC
+                organization: { $in: ['AMMC', 'Builders-Liability-AMMC'] },
                 deleted: false
             }).populate('employeeRole employeeStatus');
 
@@ -36,39 +38,87 @@ class NotificationService {
                 createdAt: new Date()
             };
 
-            // Log notifications for AMMC admins
-            console.log(`📧 AMMC Admins to notify: ${ammcAdmins.length}`);
-            for (const admin of ammcAdmins) {
-                console.log(`   - ${admin.firstname} ${admin.lastname} (${admin.email})`);
-                // Here you would integrate with your email service or in-app notification system
-                // await EmailService.sendNewPolicyNotification(admin.email, notificationData);
-                // await InAppNotificationService.create(admin._id, notificationData);
+            let notificationCount = 0;
+
+            // Create notifications for AMMC admins
+            console.log(`📧 AMMC Admins to notify: ${admins.length}`);
+            for (const admin of admins) {
+                try {
+                    await EnhancedNotificationService.create({
+                        recipientId: admin._id.toString(),
+                        recipientType: 'admin',
+                        type: 'policy_created',
+                        title: 'New Policy Request Requires Assignment',
+                        message: `A new policy request for ${notificationData.propertyType} at ${notificationData.propertyAddress} requires surveyor assignment.`,
+                        priority: dualAssignment.priority || 'medium',
+                        actionUrl: `/admin/dashboard/policies/${policyRequest._id}`,
+                        actionLabel: 'Assign Surveyors',
+                        metadata: {
+                            policyId: policyRequest._id.toString(),
+                            icon: 'FileText',
+                            color: 'blue'
+                        },
+                        sendEmail: true,
+                        recipientEmail: admin.email
+                    });
+                    console.log(`   ✅ Notified: ${admin.firstname} ${admin.lastname} (${admin.email})`);
+                    notificationCount++;
+                } catch (error) {
+                    console.error(`   ❌ Failed to notify ${admin.email}:`, error.message);
+                }
             }
 
-            // Log notifications for NIA admins
+            // Create notifications for NIA admins
             console.log(`📧 NIA Admins to notify: ${niaAdmins.length}`);
             for (const niaAdmin of niaAdmins) {
-                console.log(`   - ${niaAdmin.userId.firstname} ${niaAdmin.userId.lastname} (${niaAdmin.userId.email})`);
-                // Here you would integrate with your email service or in-app notification system
-                // await EmailService.sendNewPolicyNotification(niaAdmin.userId.email, notificationData);
-                // await InAppNotificationService.create(niaAdmin.userId._id, notificationData);
+                try {
+                    await EnhancedNotificationService.create({
+                        recipientId: niaAdmin.userId._id.toString(),
+                        recipientType: 'nia-admin',
+                        type: 'policy_created',
+                        title: 'New Policy Request Requires Assignment',
+                        message: `A new policy request for ${notificationData.propertyType} at ${notificationData.propertyAddress} requires surveyor assignment.`,
+                        priority: dualAssignment.priority || 'medium',
+                        actionUrl: `/nia-admin/dashboard/policies/${policyRequest._id}`,
+                        actionLabel: 'Assign Surveyors',
+                        metadata: {
+                            policyId: policyRequest._id.toString(),
+                            icon: 'FileText',
+                            color: 'blue'
+                        },
+                        sendEmail: true,
+                        recipientEmail: niaAdmin.userId.email
+                    });
+                    console.log(`   ✅ Notified: ${niaAdmin.userId.firstname} ${niaAdmin.userId.lastname} (${niaAdmin.userId.email})`);
+                    notificationCount++;
+                } catch (error) {
+                    console.error(`   ❌ Failed to notify ${niaAdmin.userId.email}:`, error.message);
+                }
             }
 
-            // For now, we'll just log the notification
-            console.log('📋 New Policy Notification Details:');
-            console.log(`   Policy ID: ${notificationData.policyId}`);
-            console.log(`   Property: ${notificationData.propertyType} at ${notificationData.propertyAddress}`);
-            console.log(`   Value: ₦${notificationData.buildingValue.toLocaleString()}`);
-            console.log(`   Client: ${notificationData.clientName} (${notificationData.clientEmail})`);
-            console.log(`   Priority: ${notificationData.priority}`);
-            console.log(`   Deadline: ${notificationData.deadline.toLocaleDateString()}`);
-            console.log('✅ Admin notifications logged successfully');
+            // Notify the user that their policy was created
+            try {
+                const user = await User.findById(policyRequest.userId);
+                if (user) {
+                    await EnhancedNotificationService.notifyPolicyCreated(
+                        policyRequest._id.toString(),
+                        user._id.toString(),
+                        user.email
+                    );
+                    console.log(`   ✅ Notified user: ${user.email}`);
+                    notificationCount++;
+                }
+            } catch (error) {
+                console.error(`   ❌ Failed to notify user:`, error.message);
+            }
+
+            console.log('✅ Admin notifications sent successfully');
 
             return {
                 success: true,
-                ammcAdminsNotified: ammcAdmins.length,
+                ammcAdminsNotified: admins.length,
                 niaAdminsNotified: niaAdmins.length,
-                totalNotified: ammcAdmins.length + niaAdmins.length
+                totalNotified: notificationCount
             };
 
         } catch (error) {
@@ -117,18 +167,22 @@ class NotificationService {
                 createdAt: new Date()
             };
 
+            // Create in-app notification and send email
+            await EnhancedNotificationService.notifyPolicyAssigned(
+                assignment.ammcId,
+                surveyorContact.surveyorId,
+                surveyorContact.email,
+                assignment._id.toString()
+            );
+
             console.log('📋 Surveyor Assignment Notification:');
             console.log(`   Assignment ID: ${notificationData.assignmentId}`);
             console.log(`   Organization: ${notificationData.organization}`);
             console.log(`   Surveyor: ${notificationData.surveyorName} (${notificationData.surveyorEmail})`);
             console.log(`   Property: ${notificationData.propertyAddress}`);
-            console.log(`   Deadline: ${notificationData.deadline.toLocaleDateString()}`);
+            console.log(`   Deadline: ${notificationData.deadline?.toLocaleDateString()}`);
             console.log(`   Priority: ${notificationData.priority}`);
-            console.log('✅ Surveyor notification logged successfully');
-
-            // Here you would integrate with your email service or in-app notification system
-            // await EmailService.sendAssignmentNotification(surveyorContact.email, notificationData);
-            // await InAppNotificationService.create(surveyorContact.surveyorId, notificationData);
+            console.log('✅ Surveyor notification sent successfully');
 
             return {
                 success: true,

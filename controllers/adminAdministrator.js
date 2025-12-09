@@ -57,50 +57,95 @@ const getAllAdministrators = async (req, res) => {
 
 // Delete an administrator
 const deleteAdministrator = async (req, res) => {
-    try {
-        const { id: adminId } = req.params;
-        const administrator = await Employee.findByIdAndUpdate(adminId, { deleted: true }, { new: true });
+  try {
+    const { id: adminId } = req.params;
+    const administrator = await Employee.findByIdAndUpdate(adminId, { deleted: true }, { new: true });
 
-        if (!administrator) {
-            throw new NotFoundError(`Administrator with id ${adminId} not found`);
-        }
-
-        res.status(StatusCodes.OK).json({ success: true, message: 'Administrator deleted successfully' });
-    } catch (error) {
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
+    if (!administrator) {
+      throw new NotFoundError(`Administrator with id ${adminId} not found`);
     }
+
+    res.status(StatusCodes.OK).json({ success: true, message: 'Administrator deleted successfully' });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
+  }
+};
+
+// Update administrator
+const updateAdministrator = async (req, res) => {
+  try {
+    const { id: adminId } = req.params;
+    const { firstname, lastname, email, phonenumber, roleId, statusId } = req.body;
+
+    const administrator = await Employee.findById(adminId);
+    if (!administrator) {
+      throw new NotFoundError(`Administrator with id ${adminId} not found`);
+    }
+
+    // Update fields
+    if (firstname) administrator.firstname = firstname;
+    if (lastname) administrator.lastname = lastname;
+    if (email) administrator.email = email;
+    if (phonenumber) administrator.phonenumber = phonenumber;
+
+    // Update role if provided
+    if (roleId) {
+      const role = await Role.findById(roleId);
+      if (!role) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Invalid role' });
+      }
+      administrator.employeeRole = roleId;
+    }
+
+    // Update status if provided
+    if (statusId) {
+      const status = await Status.findById(statusId);
+      if (!status) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Invalid status' });
+      }
+      administrator.employeeStatus = statusId;
+    }
+
+    await administrator.save();
+    await administrator.populate('employeeRole employeeStatus');
+
+    res.status(StatusCodes.OK).json({ success: true, data: administrator });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
+  }
 };
 
 // Update administrator status
 const updateAdministratorStatus = async (req, res) => {
-    try {
-        const { id: adminId } = req.params;
-        const { status } = req.body;
+  try {
+    const { id: adminId } = req.params;
+    const { status } = req.body;
 
-        const statusObj = await Status.findOne({ status: status });
-        if (!statusObj) {
-            return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Invalid status' });
-        }
-
-        const administrator = await Employee.findByIdAndUpdate(
-            adminId,
-            { employeeStatus: statusObj._id },
-            { new: true }
-        ).populate('employeeRole employeeStatus');
-
-        if (!administrator) {
-            throw new NotFoundError(`Administrator with id ${adminId} not found`);
-        }
-
-        res.status(StatusCodes.OK).json({ success: true, data: administrator });
-    } catch (error) {
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
+    const statusObj = await Status.findOne({ status: status });
+    if (!statusObj) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Invalid status' });
     }
+
+    const administrator = await Employee.findByIdAndUpdate(
+      adminId,
+      { employeeStatus: statusObj._id },
+      { new: true }
+    ).populate('employeeRole employeeStatus');
+
+    if (!administrator) {
+      throw new NotFoundError(`Administrator with id ${adminId} not found`);
+    }
+
+    res.status(StatusCodes.OK).json({ success: true, data: administrator });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
+  }
 };
 
 module.exports = {
   createAdministrator,
   getAllAdministrators,
+  updateAdministrator,
   deleteAdministrator,
   updateAdministratorStatus,
 };

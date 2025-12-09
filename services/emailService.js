@@ -1,21 +1,71 @@
 const nodemailer = require('nodemailer');
 
-// Create reusable transporter using Ethereal for testing
-const createTransporter = async () => {
-    // Generate test SMTP service account from ethereal.email
-    const testAccount = await nodemailer.createTestAccount();
+// Create reusable transporter using real SMTP or Ethereal for testing
+const createTransporter = async (useRealEmail = true) => {
+    if (useRealEmail && process.env.SMTP_HOST && process.env.EMAIL && process.env.EMAIL_PASSWORD) {
+        // Use real email configuration from .env
+        const transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST,
+            port: parseInt(process.env.SMTP_PORT) || 587,
+            secure: false, // true for 465, false for other ports
+            auth: {
+                user: process.env.EMAIL,
+                pass: process.env.EMAIL_PASSWORD,
+            },
+        });
 
-    const transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false, // true for 465, false for other ports
-        auth: {
-            user: testAccount.user,
-            pass: testAccount.pass,
-        },
-    });
+        return { transporter, testAccount: null };
+    } else {
+        // Fallback to Ethereal for testing
+        const testAccount = await nodemailer.createTestAccount();
 
-    return { transporter, testAccount };
+        const transporter = nodemailer.createTransport({
+            host: 'smtp.ethereal.email',
+            port: 587,
+            secure: false,
+            auth: {
+                user: testAccount.user,
+                pass: testAccount.pass,
+            },
+        });
+
+        return { transporter, testAccount };
+    }
+};
+
+// Generic send email function
+const sendEmail = async ({ to, subject, html, text }) => {
+    try {
+        const { transporter, testAccount } = await createTransporter();
+
+        const mailOptions = {
+            from: process.env.EMAIL_FROM || '"FCT-DCIP" <noreply@fct-dcip.gov.ng>',
+            to,
+            subject,
+            html,
+            text: text || html.replace(/<[^>]*>/g, '') // Strip HTML if no text provided
+        };
+
+        const info = await transporter.sendMail(mailOptions);
+
+        console.log('✅ Email sent successfully!');
+        console.log('📧 Message ID:', info.messageId);
+        if (testAccount) {
+            console.log('🔗 Preview URL:', nodemailer.getTestMessageUrl(info));
+        }
+
+        return {
+            success: true,
+            messageId: info.messageId,
+            previewUrl: testAccount ? nodemailer.getTestMessageUrl(info) : null
+        };
+    } catch (error) {
+        console.error('❌ Error sending email:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
 };
 
 // Send broker admin credentials email
@@ -227,5 +277,6 @@ This is an automated message. Please do not reply to this email.
 };
 
 module.exports = {
+    sendEmail,
     sendBrokerAdminCredentials
 };

@@ -2,6 +2,7 @@ const express = require('express');
 const {
   createAdministrator,
   getAllAdministrators,
+  updateAdministrator,
   deleteAdministrator,
   updateAdministratorStatus,
 } = require('../controllers/adminAdministrator');
@@ -15,6 +16,7 @@ router.use(restrictTo('Admin', 'Super-admin', 'NIA-Admin'));
 
 router.post('/', createAdministrator);
 router.get('/', getAllAdministrators);
+router.patch('/:id', updateAdministrator);
 router.delete('/:id', deleteAdministrator);
 router.patch('/:id/status', updateAdministratorStatus);
 
