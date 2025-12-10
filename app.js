@@ -135,6 +135,14 @@ app.use('/api/v1/auth-test', authTestRouter);
 const testEmailRouter = require('./routes/testEmail');
 app.use('/api/v1/test-email', testEmailRouter);
 
+// Settings route
+const settingsRouter = require('./routes/settings');
+app.use('/api/v1/settings', settingsRouter);
+
+// Reset Password route
+const resetPasswordRouter = require('./routes/resetPassword');
+app.use('/api/v1/reset-password', resetPasswordRouter);
+
 app.get('/', (_req, res) => { res.send('<h3>Builders-Liability-AMMC API Server</h3>') })
 
 app.use(notFoundMiddleware);

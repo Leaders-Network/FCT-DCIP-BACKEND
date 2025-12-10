@@ -40,7 +40,7 @@ module.exports = async (email, mailType, content) => {
         html: content
       });
     }
-
+    
     return result;
   } catch (error) {
     console.error('❌ Email send failed:', error.message);
