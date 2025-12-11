@@ -8,6 +8,59 @@ const { BadRequestError, NotFoundError } = require('../errors');
 const { validatePolicy, searchUserPolicies } = require('../services/policyValidationService');
 const EnhancedNotificationService = require('../services/EnhancedNotificationService');
 
+// Payment trigger function for external payment service
+const triggerPaymentRequest = async (policyRequest) => {
+  try {
+    console.log(`💳 Triggering payment request for policy ${policyRequest._id}`);
+
+    // In a real implementation, this would call the external payment service API
+    // For now, we'll simulate the payment request
+    const paymentPayload = {
+      policyId: policyRequest._id.toString(),
+      amount: calculatePolicyPremium(policyRequest),
+      currency: 'NGN',
+      description: `Insurance premium for ${policyRequest.propertyDetails.propertyType}`,
+      customerEmail: policyRequest.contactDetails.email,
+      customerName: policyRequest.contactDetails.fullName,
+      webhookUrl: `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/v1/admin/enforcement/webhook`,
+      metadata: {
+        policyId: policyRequest._id.toString(),
+        propertyType: policyRequest.propertyDetails.propertyType,
+        buildingValue: policyRequest.propertyDetails.buildingValue
+      }
+    };
+
+    // TODO: Replace with actual external payment service API call
+    // Example: await paymentServiceAPI.createPaymentRequest(paymentPayload);
+
+    console.log('💳 Payment request payload:', paymentPayload);
+    console.log('✅ Payment request triggered successfully');
+
+    // For demonstration, we'll log that the payment was triggered
+    // In production, this would make an HTTP request to the payment service
+
+    return {
+      success: true,
+      paymentRequestId: `PAY_${Date.now()}`,
+      amount: paymentPayload.amount
+    };
+
+  } catch (error) {
+    console.error('❌ Failed to trigger payment request:', error);
+    throw error;
+  }
+};
+
+// Calculate policy premium based on property details
+const calculatePolicyPremium = (policyRequest) => {
+  const baseRate = 0.005; // 0.5% of building value
+  const buildingValue = policyRequest.propertyDetails.buildingValue || 0;
+  const premium = Math.max(buildingValue * baseRate, 25000); // Minimum premium of ₦25,000
+
+  console.log(`💰 Calculated premium: ₦${premium.toLocaleString()} for building value ₦${buildingValue.toLocaleString()}`);
+  return premium;
+};
+
 // Create policy request (for users)
 const createPolicyRequest = async (req, res) => {
   try {
@@ -543,6 +596,23 @@ const reviewSurveySubmission = async (req, res) => {
     if (decision === 'approved') {
       policyRequest.status = 'approved';
       policyRequest.adminNotes = reviewNotes;
+
+      // Initialize payment processing
+      policyRequest.paymentInfo = {
+        status: 'pending',
+        initiatedAt: new Date(),
+        method: 'external_payment_service'
+      };
+
+      // Trigger payment request to external service
+      try {
+        await triggerPaymentRequest(policyRequest);
+      } catch (paymentError) {
+        console.error('Failed to trigger payment request:', paymentError);
+        // Don't fail the approval if payment trigger fails
+        // The payment can be retried later
+      }
+
     } else if (decision === 'rejected') {
       policyRequest.status = 'rejected';
       policyRequest.adminNotes = reviewNotes;
@@ -578,15 +648,15 @@ const reviewSurveySubmission = async (req, res) => {
             recipientId: policyRequest.userId.toString(),
             recipientType: 'user',
             type: 'policy_approved',
-            title: 'Policy Approved',
-            message: 'Your policy request has been approved! Your report will be available soon.',
+            title: 'Policy Approved - Payment Required',
+            message: 'Great news! Your policy has been approved. Please complete your payment to finalize your policy and access your documents.',
             priority: 'high',
             actionUrl: `/dashboard/policies/${policyRequest._id}`,
-            actionLabel: 'View Policy',
+            actionLabel: 'Complete Payment',
             metadata: {
               policyId: policyRequest._id.toString(),
-              icon: 'CheckCircle',
-              color: 'green'
+              icon: 'CreditCard',
+              color: 'blue'
             },
             sendEmail: true,
             recipientEmail: user.email

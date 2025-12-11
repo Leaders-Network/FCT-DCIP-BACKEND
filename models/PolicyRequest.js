@@ -125,7 +125,7 @@ const PolicyRequestSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['submitted', 'assigned', 'surveyed', 'approved', 'rejected', 'requires_more_info', 'completed', 'sent_to_user'],
+    enum: ['submitted', 'assigned', 'surveyed', 'approved', 'payment_pending', 'rejected', 'requires_more_info', 'completed', 'sent_to_user'],
     default: 'submitted'
   },
   assignedSurveyors: [{
@@ -214,7 +214,7 @@ const PolicyRequestSchema = new mongoose.Schema({
   statusHistory: [{
     status: {
       type: String,
-      enum: ['submitted', 'assigned', 'surveyed', 'approved', 'rejected', 'requires_more_info', 'completed', 'sent_to_user']
+      enum: ['submitted', 'assigned', 'surveyed', 'approved', 'payment_pending', 'rejected', 'requires_more_info', 'completed', 'sent_to_user']
     },
     changedBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -224,7 +224,10 @@ const PolicyRequestSchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     },
-    reason: String
+    reason: String,
+    metadata: {
+      type: mongoose.Schema.Types.Mixed // For storing additional context like webhook info
+    }
   }],
   // Broker-specific fields (for insurance claims)
   claimRequested: {
@@ -265,7 +268,44 @@ const PolicyRequestSchema = new mongoose.Schema({
     },
     reason: String,
     notes: String
-  }]
+  }],
+  // Payment information for the new payment-verification workflow
+  paymentInfo: {
+    status: {
+      type: String,
+      enum: ['pending', 'paid', 'rejected', 'failed'],
+      default: 'pending'
+    },
+    amount: {
+      type: Number,
+      min: 0
+    },
+    transactionId: {
+      type: String,
+      trim: true
+    },
+    method: {
+      type: String,
+      enum: ['external_payment_service', 'bank_transfer', 'card', 'other'],
+      default: 'external_payment_service'
+    },
+    initiatedAt: {
+      type: Date
+    },
+    paidAt: {
+      type: Date
+    },
+    rejectedAt: {
+      type: Date
+    },
+    reason: {
+      type: String,
+      trim: true
+    },
+    webhookData: {
+      type: mongoose.Schema.Types.Mixed // Store webhook payload for debugging
+    }
+  }
 }, {
   timestamps: true
 });
