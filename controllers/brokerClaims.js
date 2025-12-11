@@ -1,6 +1,7 @@
 const PolicyRequest = require('../models/PolicyRequest');
 const BrokerAdmin = require('../models/BrokerAdmin');
 const { BadRequestError, NotFoundError, UnauthorizedError } = require('../errors');
+const EnhancedNotificationService = require('../services/EnhancedNotificationService');
 
 // Get Broker Dashboard Data
 const getBrokerDashboardData = async (req, res) => {
@@ -282,6 +283,59 @@ const updateClaimStatus = async (req, res) => {
         });
 
         await claim.save();
+
+        // Send notifications about claim status update
+        try {
+            // Notify user about claim status change
+            const { User } = require('../models/User');
+            const user = await User.findById(claim.userId);
+            if (user) {
+                let notificationTitle, notificationMessage, priority, color, icon;
+
+                if (status === 'under_review') {
+                    notificationTitle = 'Claim Under Review';
+                    notificationMessage = 'Your claim is now being reviewed by our team. We will update you on the progress.';
+                    priority = 'medium';
+                    color = 'blue';
+                    icon = 'Clock';
+                } else if (status === 'completed') {
+                    notificationTitle = 'Claim Approved';
+                    notificationMessage = 'Great news! Your claim has been approved and processed.';
+                    priority = 'high';
+                    color = 'green';
+                    icon = 'CheckCircle';
+                } else if (status === 'rejected') {
+                    notificationTitle = 'Claim Requires Attention';
+                    notificationMessage = `Your claim requires attention. Reason: ${reason || 'Please contact support for details.'}`;
+                    priority = 'high';
+                    color = 'red';
+                    icon = 'XCircle';
+                }
+
+                await EnhancedNotificationService.create({
+                    recipientId: claim.userId.toString(),
+                    recipientType: 'user',
+                    type: 'claim_status_updated',
+                    title: notificationTitle,
+                    message: notificationMessage,
+                    priority: priority,
+                    actionUrl: `/dashboard/claims/${claimId}`,
+                    actionLabel: 'View Claim',
+                    metadata: {
+                        policyId: claimId.toString(),
+                        icon: icon,
+                        color: color
+                    },
+                    sendEmail: true,
+                    recipientEmail: user.email
+                });
+            }
+
+            console.log(`Notification sent for claim status update: ${status}`);
+        } catch (notificationError) {
+            console.error('Failed to send claim status notification:', notificationError);
+            // Don't fail the process if notification fails
+        }
 
         // Populate the updated claim
         const updatedClaim = await PolicyRequest.findById(claimId)

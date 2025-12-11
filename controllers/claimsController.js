@@ -4,6 +4,7 @@ const { BadRequestError, NotFoundError, UnauthenticatedError } = require('../err
 const { validatePolicy } = require('../services/policyValidationService');
 const { createClaimRequest } = require('../services/claimCreationService');
 const { uploadDocuments, validateFiles } = require('../services/fileUploadService');
+const EnhancedNotificationService = require('../services/EnhancedNotificationService');
 
 // Submit new claim
 const submitClaim = async (req, res) => {
@@ -102,6 +103,63 @@ const submitClaim = async (req, res) => {
         }
 
         await policy.save();
+
+        // Send notifications about new claim
+        try {
+            // Notify user about claim submission
+            const { User } = require('../models/User');
+            const user = await User.findById(userId);
+            if (user) {
+                await EnhancedNotificationService.create({
+                    recipientId: userId,
+                    recipientType: 'user',
+                    type: 'claim_submitted',
+                    title: 'Claim Submitted Successfully',
+                    message: 'Your claim has been submitted and is being reviewed by our team. We will keep you updated on the progress.',
+                    priority: 'medium',
+                    actionUrl: `/dashboard/claims/${policy._id}`,
+                    actionLabel: 'View Claim',
+                    metadata: {
+                        policyId: policy._id.toString(),
+                        icon: 'FileText',
+                        color: 'blue'
+                    },
+                    sendEmail: true,
+                    recipientEmail: user.email
+                });
+            }
+
+            // Notify broker admins about new claim
+            const BrokerAdmin = require('../models/BrokerAdmin');
+            const brokerAdmins = await BrokerAdmin.find({
+                'permissions.canViewClaims': true
+            });
+
+            for (const brokerAdmin of brokerAdmins) {
+                await EnhancedNotificationService.create({
+                    recipientId: brokerAdmin._id.toString(),
+                    recipientType: 'broker-admin',
+                    type: 'claim_submitted',
+                    title: 'New Claim Requires Review',
+                    message: `A new claim has been submitted for policy ${policy.referenceNumber || policy._id} and requires your review.`,
+                    priority: 'high',
+                    actionUrl: `/broker-admin/claims/${policy._id}`,
+                    actionLabel: 'Review Claim',
+                    metadata: {
+                        policyId: policy._id.toString(),
+                        icon: 'AlertCircle',
+                        color: 'orange'
+                    },
+                    sendEmail: true,
+                    recipientEmail: brokerAdmin.email
+                });
+            }
+
+            console.log(`Notifications sent for new claim: ${policy._id}`);
+        } catch (notificationError) {
+            console.error('Failed to send claim notifications:', notificationError);
+            // Don't fail the process if notification fails
+        }
 
         console.log(`Claim requested for policy ${policy.referenceNumber || policy._id} by user ${userId}`);
 

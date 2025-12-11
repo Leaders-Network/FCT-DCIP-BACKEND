@@ -6,6 +6,7 @@ const Surveyor = require('../models/Surveyor');
 const { Property } = require('../models/Property');
 const { BadRequestError, NotFoundError } = require('../errors');
 const { validatePolicy, searchUserPolicies } = require('../services/policyValidationService');
+const EnhancedNotificationService = require('../services/EnhancedNotificationService');
 
 // Create policy request (for users)
 const createPolicyRequest = async (req, res) => {
@@ -75,13 +76,65 @@ const createPolicyRequest = async (req, res) => {
         });
         await policyRequest.save();
 
-        // Notify both AMMC and NIA admins about new policy requiring assignment
+        // Notify user about policy creation and admins about new policy requiring assignment
         try {
-          const NotificationService = require('../services/NotificationService');
-          await NotificationService.notifyAdminsOfNewPolicy(policyRequest, dualAssignment);
-          console.log(`Admins notified of new policy ${policyRequest._id}`);
+          console.log(`🔔 Starting notification process for policy ${policyRequest._id}`);
+
+          // Notify user about successful policy creation
+          const { User } = require('../models/User');
+          const user = await User.findById(userId);
+          if (user) {
+            console.log(`🔔 Notifying user ${userId} about policy creation`);
+            await EnhancedNotificationService.notifyPolicyCreated(
+              policyRequest._id,
+              userId,
+              user.email
+            );
+            console.log(`🔔 User notification sent successfully`);
+          } else {
+            console.log(`⚠️ User ${userId} not found for notification`);
+          }
+
+          // Notify admins about new policy requiring assignment
+          const { Employee } = require('../models/Employee');
+          const admins = await Employee.find({
+            'employeeRole.role': { $in: ['Admin', 'Super-Admin'] },
+            employeeStatus: { $exists: true }
+          }).populate('employeeStatus');
+
+          console.log(`🔔 Found ${admins.length} total admins`);
+
+          const activeAdmins = admins.filter(admin =>
+            admin.employeeStatus && admin.employeeStatus.status === 'Active'
+          );
+
+          console.log(`🔔 Found ${activeAdmins.length} active admins to notify`);
+
+          for (const admin of activeAdmins) {
+            console.log(`🔔 Notifying admin ${admin._id} (${admin.email})`);
+            await EnhancedNotificationService.create({
+              recipientId: admin._id.toString(),
+              recipientType: 'admin',
+              type: 'policy_created',
+              title: 'New Policy Requires Assignment',
+              message: `A new policy request has been submitted and requires surveyor assignment.`,
+              priority: 'high',
+              actionUrl: `/admin/dashboard/policies/${policyRequest._id}`,
+              actionLabel: 'Assign Surveyors',
+              metadata: {
+                policyId: policyRequest._id.toString(),
+                icon: 'AlertCircle',
+                color: 'orange'
+              },
+              sendEmail: true,
+              recipientEmail: admin.email
+            });
+            console.log(`🔔 Admin notification sent successfully to ${admin.email}`);
+          }
+
+          console.log(`🔔 All notifications sent for policy ${policyRequest._id}`);
         } catch (notificationError) {
-          console.error('Failed to notify admins:', notificationError);
+          console.error('🔔 Failed to send notifications:', notificationError);
           // Don't fail the process if notification fails
         }
 
@@ -512,6 +565,104 @@ const reviewSurveySubmission = async (req, res) => {
     });
 
     await policyRequest.save();
+
+    // Send notifications based on decision
+    try {
+      const { User } = require('../models/User');
+      const user = await User.findById(policyRequest.userId);
+
+      if (decision === 'approved') {
+        // Notify user about policy approval
+        if (user) {
+          await EnhancedNotificationService.create({
+            recipientId: policyRequest.userId.toString(),
+            recipientType: 'user',
+            type: 'policy_approved',
+            title: 'Policy Approved',
+            message: 'Your policy request has been approved! Your report will be available soon.',
+            priority: 'high',
+            actionUrl: `/dashboard/policies/${policyRequest._id}`,
+            actionLabel: 'View Policy',
+            metadata: {
+              policyId: policyRequest._id.toString(),
+              icon: 'CheckCircle',
+              color: 'green'
+            },
+            sendEmail: true,
+            recipientEmail: user.email
+          });
+        }
+      } else if (decision === 'rejected') {
+        // Notify user about policy rejection
+        if (user) {
+          await EnhancedNotificationService.create({
+            recipientId: policyRequest.userId.toString(),
+            recipientType: 'user',
+            type: 'policy_rejected',
+            title: 'Policy Requires Attention',
+            message: 'Your policy request requires attention. Please review the feedback provided.',
+            priority: 'high',
+            actionUrl: `/dashboard/policies/${policyRequest._id}`,
+            actionLabel: 'View Details',
+            metadata: {
+              policyId: policyRequest._id.toString(),
+              icon: 'XCircle',
+              color: 'red'
+            },
+            sendEmail: true,
+            recipientEmail: user.email
+          });
+        }
+      } else {
+        // Notify user about revision required
+        if (user) {
+          await EnhancedNotificationService.create({
+            recipientId: policyRequest.userId.toString(),
+            recipientType: 'user',
+            type: 'policy_requires_revision',
+            title: 'Additional Information Required',
+            message: 'Your policy request requires additional information. Please review and provide the requested details.',
+            priority: 'medium',
+            actionUrl: `/dashboard/policies/${policyRequest._id}`,
+            actionLabel: 'Provide Information',
+            metadata: {
+              policyId: policyRequest._id.toString(),
+              icon: 'AlertCircle',
+              color: 'orange'
+            },
+            sendEmail: true,
+            recipientEmail: user.email
+          });
+        }
+      }
+
+      // Notify surveyor about review outcome
+      const surveyor = await Surveyor.findById(submission.surveyorId).populate('userId');
+      if (surveyor && surveyor.userId) {
+        await EnhancedNotificationService.create({
+          recipientId: surveyor._id.toString(),
+          recipientType: 'surveyor',
+          type: 'survey_reviewed',
+          title: `Survey ${decision === 'approved' ? 'Approved' : decision === 'rejected' ? 'Rejected' : 'Needs Revision'}`,
+          message: `Your survey submission has been reviewed and ${decision}. ${reviewNotes ? 'Review notes: ' + reviewNotes : ''}`,
+          priority: decision === 'approved' ? 'medium' : 'high',
+          actionUrl: `/surveyor/submissions/${submission._id}`,
+          actionLabel: 'View Submission',
+          metadata: {
+            policyId: policyRequest._id.toString(),
+            icon: decision === 'approved' ? 'CheckCircle' : decision === 'rejected' ? 'XCircle' : 'AlertCircle',
+            color: decision === 'approved' ? 'green' : decision === 'rejected' ? 'red' : 'orange'
+          },
+          sendEmail: true,
+          recipientEmail: surveyor.userId.email
+        });
+      }
+
+      console.log(`Notifications sent for policy review: ${decision}`);
+    } catch (notificationError) {
+      console.error('Failed to send review notifications:', notificationError);
+      // Don't fail the process if notification fails
+    }
 
     res.status(StatusCodes.OK).json({
       success: true,

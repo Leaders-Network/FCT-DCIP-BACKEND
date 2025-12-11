@@ -3,6 +3,7 @@ const AutoReportMerger = require('../services/AutoReportMerger');
 const MergedReport = require('../models/MergedReport');
 const DualAssignment = require('../models/DualAssignment');
 const ProcessingJob = require('../models/ProcessingJob');
+const EnhancedNotificationService = require('../services/EnhancedNotificationService');
 
 // Initialize the auto report merger
 const autoMerger = new AutoReportMerger();
@@ -51,6 +52,66 @@ const processDualAssignment = async (req, res) => {
         processingJob.completedAt = new Date();
         processingJob.result = result;
         await processingJob.save();
+
+        // Send notifications about report completion
+        try {
+            if (result.mergedReportId) {
+                // Get the policy information
+                const PolicyRequest = require('../models/PolicyRequest');
+                const policy = await PolicyRequest.findById(assignment.policyId);
+
+                if (policy && policy.userId) {
+                    // Notify user about report completion
+                    const { User } = require('../models/User');
+                    const user = await User.findById(policy.userId);
+                    if (user) {
+                        await EnhancedNotificationService.notifyReportReady(
+                            policy._id,
+                            policy.userId,
+                            user.email,
+                            result.mergedReportId
+                        );
+                    }
+
+                    // Notify admins about report completion
+                    const { Employee } = require('../models/Employee');
+                    const admins = await Employee.find({
+                        'employeeRole.role': { $in: ['Admin', 'Super-Admin'] },
+                        employeeStatus: { $exists: true }
+                    }).populate('employeeStatus');
+
+                    const activeAdmins = admins.filter(admin =>
+                        admin.employeeStatus && admin.employeeStatus.status === 'Active'
+                    );
+
+                    for (const admin of activeAdmins) {
+                        await EnhancedNotificationService.create({
+                            recipientId: admin._id.toString(),
+                            recipientType: 'admin',
+                            type: 'report_ready',
+                            title: 'Report Processing Complete',
+                            message: `A merged report has been generated and is ready for review.`,
+                            priority: 'medium',
+                            actionUrl: `/admin/dashboard/reports/${result.mergedReportId}`,
+                            actionLabel: 'Review Report',
+                            metadata: {
+                                policyId: policy._id.toString(),
+                                reportId: result.mergedReportId.toString(),
+                                icon: 'FileText',
+                                color: 'green'
+                            },
+                            sendEmail: true,
+                            recipientEmail: admin.email
+                        });
+                    }
+                }
+            }
+
+            console.log(`Notifications sent for report completion: ${result.mergedReportId}`);
+        } catch (notificationError) {
+            console.error('Failed to send report completion notifications:', notificationError);
+            // Don't fail the process if notification fails
+        }
 
         res.status(StatusCodes.OK).json({
             success: true,

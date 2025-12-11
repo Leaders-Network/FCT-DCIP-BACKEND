@@ -21,6 +21,10 @@ class EnhancedNotificationService {
         recipientEmail
     }) {
         try {
+            console.log(`🔔 Creating notification: ${type} for ${recipientType} ${recipientId}`);
+            console.log(`🔔 Title: ${title}`);
+            console.log(`🔔 Message: ${message}`);
+
             const notification = await Notification.create({
                 recipientId,
                 recipientType,
@@ -35,19 +39,28 @@ class EnhancedNotificationService {
                 metadata
             });
 
+            console.log(`🔔 Notification created successfully with ID: ${notification._id}`);
+
             // Send email if requested
             if (sendEmail && recipientEmail) {
-                await this.sendEmailNotification(recipientEmail, {
-                    title,
-                    message,
-                    actionUrl,
-                    actionLabel
-                });
+                console.log(`🔔 Sending email notification to: ${recipientEmail}`);
+                try {
+                    await this.sendEmailNotification(recipientEmail, {
+                        title,
+                        message,
+                        actionUrl,
+                        actionLabel
+                    });
+                    console.log(`🔔 Email notification sent successfully`);
+                } catch (emailError) {
+                    console.error('🔔 Failed to send email notification:', emailError);
+                    // Don't fail notification creation if email fails
+                }
             }
 
             return notification;
         } catch (error) {
-            console.error('Failed to create notification:', error);
+            console.error('🔔 Failed to create notification:', error);
             throw error;
         }
     }
@@ -171,6 +184,7 @@ class EnhancedNotificationService {
      * Policy created notification
      */
     static async notifyPolicyCreated(policyId, userId, userEmail) {
+        console.log(`🔔 notifyPolicyCreated called: policyId=${policyId}, userId=${userId}, email=${userEmail}`);
         return await this.create({
             recipientId: userId,
             recipientType: 'user',

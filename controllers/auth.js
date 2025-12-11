@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs')
 const { StatusCodes } = require('http-status-codes')
 const { BadRequestError, UnauthenticatedError, NotFoundError } = require('../errors');
 const { generateRandomString, generatePolicyNumber } = require('../middlewares/PolicyNumberGenerator');
+const EnhancedNotificationService = require('../services/EnhancedNotificationService');
 
 
 let emailTokenStoreEmployee = {}
@@ -214,6 +215,32 @@ const register = async (req, res) => {
             const userObject = user.toObject()
             delete userObject.password
             delete userObject.__v
+
+            // Send welcome notification to new user
+            try {
+                await EnhancedNotificationService.create({
+                    recipientId: user._id.toString(),
+                    recipientType: 'user',
+                    type: 'system_alert',
+                    title: 'Welcome to FCT-DCIP!',
+                    message: 'Welcome to the FCT Defense Critical Infrastructure Program. You can now submit policy requests and track your applications.',
+                    priority: 'medium',
+                    actionUrl: '/dashboard',
+                    actionLabel: 'Explore Dashboard',
+                    metadata: {
+                        icon: 'CheckCircle',
+                        color: 'green'
+                    },
+                    sendEmail: true,
+                    recipientEmail: user.email
+                });
+
+                console.log(`Welcome notification sent to new user: ${user.email}`);
+            } catch (notificationError) {
+                console.error('Failed to send welcome notification:', notificationError);
+                // Don't fail registration if notification fails
+            }
+
             res.status(StatusCodes.CREATED).json({ success: true, user: userObject, token })
         }
     }

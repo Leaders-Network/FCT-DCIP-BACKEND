@@ -4,6 +4,7 @@ const PolicyRequest = require('../models/PolicyRequest');
 const Surveyor = require('../models/Surveyor');
 const SurveySubmission = require('../models/SurveySubmission');
 const { BadRequestError, NotFoundError } = require('../errors');
+const EnhancedNotificationService = require('../services/EnhancedNotificationService');
 
 // Get all assignments with comprehensive filters for admin dashboard
 const getAllAssignments = async (req, res) => {
@@ -701,6 +702,49 @@ const createAssignment = async (req, res) => {
       .populate('ammcId', 'policyNumber contactDetails propertyDetails')
       .populate('surveyorId', 'firstname lastname email phonenumber')
       .populate('assignedBy', 'firstname lastname');
+
+    // Send notifications about assignment creation
+    try {
+      // Notify surveyor about new assignment
+      await EnhancedNotificationService.notifyPolicyAssigned(
+        ammcId,
+        surveyorId,
+        surveyorContactInfo.email,
+        newAssignment._id
+      );
+
+      // Notify user about assignment
+      const policy = await PolicyRequest.findById(ammcId);
+      if (policy && policy.userId) {
+        const { User } = require('../models/User');
+        const user = await User.findById(policy.userId);
+        if (user) {
+          await EnhancedNotificationService.create({
+            recipientId: policy.userId.toString(),
+            recipientType: 'user',
+            type: 'policy_assigned',
+            title: 'Surveyor Assigned',
+            message: `A surveyor has been assigned to assess your property. They will contact you soon to schedule the survey.`,
+            priority: 'medium',
+            actionUrl: `/dashboard/policies/${ammcId}`,
+            actionLabel: 'View Details',
+            metadata: {
+              policyId: ammcId.toString(),
+              assignmentId: newAssignment._id.toString(),
+              icon: 'UserCheck',
+              color: 'blue'
+            },
+            sendEmail: true,
+            recipientEmail: user.email
+          });
+        }
+      }
+
+      console.log(`Notifications sent for assignment creation: ${newAssignment._id}`);
+    } catch (notificationError) {
+      console.error('Failed to send assignment notifications:', notificationError);
+      // Don't fail the process if notification fails
+    }
 
     res.status(StatusCodes.CREATED).json({
       success: true,

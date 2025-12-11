@@ -47,6 +47,7 @@ const errorHandlerMiddleware = require('./middlewares/error-handler');
 const cors = require('cors');
 const { createStatuses, createRoles, createPropertyCategories, createSurveyorRoles, createFirstSuperAdmin } = require('./controllers/auth')
 const scheduledProcessor = require('./services/ScheduledReportProcessor');
+const DeadlineNotificationService = require('./services/DeadlineNotificationService');
 const { compressionMiddleware, requestTiming } = require('./middlewares/performance');
 
 const app = express()
@@ -127,6 +128,10 @@ app.use('/api/v1/manual-processing', manualReportProcessingRouter);
 app.use('/api/v1/claims', claimsRouter);
 app.use('/api/v1/notifications', notificationsRouter);
 
+// Test notifications route
+const testNotificationsRouter = require('./routes/testNotifications');
+app.use('/api/v1/test-notifications', testNotificationsRouter);
+
 // Authentication testing routes
 const authTestRouter = require('./routes/authTest');
 app.use('/api/v1/auth-test', authTestRouter);
@@ -170,6 +175,9 @@ const start = async () => {
 
       // Start the scheduled report processor
       scheduledProcessor.start();
+
+      // Start deadline notification monitoring
+      DeadlineNotificationService.startDeadlineMonitoring();
     });
   } catch (error) {
     console.error('💥 Failed to start server:', error.message);

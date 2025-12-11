@@ -5,6 +5,7 @@ const SurveySubmission = require('../models/SurveySubmission');
 const PolicyRequest = require('../models/PolicyRequest');
 const DualAssignment = require('../models/DualAssignment');
 const { BadRequestError, NotFoundError, UnauthenticatedError } = require('../errors');
+const EnhancedNotificationService = require('../services/EnhancedNotificationService');
 
 // Get surveyor dashboard data
 const getSurveyorDashboard = async (req, res) => {
@@ -585,6 +586,77 @@ const submitSurvey = async (req, res) => {
     }
 
     await PolicyRequest.findByIdAndUpdate(ammcId, policyUpdateData);
+
+    // Send notifications about survey submission
+    try {
+      // Notify admins about survey submission
+      const { Employee } = require('../models/Employee');
+      const admins = await Employee.find({
+        'employeeRole.role': { $in: ['Admin', 'Super-Admin'] },
+        employeeStatus: { $exists: true }
+      }).populate('employeeStatus');
+
+      const activeAdmins = admins.filter(admin =>
+        admin.employeeStatus && admin.employeeStatus.status === 'Active'
+      );
+
+      for (const admin of activeAdmins) {
+        await EnhancedNotificationService.create({
+          recipientId: admin._id.toString(),
+          recipientType: 'admin',
+          type: 'survey_submitted',
+          title: 'Survey Submitted for Review',
+          message: `A surveyor has submitted a survey report that requires your review.`,
+          priority: 'high',
+          actionUrl: `/admin/dashboard/policies/${ammcId}`,
+          actionLabel: 'Review Survey',
+          metadata: {
+            policyId: ammcId.toString(),
+            icon: 'FileText',
+            color: 'purple'
+          },
+          sendEmail: true,
+          recipientEmail: admin.email
+        });
+      }
+
+      // Notify user about survey completion
+      const policy = await PolicyRequest.findById(ammcId);
+      if (policy && policy.userId) {
+        const { User } = require('../models/User');
+        const user = await User.findById(policy.userId);
+        if (user) {
+          const completionMessage = dualAssignmentUpdate && dualAssignmentUpdate.completionStatus === 100
+            ? 'Both surveyors have completed their assessments. Your report is being processed.'
+            : dualAssignmentUpdate && dualAssignmentUpdate.completionStatus === 50
+              ? 'One surveyor has completed their assessment. Waiting for the second surveyor.'
+              : 'Your property survey has been completed and is being reviewed.';
+
+          await EnhancedNotificationService.create({
+            recipientId: policy.userId.toString(),
+            recipientType: 'user',
+            type: 'policy_surveyed',
+            title: 'Survey Completed',
+            message: completionMessage,
+            priority: 'medium',
+            actionUrl: `/dashboard/policies/${ammcId}`,
+            actionLabel: 'View Status',
+            metadata: {
+              policyId: ammcId.toString(),
+              icon: 'CheckCircle',
+              color: 'blue'
+            },
+            sendEmail: true,
+            recipientEmail: user.email
+          });
+        }
+      }
+
+      console.log(`Notifications sent for survey submission: ${submission._id}`);
+    } catch (notificationError) {
+      console.error('Failed to send survey submission notifications:', notificationError);
+      // Don't fail the process if notification fails
+    }
 
     // Fetch the submission again to ensure all fields are included in response
     const savedSubmission = await SurveySubmission.findById(submission._id)
