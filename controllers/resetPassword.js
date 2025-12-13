@@ -41,6 +41,13 @@ const sendResetPasswordOTP = async (req, res) => {
         // Generate 6-digit OTP
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         console.log('🔢 Generated OTP:', otp, 'for email:', email);
+        console.log('📝 OTP Details:', {
+            otp: otp,
+            email: email,
+            userType: userType,
+            userId: user._id,
+            timestamp: new Date().toISOString()
+        });
 
         // Delete any existing OTP for this email
         const deletedCount = await Otp.deleteMany({ email });
@@ -104,7 +111,9 @@ const verifyResetPasswordOTP = async (req, res) => {
             email: otpRecord.email,
             otp: otpRecord.otp,
             expiresAt: otpRecord.expiresAt,
-            verified: otpRecord.verified
+            verified: otpRecord.verified,
+            createdAt: otpRecord.createdAt,
+            timeRemaining: Math.round((otpRecord.expiresAt - new Date()) / 1000 / 60) + ' minutes'
         });
 
         // Check if OTP has expired
@@ -358,6 +367,14 @@ const resendResetPasswordOTP = async (req, res) => {
         // Generate new OTP
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         console.log('🔢 Generated new OTP for resend:', otp, 'for email:', email);
+        console.log('📝 Resend OTP Details:', {
+            otp: otp,
+            email: email,
+            userType: userType,
+            userId: user._id,
+            timestamp: new Date().toISOString(),
+            reason: 'resend_request'
+        });
 
         // Delete any existing OTP for this email
         const deletedCount = await Otp.deleteMany({ email });

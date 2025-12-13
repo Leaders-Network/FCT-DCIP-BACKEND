@@ -44,8 +44,26 @@ const otpSchema = new mongoose.Schema(
 // Create index for automatic document expiration
 otpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-
 // Check if model already exists to prevent OverwriteModelError
-const Otp = mongoose.models.otp || mongoose.model("otp", otpSchema);
+// Use both lowercase and check mongoose.models to ensure we don't overwrite
+let Otp;
+try {
+    // First check if model exists in mongoose.models (case-insensitive check)
+    if (mongoose.models.otp) {
+        Otp = mongoose.models.otp;
+    } else if (mongoose.models.Otp) {
+        Otp = mongoose.models.Otp;
+    } else {
+        // Model doesn't exist, create it
+        Otp = mongoose.model("otp", otpSchema);
+    }
+} catch (error) {
+    // If there's an error, try to get existing model or create new one
+    if (mongoose.models.otp) {
+        Otp = mongoose.models.otp;
+    } else {
+        Otp = mongoose.model("otp", otpSchema);
+    }
+}
 
 module.exports = Otp;
