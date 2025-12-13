@@ -1,7 +1,7 @@
 const { StatusCodes } = require('http-status-codes');
 const User = require('../models/User');
 const { Employee } = require('../models/Employee');
-const Otp = require('../models/Otp');
+const Otp = require('../models/OTP');
 const { BadRequestError, NotFoundError, UnauthenticatedError } = require('../errors');
 const bcrypt = require('bcryptjs');
 const sendEmail = require('../utils/sendEmail');
